@@ -345,6 +345,20 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 .okc{color:var(--ok)} .badc{color:var(--bad)}
 .dot.qok{background:var(--ok); color:#fff; box-shadow:0 0 0 2px #fff, 0 1px 3px rgba(0,0,0,.5)}
 .dot.qbad{background:var(--bad); color:#fff; box-shadow:0 0 0 2px #fff, 0 1px 3px rgba(0,0,0,.5)}
+.dot.heat{border-radius:7px; color:#fff; font-size:calc(var(--dot) * .4); box-shadow:0 1px 3px rgba(0,0,0,.5)}
+.dot.heat.h-good{background:var(--ok)}
+.dot.heat.h-mid{background:#f59f00; color:#1b1300}
+.dot.heat.h-bad{background:var(--bad)}
+.dot.heat.few{background:color-mix(in srgb, var(--hc, #888) 45%, #2a1c13); box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55); color:#fff}
+.dot.heat.h-good.few{--hc:var(--ok)} .dot.heat.h-mid.few{--hc:#f59f00} .dot.heat.h-bad.few{--hc:var(--bad)}
+.weak{display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap:8px}
+.weak > div{background:var(--surface-2); border-radius:10px; padding:8px 10px; display:grid; gap:4px; align-content:start}
+.weak .wh{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
+.wrow{display:flex; justify-content:space-between; gap:8px; font-size:13px; align-items:baseline}
+.wrow b{font-weight:750}
+.wrow small{color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; white-space:nowrap}
+.wrow .bar{flex:1; height:5px; border-radius:3px; background:var(--line); overflow:hidden; align-self:center; min-width:30px}
+.wrow .bar i{display:block; height:100%}
 .dot.qask{background:#fff; color:#111; box-shadow:0 0 0 3px var(--l0), 0 2px 6px rgba(0,0,0,.6); font-size:calc(var(--dot) * .55)}
 .quiz-types{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:6px}
 .quiz-types button{border:1px solid var(--line); background:var(--surface-2); border-radius:10px; padding:8px 10px; text-align:left; display:grid; gap:2px}
@@ -896,7 +910,8 @@ function renderBoard(){
   const cmpMode = cmp.length > 0;
   const cmpPcs = cmp.map(p => new Set(CHORDS[p.type].labels.map(l => mod(p.root + semi(l)))));
   // chord-position focus: the first visible chord layer with a position set
-  const fi = (pickMode || cmpMode || quiz) ? -1 : state.layers.findIndex(L => L.visible && (L.kind === 'chord' || L.kind === 'scale') && L.pos);
+  const heatAgg = heatOn && !quiz && !pickMode && !cmpMode ? quizAgg(state.heatFam || 'all') : null;
+  const fi = (pickMode || cmpMode || quiz || heatAgg) ? -1 : state.layers.findIndex(L => L.visible && (L.kind === 'chord' || L.kind === 'scale') && L.pos);
   const focus = fi >= 0 ? Object.assign({i:fi}, focusFor(state.layers[fi])) : null;
   const cmpHit = (k, s, f, pc) => { const p = cmp[k]; return (p.shape && (p.tuning || 'std') === state.tuning) ? p.shape.some(q => q.s === s && q.f === f) : cmpPcs[k].has(pc); };
   const readLabel = iv => (reading.labels.find(l => semi(l) === iv) || INTERVALS[iv]);
@@ -930,6 +945,15 @@ function renderBoard(){
       }
       let dot = '';
       if (quiz) { dot = quizDot(s, f); dim = !qIn(s, f); muted = false; }
+      else if (heatAgg) {
+        muted = false;
+        const b = heatAgg.cells.get(s + ':' + f);
+        if (b) {
+          const pct = Math.round(b.ok / b.n * 100);
+          // fewer than 3 answers: still solid (so the string doesn't show through), but marked as a rough guess
+          dot = `<span class="dot heat ${heatClass(b, heatAgg.med)}${b.n < 3 ? ' few' : ''}" aria-label="${pct}% right from ${b.n} answer${b.n > 1 ? 's' : ''}">${pct}</span>`;
+        }
+      }
       else if (cmpMode) {
         const hc = cmp.map((p, k) => k).filter(k => cmpHit(k, s, f, pc));
         if (hc.length) {
@@ -975,7 +999,7 @@ function renderBoard(){
         dot = `<span class="dot ghost root" style="--c:${byIv() ? 'var(--i0)' : colOf(0)}">${state.labelMode === 'note' ? pn(layerRoot(main)) : 'R'}</span>`;
       }
       if (muted) dot = `<span class="dot mute" aria-hidden="true">×</span>`;
-      if (!dot && !quiz && (state.allNames || f === 0)) dot = `<span class="dot nm">${pn(noteName(pc))}</span>`;
+      if (!dot && !quiz && !heatAgg && (state.allNames || f === 0)) dot = `<span class="dot nm">${pn(noteName(pc))}</span>`;
       const tapped = !pickMode && state.tap && state.tap.s === s && state.tap.f === f;
       html += `<button type="button" class="cell${f === 0 ? ' open' : ''}${tapped ? ' tapped' : ''}${dim ? ' dim' : ''}" data-s="${s}" data-f="${f}" style="--g:${GAUGE[s]}px" aria-label="String ${6 - s}, ${f === 0 ? 'open' : 'fret ' + f}, ${noteName(pc)}">${dot}</button>`;
     }
@@ -1006,6 +1030,11 @@ function renderBoard(){
   let pickNote = '';
   if (pickMode && reading && !pinShape) pickNote = ` · reading as <b>${reading.name}</b>${byIv() ? ` · colored by interval from ${pn(rootName(pickRoot, reading.labels))}` : ''}`;
   else if (pinShape && reading && byIv()) pickNote = ` · colored by interval from ${pn(rootName(pickRoot, reading.labels))}`;
+  if (heatAgg) {
+    $('#legend').innerHTML = `<span><b>Weak spots · ${FAMILIES[state.heatFam || 'all'].label}</b> · % right per fret from ${heatAgg.n} answers</span>
+      <span><i style="--c:var(--ok)"></i>solid</span><span><i style="--c:#f59f00"></i>slow or shaky</span><span><i style="--c:var(--bad)"></i>often missed</span><span>faint = fewer than 3 answers · tap a fret for details</span>`;
+    return;
+  }
   if (quiz) {
     $('#legend').innerHTML = `<span><b>${QUIZ_TYPES[quiz.type].name}</b> · ${quizPrompt()} · frets ${QUIZ_RANGES[quiz.range].join('–')}</span>`;
     return;
@@ -1676,7 +1705,7 @@ const qIn = (s, f) => { const [lo, hi] = QUIZ_RANGES[quiz.range]; return f >= lo
 const ivLabel = iv => pl(INTERVALS[iv]);
 function quizStart(opts){
   const cfg = state.quizCfg, len = QUIZ_LENGTHS[cfg.length];
-  quiz = Object.assign({type:cfg.type, range:cfg.range, pool:cfg.pool, mode:len.mode, limit:len.n || 0, secs:len.s || 0,
+  quiz = Object.assign({type:cfg.type, range:cfg.range, pool:cfg.pool, focus:cfg.focus || 'random', mode:len.mode, limit:len.n || 0, secs:len.s || 0,
     n:0, ok:0, bad:0, t0:Date.now(), endsAt:len.mode === 'time' ? Date.now() + len.s * 1000 : 0, q:null, flash:null, reveal:null, lock:false}, opts || {});
   if (quiz.mode === 'session') { quiz.limit = 0; quiz.endsAt = 0; }
   state.pinView = null; state.compare = null;
@@ -1684,33 +1713,38 @@ function quizStart(opts){
 }
 function quizNext(){
   const cells = qCells(), last = quiz.q, pool = quiz.pool === 'all' ? POOL_ALL : POOL_CORE;
-  quiz.reveal = null; quiz.lock = false;
+  quiz.reveal = null; quiz.lock = false; quiz.lastT = null;
   const tun = TUNINGS[state.tuning].midi;
+  // "weak spots first": weight choices by how often you miss them (unseen things get a middling weight)
+  const agg = quiz.focus === 'weak' ? quizAgg('all') : null;
+  const W = b => { const w = weakness(b, agg.med); return 0.15 + w * w * 8; };   // missed ≈ 2× unseen, solid ≈ ⅙ of unseen
+  const pickIv = () => agg ? weightedPick(pool, iv => W(agg.ivs.get(iv))) : rnd(pool);
+  const pickCell = list => agg ? weightedPick(list, c => W(agg.cells.get(c.s + ':' + c.f))) : rnd(list);
   for (let tries = 0; tries < 60; tries++) {
     if (quiz.type === 'ear-interval') {
-      const iv = rnd(pool), rootMidi = 45 + Math.floor(Math.random() * 15);   // A2..B3
+      const iv = pickIv(), rootMidi = 45 + Math.floor(Math.random() * 15);   // A2..B3
       if (last && last.iv === iv && tries < 30) continue;
       quiz.q = {iv, rootMidi, rpc:mod(rootMidi)};
     } else if (quiz.type === 'ear-chord') {
-      const ci = Math.floor(Math.random() * EAR_CHORDS.length);
+      const ci = agg ? weightedPick(EAR_CHORDS.map((_, k) => k), k => W(agg.chords.get(k))) : Math.floor(Math.random() * EAR_CHORDS.length);
       if (last && last.ci === ci && tries < 30) continue;
       quiz.q = {ci, root:Math.floor(Math.random() * 12)};
     } else if (quiz.type === 'ear-find') {
-      const iv = rnd(pool), root = rnd(cells), rm = tun[root.s] + root.f, targetMidi = rm + iv;
+      const iv = pickIv(), root = rnd(cells), rm = tun[root.s] + root.f, targetMidi = rm + iv;
       // the played note must exist within 4 frets of the root, in range
       const targets = cells.filter(c => tun[c.s] + c.f === targetMidi && Math.abs(c.f - root.f) <= 4);
       if (!targets.length) continue;
       quiz.q = {root, iv, targetMidi, targets, rpc:mod(rm)};
     } else if (quiz.type === 'find-note') {
-      const pc = Math.floor(Math.random() * 12);
+      const pc = agg ? weightedPick([0,1,2,3,4,5,6,7,8,9,10,11], p => W(agg.pcs.get(p))) : Math.floor(Math.random() * 12);
       if (last && last.pc === pc) continue;
       quiz.q = {pc, targets:cells.filter(c => qPc(c) === pc), found:[]};
     } else if (quiz.type === 'name-note') {
-      const cell = rnd(cells);
+      const cell = pickCell(cells);
       if (last && last.cell && last.cell.s === cell.s && last.cell.f === cell.f) continue;
       quiz.q = {cell, pc:qPc(cell)};
     } else {
-      const iv = rnd(pool), root = rnd(cells), rpc = qPc(root);
+      const iv = pickIv(), root = rnd(cells), rpc = qPc(root);
       const near = cells.filter(c => !(c.s === root.s && c.f === root.f) && Math.abs(c.f - root.f) <= 4 && qPc(c) === mod(rpc + iv));
       if (!near.length) continue;
       if (quiz.type === 'find-interval') quiz.q = {root, iv, targets:near, rpc};
@@ -1751,17 +1785,17 @@ function quizTap(s, f){
   pluck(TUNINGS[state.tuning].midi[s] + f);
   if (quiz.type === 'find-note') {
     if (q.found.some(c => c.s === s && c.f === f)) return;
-    if (pc === q.pc) { q.found.push({s, f}); quiz.ok++; if (q.found.length === q.targets.length) { quiz.lock = true; quizScored(); } }
-    else { quiz.bad++; quizFlash(s, f, false); }
+    if (pc === q.pc) { recAnswer({ok:true, s, f, pc:q.pc}); q.found.push({s, f}); quiz.ok++; if (q.found.length === q.targets.length) { quiz.lock = true; quizScored(); } }
+    else { recAnswer({ok:false, s, f, pc:q.pc}); quiz.bad++; quizFlash(s, f, false); }
   } else if (quiz.type === 'ear-find') {
     if (s === q.root.s && f === q.root.f) { quizPlay(); return; }        // tapping the root replays the question
     const m = TUNINGS[state.tuning].midi[s] + f;
-    if (m === q.targetMidi) { quiz.ok++; quiz.reveal = {s, f, ok:true}; quiz.lock = true; quizScored(); }
-    else { quiz.bad++; quizFlash(s, f, false); if (mod(m) === mod(q.targetMidi)) toast('Right note name, wrong octave. It was higher, near the root.'); }
+    if (m === q.targetMidi) { recAnswer({ok:true, s, f, iv:q.iv}); quiz.ok++; quiz.reveal = {s, f, ok:true}; quiz.lock = true; quizScored(); }
+    else { recAnswer({ok:false, s, f, iv:q.iv}); quiz.bad++; quizFlash(s, f, false); if (mod(m) === mod(q.targetMidi)) toast('Right note name, wrong octave. It was higher, near the root.'); }
   } else if (quiz.type === 'find-interval') {
     if (s === q.root.s && f === q.root.f) return;
-    if (q.targets.some(c => c.s === s && c.f === f)) { quiz.ok++; quiz.reveal = {s, f, ok:true}; quiz.lock = true; quizScored(); }
-    else { quiz.bad++; quizFlash(s, f, false); if (pc === mod(q.rpc + q.iv)) toast('Right note, but stay within 4 frets of the root.'); }
+    if (q.targets.some(c => c.s === s && c.f === f)) { recAnswer({ok:true, s, f, iv:q.iv}); quiz.ok++; quiz.reveal = {s, f, ok:true}; quiz.lock = true; quizScored(); }
+    else { recAnswer({ok:false, s, f, iv:q.iv}); quiz.bad++; quizFlash(s, f, false); if (pc === mod(q.rpc + q.iv)) toast('Right note, but stay within 4 frets of the root.'); }
   }
   render();
 }
@@ -1769,6 +1803,10 @@ function quizAnswer(v){
   if (!quiz || quiz.lock) return;
   const q = quiz.q;
   const ok = quiz.type === 'name-note' ? v === q.pc : quiz.type === 'ear-chord' ? v === q.ci : v === q.iv;
+  if (quiz.type === 'name-note') recAnswer({ok, s:q.cell.s, f:q.cell.f, pc:q.pc});
+  else if (quiz.type === 'name-interval') recAnswer({ok, s:q.target.s, f:q.target.f, iv:q.iv});
+  else if (quiz.type === 'ear-chord') recAnswer({ok, ci:q.ci});
+  else recAnswer({ok, iv:q.iv});
   if (ok) quiz.ok++; else quiz.bad++;
   quiz.reveal = {ok, picked:v}; quiz.lock = true;
   if (quiz.type === 'name-note' || quiz.type === 'name-interval') {
@@ -1855,6 +1893,66 @@ function quizStripHtml(){
     ${quiz.mode !== 'session' ? `<span class="t" data-quiz-time>${quiz.mode === 'time' ? fmt(quiz.endsAt - Date.now()) : fmt(Date.now() - quiz.t0)}</span>` : ''}
     <button type="button" class="ib" data-act="qskip">Skip</button>
     ${quiz.mode !== 'session' ? '<button type="button" class="ib" data-act="qstop">End quiz</button>' : ''}`;
+}
+
+/* ================= quiz answers, weak spots & heatmap ================= */
+const ANSKEY = 'fretboard-atlas-answers-v1';
+let answers = [];
+try { answers = JSON.parse(localStorage.getItem(ANSKEY)) || []; if (!Array.isArray(answers)) answers = []; } catch (e) { answers = []; }
+let ansTimer = null;
+function saveAnswers(){ clearTimeout(ansTimer); ansTimer = setTimeout(() => { try { localStorage.setItem(ANSKEY, JSON.stringify(answers.slice(-6000))); } catch (e) {} }, 400); }
+/* one row per answer: quiz type, right/wrong, response time, and the fret / note / interval involved */
+function recAnswer(o){
+  if (!quiz) return;
+  const now = Date.now();
+  answers.push(Object.assign({t:now, q:quiz.type, tun:state.tuning, ms:Math.max(0, now - (quiz.lastT || quiz.qt || now))}, o));
+  quiz.lastT = now; saveAnswers();
+}
+const FAMILIES = {
+  all:{label:'Everything', types:null},
+  notes:{label:'Note names', types:['find-note','name-note']},
+  intervals:{label:'Intervals', types:['find-interval','name-interval','ear-find','ear-interval']},
+  ear:{label:'Ear training', types:['ear-interval','ear-chord','ear-find']}
+};
+const ZONES = [[0, 4, 'Frets 0–4'], [5, 8, 'Frets 5–8'], [9, 12, 'Frets 9–12'], [13, 24, 'Frets 13–24']];
+function median(xs){ if (!xs.length) return 0; const s = xs.slice().sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; }
+/* roll answers up by fret, note, string, zone, interval and chord quality */
+function quizAgg(family){
+  const types = FAMILIES[family || 'all'].types;
+  const rows = answers.filter(a => !types || types.includes(a.q));
+  const bucket = () => ({n:0, ok:0, ms:[]});
+  const add = (map, k, a) => { if (k == null) return; const b = map.get(k) || map.set(k, bucket()).get(k); b.n++; if (a.ok) b.ok++; if (a.ok && a.ms) b.ms.push(a.ms); };
+  const cells = new Map(), pcs = new Map(), strings = new Map(), zones = new Map(), ivs = new Map(), chords = new Map();
+  const tun = TUNINGS[state.tuning].midi;
+  rows.forEach(a => {
+    const hasCell = a.s != null && a.f != null && (a.tun || 'std') === state.tuning;
+    if (hasCell) { add(cells, a.s + ':' + a.f, a); add(strings, a.s, a); add(zones, ZONES.findIndex(z => a.f >= z[0] && a.f <= z[1]), a); }
+    const pc = a.pc != null ? a.pc : hasCell && (a.q === 'name-note' || a.q === 'find-note') ? mod(tun[a.s] + a.f) : null;
+    if (a.q === 'find-note' || a.q === 'name-note') add(pcs, a.pc != null ? a.pc : pc, a);
+    if (a.iv != null) add(ivs, a.iv, a);
+    if (a.ci != null) add(chords, a.ci, a);
+  });
+  const okMs = rows.filter(a => a.ok && a.ms).map(a => a.ms);
+  return {rows, cells, pcs, strings, zones, ivs, chords, n:rows.length, ok:rows.filter(a => a.ok).length, med:median(okMs)};
+}
+/* how weak something is: smoothed miss rate, plus a bump for answering slowly */
+function weakness(b, med){
+  if (!b) return 0.5;
+  const miss = (b.n - b.ok + 1) / (b.n + 2);
+  const slow = med && b.ms.length ? Math.min(1, Math.max(0, median(b.ms) / med - 1)) : 0;
+  return miss + slow * 0.35;
+}
+function weightedPick(items, weightOf){
+  const w = items.map(weightOf), total = w.reduce((a, x) => a + x, 0);
+  let r = Math.random() * total;
+  for (let k = 0; k < items.length; k++) { r -= w[k]; if (r <= 0) return items[k]; }
+  return items[items.length - 1];
+}
+let heatArmed = false, heatTimer = null, heatOn = false;
+function heatClass(b, med){
+  if (!b || !b.n) return '';
+  const acc = b.ok / b.n, slow = med && b.ms.length && median(b.ms) > med * 1.5;
+  return acc < 0.6 ? 'h-bad' : acc < 0.85 || slow ? 'h-mid' : 'h-good';
 }
 
 /* ================= practice: backing loop & drone ================= */
@@ -2087,7 +2185,7 @@ function itemFromNeck(){
 }
 function loadItem(it){
   if (it.bpm) setBpm(it.bpm);
-  if (it.kind === 'quiz') { quizStart({type:it.quiz, range:state.quizCfg.range, pool:state.quizCfg.pool, mode:'session'}); return; }
+  if (it.kind === 'quiz') { quizStart({type:it.quiz, range:state.quizCfg.range, pool:state.quizCfg.pool, focus:state.quizCfg.focus || 'random', mode:'session'}); return; }
   if (it.kind === 'text') return;
   const L = state.layers[0];
   L.kind = it.kind; L.root = it.root; L.type = it.type; L.hidden = []; L.visible = true;
@@ -2166,9 +2264,10 @@ setInterval(tickUI, 250);
 function renderStrip(){
   const el = $('#strip'), s = state.session, items = state.lesson.items;
   const live = s && !s.done && items[s.idx];
-  el.hidden = !(live || metro.on || quiz || drone.on);
+  el.hidden = !(live || metro.on || quiz || drone.on || heatOn);
   if (el.hidden) { el.innerHTML = ''; return; }
   let h = '';
+  if (heatOn && !quiz) h += `<span class="st-item"><b>Weak-spot heatmap</b><small>${FAMILIES[state.heatFam || 'all'].label}</small></span><button type="button" class="ib" data-act="heatoff">Close heatmap</button>`;
   if (loop.on && loop.chords.length) {
     const k = Math.max(0, loop.idx), nx = (k + 1) % loop.chords.length;
     h += `<span class="st-loop">Loop <b>${loop.chords[k].name}</b>${loop.chords.length > 1 ? ` <small>then ${loop.chords[nx].name}</small>` : ''}</span><button type="button" class="ib" data-act="bstart">■ Loop</button>`;
@@ -2306,6 +2405,10 @@ function renderPractice(){
     <div class="row"><span class="rl">Frets</span><div class="seg">${Object.keys(QUIZ_RANGES).map(k => `<button type="button" data-act="qrange" data-v="${k}" aria-pressed="${qc.range === k}">${k.replace('-', '–')}</button>`).join('')}</div>
       ${isIv ? `<div class="seg"><button type="button" data-act="qpool" data-v="core" aria-pressed="${qc.pool === 'core'}">Core intervals</button><button type="button" data-act="qpool" data-v="all" aria-pressed="${qc.pool === 'all'}">All intervals</button></div>` : ''}</div>
     <div class="row"><span class="rl">Length</span><div class="seg">${Object.entries(QUIZ_LENGTHS).map(([k, l]) => `<button type="button" data-act="qlen" data-v="${k}" aria-pressed="${qc.length === k}">${l.label}</button>`).join('')}</div></div>
+    <div class="row"><span class="rl">Questions</span><div class="seg">
+      <button type="button" data-act="qfocus" data-v="random" aria-pressed="${(qc.focus || 'random') === 'random'}">Random</button>
+      <button type="button" data-act="qfocus" data-v="weak" aria-pressed="${qc.focus === 'weak'}">Weak spots first</button></div>
+      ${qc.focus === 'weak' ? '<span class="opt-note">Asks more often about what you miss or answer slowly. Lesson quizzes do too.</span>' : ''}</div>
     <div class="row">${quiz && quiz.mode !== 'session'
       ? '<button type="button" class="btn primary big-btn" data-act="qstop">End quiz</button>'
       : '<button type="button" class="btn primary big-btn" data-act="qstart">▶ Start quiz</button>'}</div>
@@ -2363,7 +2466,34 @@ function renderPractice(){
       ${practiceLog.length ? `<button type="button" class="btn" data-act="logclear">${logArmed ? 'Tap again to delete the whole log' : 'Clear log'}</button>` : ''}</div>
     <div class="row" id="restoreRow" hidden><textarea id="restoreText" class="task-in" rows="3" placeholder="Paste a backup here" aria-label="Backup to restore"></textarea><button type="button" class="btn primary" data-act="logrestore">Restore</button></div>
   </div>`;
-  return `<div class="practice"><div class="pcol">${metroCard}${playCard}${quizCard}</div><div class="pcol">${lessonCard}${logCard}</div></div>`;
+  // weak spots
+  const fam = state.heatFam || 'all', ag = quizAgg(fam);
+  const MIN = 3;
+  const weakList = (map, nameOf, limit) => [...map.entries()].filter(([, b]) => b.n >= MIN)
+    .sort((x, y) => weakness(y[1], ag.med) - weakness(x[1], ag.med)).slice(0, limit || 3)
+    .map(([k, b]) => { const acc = Math.round(b.ok / b.n * 100), col = acc < 60 ? 'var(--bad)' : acc < 85 ? '#f59f00' : 'var(--ok)';
+      return `<div class="wrow"><b>${nameOf(k)}</b><span class="bar"><i style="width:${acc}%; background:${col}"></i></span><small>${acc}% · ${b.n}${b.ms.length ? ` · ${(median(b.ms) / 1000).toFixed(1)} s` : ''}</small></div>`; }).join('');
+  const groups = [
+    ['Notes', weakList(ag.pcs, pc => pn(noteName(pc)))],
+    ['Strings', weakList(ag.strings, s => `${STRING_ORD[s]} string (${pn(noteName(TUNINGS[state.tuning].midi[s]))})`)],
+    ['Fret zones', weakList(ag.zones, z => ZONES[z] ? ZONES[z][2] : '?', 4)],
+    ['Intervals', weakList(ag.ivs, iv => `${ivLabel(iv)} · ${intervalName(iv)}`)],
+    ['Chord types', weakList(ag.chords, ci => EAR_CHORDS[ci][1])]
+  ].filter(([, h]) => h);
+  const drillType = {notes:'name-note', intervals:'find-interval', ear:'ear-interval', all:'name-note'}[fam];
+  const weakCard = `<div class="card">
+    <div class="row" style="justify-content:space-between"><b>Weak spots</b><span class="info">From every quiz answer, saved in this browser</span></div>
+    <div class="row"><div class="seg">${Object.entries(FAMILIES).map(([k, x]) => `<button type="button" data-act="wfam" data-v="${k}" aria-pressed="${fam === k}">${x.label}</button>`).join('')}</div></div>
+    ${ag.n ? `<div class="lstats"><span><b>${ag.n}</b><small>answers</small></span><span><b>${Math.round(ag.ok / ag.n * 100)}%</b><small>right</small></span><span><b>${ag.med ? (ag.med / 1000).toFixed(1) + ' s' : '–'}</b><small>typical answer time</small></span></div>
+      ${groups.length ? `<div class="weak">${groups.map(([h, rows]) => `<div><span class="wh">Weakest ${h.toLowerCase()}</span>${rows}</div>`).join('')}</div>`
+        : `<p class="info" style="margin:0">Answer a few more questions to see weak spots (each needs ${MIN} answers).</p>`}`
+      : '<p class="info" style="margin:0">No quiz answers yet. Every quiz you take is tracked here, fret by fret.</p>'}
+    <div class="row">
+      <button type="button" class="btn${heatOn ? ' primary' : ''}" data-act="heat">${heatOn ? 'Hide heatmap' : 'Show heatmap on the neck'}</button>
+      ${ag.n ? `<button type="button" class="btn primary" data-act="wdrill" data-v="${drillType}">Drill my weak spots</button>` : ''}
+      ${answers.length ? `<button type="button" class="btn" data-act="wclear">${heatArmed ? 'Tap again to reset quiz stats' : 'Reset quiz stats'}</button>` : ''}</div>
+  </div>`;
+  return `<div class="practice"><div class="pcol">${metroCard}${playCard}${quizCard}</div><div class="pcol">${lessonCard}${weakCard}${logCard}</div></div>`;
 }
 function handlePractice(act, b){
   const v = b.dataset.v, cfg = state.lesson.cfg, items = state.lesson.items;
@@ -2383,6 +2513,17 @@ function handlePractice(act, b){
     case 'qstop': quizEnd(); return true;
     case 'qans': quizAnswer(+v); return true;
     case 'qreplay': quizPlay(); return true;
+    case 'qfocus': state.quizCfg.focus = v; render(); return true;
+    case 'wfam': state.heatFam = v; render(); return true;
+    case 'heat': heatOn = !heatOn; if (heatOn) { if (quiz) quizEnd(); revealNeck(); } render(); return true;
+    case 'heatoff': heatOn = false; render(); return true;
+    case 'wdrill':
+      heatOn = false; state.quizCfg.focus = 'weak'; state.quizCfg.type = v;
+      if (!state.quizCfg.length.startsWith('q')) state.quizCfg.length = 'q10';
+      quizStart(); toast('Drilling your weak spots: questions lean toward what you miss'); return true;
+    case 'wclear':
+      if (!heatArmed) { heatArmed = true; clearTimeout(heatTimer); heatTimer = setTimeout(() => { heatArmed = false; if (state.tab === 'practice') render(); }, 3000); render(); return true; }
+      heatArmed = false; answers = []; try { localStorage.setItem(ANSKEY, '[]'); } catch (e) {} toast('Quiz stats reset'); render(); return true;
     // play along
     case 'bsrc': state.backing.source = v; refreshLoop(); render(); return true;
     case 'bmode': state.backing.minor = v === '1'; state.backing.prog = 0; refreshLoop(); render(); return true;
@@ -2398,8 +2539,8 @@ function handlePractice(act, b){
     case 'sessclean': if (state.session && !state.session.done) { state.session.clean = state.metro.bpm; toast(`Marked clean at ${state.metro.bpm} bpm`); render(); } return true;
     case 'logall': logShowAll = !logShowAll; render(); return true;
     case 'logcopy': {
-      const text = JSON.stringify({app:'fretboard-atlas', version:1, exported:new Date().toISOString(), log:practiceLog});
-      const done = () => toast(`Backup copied: ${practiceLog.length} entries. Paste it somewhere safe.`);
+      const text = JSON.stringify({app:'fretboard-atlas', version:2, exported:new Date().toISOString(), log:practiceLog, answers});
+      const done = () => toast(`Backup copied: ${practiceLog.length} log entries and ${answers.length} quiz answers. Paste it somewhere safe.`);
       const fallback = () => { const row = $('#restoreRow'), ta = $('#restoreText'); if (row && ta) { row.hidden = false; ta.value = text; ta.select(); } toast('Copying was blocked. The backup is selected in the box below. Copy it from there.'); };
       try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
       return true;
@@ -2412,13 +2553,28 @@ function handlePractice(act, b){
       if (!entries) { toast('That backup has no practice log in it.'); return true; }
       const seen = new Set(practiceLog.map(e => e.id)); let added = 0;
       entries.forEach(e => { if (e && e.ts && e.key && !seen.has(e.id)) { practiceLog.push(e); added++; } });
-      practiceLog.sort((a, b) => a.ts - b.ts); saveLog(); toast(`Restored ${added} entr${added === 1 ? 'y' : 'ies'}${entries.length - added ? `, skipped ${entries.length - added} already here` : ''}.`); render(); return true;
+      practiceLog.sort((a, b) => a.ts - b.ts); saveLog();
+      let addedAns = 0;
+      if (data && Array.isArray(data.answers)) {
+        const k = a => [a.t, a.q, a.s, a.f, a.iv, a.ci, a.ok].join('|'), have = new Set(answers.map(k));
+        data.answers.forEach(a => { if (a && a.t && a.q && !have.has(k(a))) { answers.push(a); addedAns++; } });
+        answers.sort((a, b) => a.t - b.t); saveAnswers();
+      }
+      toast(`Restored ${added} log entr${added === 1 ? 'y' : 'ies'}${addedAns ? ` and ${addedAns} quiz answers` : ''}${entries.length - added ? `, skipped ${entries.length - added} already here` : ''}.`); render(); return true;
     }
     case 'logclear':
       if (!logArmed) { logArmed = true; clearTimeout(logTimer); logTimer = setTimeout(() => { logArmed = false; if (state.tab === 'practice') render(); }, 3000); render(); return true; }
       logArmed = false; practiceLog = []; saveLog(); toast('Practice log cleared'); render(); return true;
     case 'qskip':
       if (!quiz || quiz.lock) return true;
+      {  // a skip counts as a miss for whatever was asked
+        const q = quiz.q;
+        if (quiz.type === 'find-note') q.targets.filter(c => !q.found.some(x => x.s === c.s && x.f === c.f)).forEach(c => recAnswer({ok:false, s:c.s, f:c.f, pc:q.pc, skip:true}));
+        else if (quiz.type === 'name-note') recAnswer({ok:false, s:q.cell.s, f:q.cell.f, pc:q.pc, skip:true});
+        else if (quiz.type === 'name-interval') recAnswer({ok:false, s:q.target.s, f:q.target.f, iv:q.iv, skip:true});
+        else if (quiz.type === 'ear-chord') recAnswer({ok:false, ci:q.ci, skip:true});
+        else { const c = q.targets && q.targets[0]; recAnswer(Object.assign({ok:false, iv:q.iv, skip:true}, c ? {s:c.s, f:c.f} : {})); }
+      }
       quiz.bad++; quiz.lock = true;
       if (quiz.type === 'name-note') quiz.reveal = {ok:false, picked:-1};
       else if (quiz.type === 'name-interval') quiz.reveal = {ok:false, picked:-1};
@@ -2502,7 +2658,8 @@ panel.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id ==
 // small read-only hook for automated tests and the browser console
 window.fretboardAtlas = {get state(){ return state; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
-  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick};
+  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick,
+  get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext()};
 
 /* ================= main render ================= */
 function render(){
@@ -2535,6 +2692,11 @@ board.addEventListener('click', e => {
   const s = +cell.dataset.s, f = +cell.dataset.f;
   const tun = TUNINGS[state.tuning].midi, midi = tun[s] + f, pc = mod(midi);
   if (quiz) { quizTap(s, f); return; }
+  if (heatOn) {     // the heatmap view explains a fret instead of changing the root
+    const b = quizAgg(state.heatFam || 'all').cells.get(s + ':' + f);
+    toast(b ? `${STRING_ORD[s]} string, ${f ? 'fret ' + f : 'open'} · ${pn(noteName(pc))} · ${b.ok} of ${b.n} right${b.ms.length ? ` · avg ${(median(b.ms) / 1000).toFixed(1)} s` : ''}` : `${STRING_ORD[s]} string, ${f ? 'fret ' + f : 'open'} · ${pn(noteName(pc))} · no answers here yet`);
+    pluck(midi); return;
+  }
   if (state.tab === 'finder') {
     state.readName = null;
     const idx = state.picks.findIndex(p => p.s === s && p.f === f);
