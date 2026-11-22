@@ -26,6 +26,7 @@
   --l0:#f5a524; --l1:#2fc6b0; --l2:#f27aae; --l3:#8fb0ff; --dot-ink:#16130e; --pick:#ffffff;
   /* interval colours, indexed by semitones above the root: R red, 3rds warm, 5th blue, 7ths violet */
   --i0:#ff5c5c; --i1:#ced4da; --i2:#66d9e8; --i3:#ff922b; --i4:#ffd43b; --i5:#a9e34b;
+  --ok:#2f9e44; --bad:#e03131;
   --i6:#f783ac; --i7:#4dabf7; --i8:#9775fa; --i9:#20c997; --i10:#cc5de8; --i11:#eebefa; --neutral:#e9ecef;
   --font:'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --open:42px;
@@ -259,6 +260,7 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
 /* practice: metronome, lesson, session */
 .practice{display:grid; grid-template-columns:minmax(0, 1fr); gap:12px; align-items:start}
 @media (min-width: 900px){ .practice{grid-template-columns:minmax(300px, 380px) minmax(0, 1fr)} }
+.pcol{display:grid; gap:12px; align-content:start; min-width:0}
 .bpm-row{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
 .bpm{font-size:46px; font-weight:800; font-variation-settings:'wdth' 78; font-variant-numeric:tabular-nums; line-height:1}
 .tempo-name{color:var(--muted); font-style:italic}
@@ -266,6 +268,10 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
 .beats i{width:14px; height:14px; border-radius:50%; background:var(--line); transition:background .05s, transform .05s}
 .beats i.acc{box-shadow:inset 0 0 0 2px var(--accent)}
 .beats i.on{background:var(--accent); transform:scale(1.25)}
+.beats i.rest{background:transparent; box-shadow:inset 0 0 0 2px var(--accent); transform:scale(1.25)}
+.metro-opts{display:grid; gap:8px; border-top:1px solid var(--line); padding-top:10px}
+.metro-opts .row{gap:6px 8px}
+.opt-note{font-size:12px; color:var(--muted)}
 input[type="range"]{width:100%; accent-color:var(--accent)}
 .stepper{display:inline-flex; align-items:center; gap:4px}
 .stepper .val{min-width:40px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums}
@@ -300,6 +306,25 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 .strip .st-metro{display:inline-flex; gap:8px; align-items:center; margin-left:auto}
 .strip .beats i{width:9px; height:9px; background:color-mix(in srgb, var(--sel-ink) 30%, transparent)}
 .strip .beats i.on{background:var(--l0)}
+.strip .beats i.rest{background:transparent; box-shadow:inset 0 0 0 1.5px var(--l0)}
+.qrow{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; width:100%; padding-bottom:4px; border-bottom:1px solid color-mix(in srgb, var(--sel-ink) 20%, transparent)}
+.qrow:last-child{border-bottom:0; padding-bottom:0}
+.qrow .st-item span{font-size:15px}
+.qrow .st-item b{white-space:normal}
+.qanswers{display:flex; flex-wrap:wrap; gap:4px; width:100%}
+.qanswers .qa{min-width:40px; height:34px; font-size:14px; font-weight:700}
+.qanswers .qa.right{background:var(--ok); border-color:var(--ok); color:#fff}
+.qanswers .qa.wrong{background:var(--bad); border-color:var(--bad); color:#fff}
+.qscore{display:inline-flex; gap:8px; font-variant-numeric:tabular-nums}
+.okc{color:var(--ok)} .badc{color:var(--bad)}
+.dot.qok{background:var(--ok); color:#fff; box-shadow:0 0 0 2px #fff, 0 1px 3px rgba(0,0,0,.5)}
+.dot.qbad{background:var(--bad); color:#fff; box-shadow:0 0 0 2px #fff, 0 1px 3px rgba(0,0,0,.5)}
+.dot.qask{background:#fff; color:#111; box-shadow:0 0 0 3px var(--l0), 0 2px 6px rgba(0,0,0,.6); font-size:calc(var(--dot) * .55)}
+.quiz-types{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:6px}
+.quiz-types button{border:1px solid var(--line); background:var(--surface-2); border-radius:10px; padding:8px 10px; text-align:left; display:grid; gap:2px}
+.quiz-types button[aria-pressed="true"]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:var(--surface)}
+.quiz-types small{color:var(--muted); font-size:11px}
+.qres{font-variant-numeric:tabular-nums}
 /* pinboard */
 .pins{display:grid; grid-template-columns:repeat(auto-fill, minmax(168px, 1fr)); gap:10px}
 .pin{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:10px; display:grid; gap:8px; position:relative; min-width:0; align-content:start}
@@ -522,12 +547,16 @@ const DEF = {
   layers:[{id:1, kind:'scale', root:9, type:'dorian', hidden:[], notes:[], visible:true, color:0}],
   picks:[], tap:null, circle:{i:0, minor:false, sevenths:false, pin:false}, nextId:2,
   pins:[], nextPin:1, pinView:null,
-  metro:{bpm:80, beats:4, sub:1, accent:true, vol:0.8},
+  metro:{bpm:80, beats:4, sub:1, accent:true, vol:0.8, clickMode:'all',
+    gap:{on:false, play:2, rest:2}, ladder:{on:false, step:5, bars:4, max:140}},
+  quizCfg:{type:'find-note', range:'0-12', pool:'core', length:'q10'},
+  quizBest:{}, quizLast:null,
   lesson:{items:[], nextItem:1, auto:true, cfg:{
     scales:true, chords:true,
     scalePool:['ionian','dorian','mixolydian','aeolian','majPent','minPent','blues'],
     chordPool:['maj','min','7','maj7','m7','m7b5'],
-    keys:[0,1,2,3,4,5,6,7,8,9,10,11], positions:true, style:'box', count:4, minutes:5}},
+    keys:[0,1,2,3,4,5,6,7,8,9,10,11], positions:true, style:'box', count:4, minutes:5,
+    quizzes:false, quizPool:['find-note','name-note','find-interval','name-interval']}},
   session:null
 };
 const MAX_PINS = 32;
@@ -548,9 +577,13 @@ if (!TUNINGS[state.tuning]) state.tuning = 'std';
 state.pins = (Array.isArray(state.pins) ? state.pins : []).filter(p => p && (p.type == null || CHORDS[p.type]));
 if (!['layers','finder','circle','pins','practice'].includes(state.tab)) state.tab = 'layers';
 state.metro = Object.assign(clone(DEF.metro), state.metro || {});
+state.metro.gap = Object.assign(clone(DEF.metro.gap), state.metro.gap || {});
+state.metro.ladder = Object.assign(clone(DEF.metro.ladder), state.metro.ladder || {});
+state.quizCfg = Object.assign(clone(DEF.quizCfg), state.quizCfg || {});
+state.quizBest = state.quizBest || {};
 state.lesson = Object.assign(clone(DEF.lesson), state.lesson || {});
 state.lesson.cfg = Object.assign(clone(DEF.lesson.cfg), state.lesson.cfg || {});
-state.lesson.items = (state.lesson.items || []).filter(it => it && (it.kind === 'text' || (it.kind === 'scale' && SCALES[it.type]) || (it.kind === 'chord' && CHORDS[it.type])));
+state.lesson.items = (state.lesson.items || []).filter(it => it && (it.kind === 'text' || it.kind === 'quiz' || (it.kind === 'scale' && SCALES[it.type]) || (it.kind === 'chord' && CHORDS[it.type])));
 // a session that was running when the page closed comes back paused, with its time left intact
 if (state.session && !state.session.done) {
   if (!state.lesson.items[state.session.idx]) state.session = null;
@@ -821,7 +854,7 @@ function renderBoard(){
   const cmpMode = cmp.length > 0;
   const cmpPcs = cmp.map(p => new Set(CHORDS[p.type].labels.map(l => mod(p.root + semi(l)))));
   // chord-position focus: the first visible chord layer with a position set
-  const fi = (pickMode || cmpMode) ? -1 : state.layers.findIndex(L => L.visible && (L.kind === 'chord' || L.kind === 'scale') && L.pos);
+  const fi = (pickMode || cmpMode || quiz) ? -1 : state.layers.findIndex(L => L.visible && (L.kind === 'chord' || L.kind === 'scale') && L.pos);
   const focus = fi >= 0 ? Object.assign({i:fi}, focusFor(state.layers[fi])) : null;
   const cmpHit = (k, s, f, pc) => { const p = cmp[k]; return (p.shape && (p.tuning || 'std') === state.tuning) ? p.shape.some(q => q.s === s && q.f === f) : cmpPcs[k].has(pc); };
   const readLabel = iv => (reading.labels.find(l => semi(l) === iv) || INTERVALS[iv]);
@@ -854,7 +887,8 @@ function renderBoard(){
         }
       }
       let dot = '';
-      if (cmpMode) {
+      if (quiz) { dot = quizDot(s, f); dim = !qIn(s, f); muted = false; }
+      else if (cmpMode) {
         const hc = cmp.map((p, k) => k).filter(k => cmpHit(k, s, f, pc));
         if (hc.length) {
           const k = hc[0], p = cmp[k], iv = mod(pc - p.root);
@@ -899,7 +933,7 @@ function renderBoard(){
         dot = `<span class="dot ghost root" style="--c:${byIv() ? 'var(--i0)' : colOf(0)}">${state.labelMode === 'note' ? pn(layerRoot(main)) : 'R'}</span>`;
       }
       if (muted) dot = `<span class="dot mute" aria-hidden="true">×</span>`;
-      if (!dot && (state.allNames || f === 0)) dot = `<span class="dot nm">${pn(noteName(pc))}</span>`;
+      if (!dot && !quiz && (state.allNames || f === 0)) dot = `<span class="dot nm">${pn(noteName(pc))}</span>`;
       const tapped = !pickMode && state.tap && state.tap.s === s && state.tap.f === f;
       html += `<button type="button" class="cell${f === 0 ? ' open' : ''}${tapped ? ' tapped' : ''}${dim ? ' dim' : ''}" data-s="${s}" data-f="${f}" style="--g:${GAUGE[s]}px" aria-label="String ${6 - s}, ${f === 0 ? 'open' : 'fret ' + f}, ${noteName(pc)}">${dot}</button>`;
     }
@@ -930,6 +964,10 @@ function renderBoard(){
   let pickNote = '';
   if (pickMode && reading && !pinShape) pickNote = ` · reading as <b>${reading.name}</b>${byIv() ? ` · colored by interval from ${pn(rootName(pickRoot, reading.labels))}` : ''}`;
   else if (pinShape && reading && byIv()) pickNote = ` · colored by interval from ${pn(rootName(pickRoot, reading.labels))}`;
+  if (quiz) {
+    $('#legend').innerHTML = `<span><b>${QUIZ_TYPES[quiz.type].name}</b> · ${quizPrompt()} · frets ${QUIZ_RANGES[quiz.range].join('–')}</span>`;
+    return;
+  }
   if (cmpMode) {
     const common = [...cmpPcs[0]].filter(pc => cmpPcs.every(set => set.has(pc)));
     $('#legend').innerHTML = cmp.map((p, k) => `<span><i style="--c:var(--l${k})"></i><b>${p.name}</b>${p.shape && (p.tuning || 'std') === state.tuning ? '' : ' · every position'}</span>`).join('')
@@ -1456,29 +1494,53 @@ function playClick(kind, when){
   const a = getAudio(), src = a.createBufferSource(), g = a.createGain();
   src.buffer = clickBuf(kind); g.gain.value = state.metro.vol; src.connect(g); g.connect(a.destination); src.start(when);
 }
-function flashBeat(n){
-  document.querySelectorAll('.beats').forEach(el => [...el.children].forEach((d, k) => d.classList.toggle('on', k === n)));
+function flashBeat(n, rest){
+  document.querySelectorAll('.beats').forEach(el => [...el.children].forEach((d, k) => { d.classList.toggle('on', k === n && !rest); d.classList.toggle('rest', k === n && !!rest); }));
 }
+/* what happens on a given tick: which click (or none), which beat of the bar, which bar */
+function clickFor(tick, m){
+  const perBar = m.sub * m.beats, bar = Math.floor(tick / perBar);
+  const isBeat = tick % m.sub === 0, beatNo = Math.floor(tick / m.sub) % m.beats;
+  const resting = m.gap.on && (bar % (m.gap.play + m.gap.rest)) >= m.gap.play;
+  let kind = isBeat ? (beatNo === 0 && m.accent ? 'acc' : 'beat') : 'sub';
+  if (m.clickMode === 'backbeat') kind = isBeat && beatNo % 2 === 1 ? 'beat' : null;        // 2 & 4 (and 6…)
+  else if (m.clickMode === 'one') kind = isBeat && beatNo === 0 ? 'acc' : null;
+  if (resting) kind = null;
+  return {kind, isBeat, beatNo, bar, resting, barStart:tick % perBar === 0};
+}
+/* speed ladder: tempo for a given bar, starting from `start` */
+function ladderBpm(start, bar, l){ return Math.min(Math.max(start, l.max), start + Math.floor(bar / l.bars) * l.step); }
 function metroSchedule(){
   const a = ac; if (!a || !metro.on) return;
-  const m = state.metro, spt = 60 / m.bpm / m.sub;
+  const m = state.metro;
   if (metro.next < a.currentTime) metro.next = a.currentTime + 0.03;      // fell behind (tab was asleep): skip ahead, don't burst
   while (metro.next < a.currentTime + 0.12) {
-    const isBeat = metro.tick % m.sub === 0, beatNo = Math.floor(metro.tick / m.sub) % m.beats;
-    playClick(isBeat ? (beatNo === 0 && m.accent ? 'acc' : 'beat') : 'sub', metro.next);
-    if (isBeat) { const n = beatNo; setTimeout(() => { if (metro.on) flashBeat(n); }, Math.max(0, (metro.next - a.currentTime) * 1000)); }
-    metro.tick++; metro.next += spt;
+    const c = clickFor(metro.tick, m);
+    if (c.barStart && m.ladder.on && metro.ladderStart != null) {
+      const b = ladderBpm(metro.ladderStart, Math.max(0, c.bar - (metro.ladderBar0 || 0)), m.ladder);
+      if (b !== m.bpm) setBpm(b);
+    }
+    if (c.kind) playClick(c.kind, metro.next);
+    if (c.isBeat) { const n = c.beatNo, rest = c.resting; setTimeout(() => { if (metro.on) flashBeat(n, rest); }, Math.max(0, (metro.next - a.currentTime) * 1000)); }
+    metro.tick++; metro.next += 60 / m.bpm / m.sub;
   }
 }
 function metroStart(){
   const a = getAudio(); if (!a) { toast('This browser has no audio support.'); return; }
   if (a.state !== 'running') a.resume().catch(() => {});
   metro.on = true; metro.tick = 0; metro.next = a.currentTime + 0.06;
+  metro.ladderStart = state.metro.ladder.on ? state.metro.bpm : null; metro.ladderBar0 = 0;
   clearInterval(metro.timer); metro.timer = setInterval(metroSchedule, 25); metroSchedule();
   requestWake();
   setTimeout(() => { if (metro.on && ac.state !== 'running') toast('The metronome is silent because the browser blocked sound. Tap Start again.'); }, 600);
 }
-function metroStop(){ metro.on = false; clearInterval(metro.timer); metro.timer = null; flashBeat(-1); releaseWake(); }
+function metroStop(){
+  metro.on = false; clearInterval(metro.timer); metro.timer = null; flashBeat(-1); releaseWake();
+  if (metro.ladderStart != null) {
+    const reached = state.metro.bpm; setBpm(metro.ladderStart); metro.ladderStart = null;
+    if (reached !== state.metro.bpm) toast(`Speed ladder reached ${reached} bpm. Tempo reset to ${state.metro.bpm}.`);
+  }
+}
 function setBpm(b){
   state.metro.bpm = Math.max(30, Math.min(260, Math.round(b)));
   document.querySelectorAll('[data-bpm-out]').forEach(el => { el.textContent = state.metro.bpm; });
@@ -1503,16 +1565,181 @@ async function requestWake(){ try { if ('wakeLock' in navigator && !wake) { wake
 function releaseWake(){ try { if (wake && !metro.on && !(state.session && !state.session.done && !state.session.paused)) { wake.release(); wake = null; } } catch (e) {} }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (metro.on || (state.session && !state.session.done && !state.session.paused))) requestWake(); });
 
+/* ================= practice: fretboard quiz ================= */
+const QUIZ_TYPES = {
+  'find-note':     {name:'Find the note',     desc:'Tap every place a note appears in the range.'},
+  'name-note':     {name:'Name the note',     desc:'A fret is marked. Pick its note name.'},
+  'find-interval': {name:'Find the interval', desc:'A root is shown. Tap the interval within 4 frets of it.'},
+  'name-interval': {name:'Name the interval', desc:'Two dots are shown. Name the distance from the root.'}
+};
+const QUIZ_RANGES = {'0-5':[0, 5], '0-12':[0, 12], '0-24':[0, 24]};
+const QUIZ_LENGTHS = {q10:{mode:'count', n:10, label:'10 questions'}, q20:{mode:'count', n:20, label:'20 questions'}, t60:{mode:'time', s:60, label:'60 seconds'}, t120:{mode:'time', s:120, label:'2 minutes'}};
+const POOL_CORE = [3, 4, 5, 7, 9, 10, 11], POOL_ALL = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+let quiz = null;
+const qCells = () => {
+  const [lo, hi] = QUIZ_RANGES[quiz.range], out = [];
+  for (let s = 0; s < 6; s++) for (let f = lo; f <= hi; f++) out.push({s, f});
+  return out;
+};
+const qPc = c => mod(TUNINGS[state.tuning].midi[c.s] + c.f);
+const qIn = (s, f) => { const [lo, hi] = QUIZ_RANGES[quiz.range]; return f >= lo && f <= hi; };
+const ivLabel = iv => pl(INTERVALS[iv]);
+function quizStart(opts){
+  const cfg = state.quizCfg, len = QUIZ_LENGTHS[cfg.length];
+  quiz = Object.assign({type:cfg.type, range:cfg.range, pool:cfg.pool, mode:len.mode, limit:len.n || 0, secs:len.s || 0,
+    n:0, ok:0, bad:0, t0:Date.now(), endsAt:len.mode === 'time' ? Date.now() + len.s * 1000 : 0, q:null, flash:null, reveal:null, lock:false}, opts || {});
+  if (quiz.mode === 'session') { quiz.limit = 0; quiz.endsAt = 0; }
+  state.pinView = null; state.compare = null;
+  quizNext(); requestWake(); render(); revealNeck();
+}
+function quizNext(){
+  const cells = qCells(), last = quiz.q, pool = quiz.pool === 'all' ? POOL_ALL : POOL_CORE;
+  quiz.reveal = null; quiz.lock = false;
+  for (let tries = 0; tries < 60; tries++) {
+    if (quiz.type === 'find-note') {
+      const pc = Math.floor(Math.random() * 12);
+      if (last && last.pc === pc) continue;
+      quiz.q = {pc, targets:cells.filter(c => qPc(c) === pc), found:[]};
+    } else if (quiz.type === 'name-note') {
+      const cell = rnd(cells);
+      if (last && last.cell && last.cell.s === cell.s && last.cell.f === cell.f) continue;
+      quiz.q = {cell, pc:qPc(cell)};
+    } else {
+      const iv = rnd(pool), root = rnd(cells), rpc = qPc(root);
+      const near = cells.filter(c => !(c.s === root.s && c.f === root.f) && Math.abs(c.f - root.f) <= 4 && qPc(c) === mod(rpc + iv));
+      if (!near.length) continue;
+      if (quiz.type === 'find-interval') quiz.q = {root, iv, targets:near, rpc};
+      else {
+        const target = rnd(near.filter(c => Math.abs(c.s - root.s) <= 3).concat([])) || rnd(near);
+        quiz.q = {root, target, iv, rpc};
+      }
+    }
+    break;
+  }
+  quiz.qt = Date.now();
+}
+function quizPrompt(){
+  const q = quiz.q; if (!q) return '';
+  switch (quiz.type) {
+    case 'find-note': return `Find every <b>${pn(noteName(q.pc))}</b> · ${q.found.length}/${q.targets.length}`;
+    case 'name-note': return 'Which note is marked?';
+    case 'find-interval': return `Find the <b>${ivLabel(q.iv)}</b> of ${pn(noteName(q.rpc))}`;
+    default: return `Interval from ${pn(noteName(q.rpc))} to the ?`;
+  }
+}
+function quizFlash(s, f, ok){
+  quiz.flash = {s, f, ok}; const tag = quiz.flash;
+  setTimeout(() => { if (quiz && quiz.flash === tag) { quiz.flash = null; render(); } }, 650);
+}
+function quizScored(){
+  quiz.n++;
+  if (quiz.mode === 'count' && quiz.n >= quiz.limit) { setTimeout(() => quizEnd(), 500); return; }
+  setTimeout(() => { if (quiz) { quizNext(); render(); } }, quiz.reveal && !quiz.reveal.ok ? 900 : 500);
+}
+function quizTap(s, f){
+  if (!quiz || quiz.lock || !qIn(s, f)) return;
+  const q = quiz.q, pc = mod(TUNINGS[state.tuning].midi[s] + f);
+  pluck(TUNINGS[state.tuning].midi[s] + f);
+  if (quiz.type === 'find-note') {
+    if (q.found.some(c => c.s === s && c.f === f)) return;
+    if (pc === q.pc) { q.found.push({s, f}); quiz.ok++; if (q.found.length === q.targets.length) { quiz.lock = true; quizScored(); } }
+    else { quiz.bad++; quizFlash(s, f, false); }
+  } else if (quiz.type === 'find-interval') {
+    if (s === q.root.s && f === q.root.f) return;
+    if (q.targets.some(c => c.s === s && c.f === f)) { quiz.ok++; quiz.reveal = {s, f, ok:true}; quiz.lock = true; quizScored(); }
+    else { quiz.bad++; quizFlash(s, f, false); if (pc === mod(q.rpc + q.iv)) toast('Right note, but stay within 4 frets of the root.'); }
+  }
+  render();
+}
+function quizAnswer(v){
+  if (!quiz || quiz.lock) return;
+  const q = quiz.q, ok = quiz.type === 'name-note' ? v === q.pc : v === q.iv;
+  if (ok) quiz.ok++; else quiz.bad++;
+  quiz.reveal = {ok, picked:v}; quiz.lock = true;
+  const cell = quiz.type === 'name-note' ? q.cell : q.target;
+  pluck(TUNINGS[state.tuning].midi[cell.s] + cell.f);
+  quizScored(); render();
+}
+function quizResult(){
+  const secs = Math.round((Date.now() - quiz.t0) / 1000), tries = quiz.ok + quiz.bad;
+  return {type:quiz.type, mode:quiz.mode, length:state.quizCfg.length, n:quiz.n, ok:quiz.ok, bad:quiz.bad, secs, acc:tries ? Math.round(quiz.ok / tries * 100) : 0};
+}
+function quizEnd(silent){
+  if (!quiz) return;
+  const r = quizResult(), fromLesson = quiz.mode === 'session';
+  quiz = null;
+  if (!fromLesson && r.n) {
+    const key = r.type + '|' + r.length, best = state.quizBest[key];
+    // timed runs: most questions answered wins; counted runs: best accuracy, then fastest
+    const better = !best || (r.mode === 'time' ? (r.n > best.n || (r.n === best.n && r.acc > best.acc)) : (r.acc > best.acc || (r.acc === best.acc && r.secs < best.secs)));
+    r.best = better; if (better) state.quizBest[key] = r;
+    state.quizLast = r;
+  }
+  if (!silent && r.n) toast(`${QUIZ_TYPES[r.type].name}: ${r.n} question${r.n > 1 ? 's' : ''} · ${r.acc}% accurate · ${fmt(r.secs * 1000)}${r.best ? ' · new best!' : ''}`);
+  releaseWake(); render();
+}
+function quizTick(){
+  if (!quiz) return;
+  if (quiz.mode === 'time' && Date.now() >= quiz.endsAt) { quizEnd(); return; }
+  const t = quiz.mode === 'time' ? fmt(quiz.endsAt - Date.now()) : fmt(Date.now() - quiz.t0);
+  document.querySelectorAll('[data-quiz-time]').forEach(el => { el.textContent = t; });
+}
+setInterval(quizTick, 250);
+/* neck drawing while a quiz runs; returns the dot markup for one cell, or '' */
+function quizDot(s, f){
+  const q = quiz.q; if (!q) return '';
+  const fl = quiz.flash;
+  if (fl && fl.s === s && fl.f === f && !fl.ok) return '<span class="dot qbad" aria-label="wrong">✕</span>';
+  const pc = mod(TUNINGS[state.tuning].midi[s] + f), name = pn(noteName(pc));
+  const root = (c) => c && c.s === s && c.f === f;
+  if (quiz.type === 'find-note') {
+    if (q.found.some(c => c.s === s && c.f === f)) return `<span class="dot qok">${name}</span>`;
+    return '';
+  }
+  if (quiz.type === 'name-note') {
+    if (!root(q.cell)) return '';
+    return quiz.reveal ? `<span class="dot ${quiz.reveal.ok ? 'qok' : 'qbad'}">${name}</span>` : '<span class="dot qask">?</span>';
+  }
+  if (root(q.root)) return `<span class="dot sv s1 root" style="--c:var(--i0)">${shapeSvg(1)}${state.labelMode === 'note' ? pn(noteName(q.rpc)) : 'R'}</span>`;
+  if (quiz.type === 'find-interval') {
+    if (quiz.reveal && quiz.reveal.s === s && quiz.reveal.f === f) return `<span class="dot qok">${ivLabel(q.iv)}</span>`;
+    return '';
+  }
+  if (root(q.target)) return quiz.reveal ? `<span class="dot ${quiz.reveal.ok ? 'qok' : 'qbad'}">${ivLabel(q.iv)}</span>` : '<span class="dot qask">?</span>';
+  return '';
+}
+function quizStripHtml(){
+  const q = quiz.q;
+  let answers = '';
+  if (quiz.type === 'name-note') answers = [0,1,2,3,4,5,6,7,8,9,10,11].map(pc => {
+    const st = quiz.reveal ? (pc === q.pc ? ' right' : pc === quiz.reveal.picked ? ' wrong' : '') : '';
+    return `<button type="button" class="ib qa${st}" data-act="qans" data-v="${pc}">${pn(noteName(pc))}</button>`;
+  }).join('');
+  if (quiz.type === 'name-interval') answers = (quiz.pool === 'all' ? POOL_ALL : POOL_CORE).map(iv => {
+    const st = quiz.reveal ? (iv === q.iv ? ' right' : iv === quiz.reveal.picked ? ' wrong' : '') : '';
+    return `<button type="button" class="ib qa${st}" data-act="qans" data-v="${iv}" title="${intervalName(iv)}">${ivLabel(iv)}</button>`;
+  }).join('');
+  const prog = quiz.mode === 'count' ? `${Math.min(quiz.n + 1, quiz.limit)}/${quiz.limit}` : `${quiz.n} done`;
+  return `<span class="st-item"><small>Quiz · ${prog}</small><span>${quizPrompt()}</span></span>
+    ${answers ? `<span class="qanswers">${answers}</span>` : ''}
+    <span class="qscore"><b class="okc">✓ ${quiz.ok}</b> <b class="badc">✕ ${quiz.bad}</b></span>
+    ${quiz.mode !== 'session' ? `<span class="t" data-quiz-time>${quiz.mode === 'time' ? fmt(quiz.endsAt - Date.now()) : fmt(Date.now() - quiz.t0)}</span>` : ''}
+    <button type="button" class="ib" data-act="qskip">Skip</button>
+    ${quiz.mode !== 'session' ? '<button type="button" class="ib" data-act="qstop">End quiz</button>' : ''}`;
+}
+
 /* ================= practice: lesson & session ================= */
 const rnd = a => a[Math.floor(Math.random() * a.length)];
 const itemLike = it => ({kind:it.kind, root:it.root, type:it.type, pos:it.pos, hidden:[], notes:[]});
 function itemTitle(it){
   if (it.kind === 'text') return esc(it.text);
+  if (it.kind === 'quiz') return (QUIZ_TYPES[it.quiz] || QUIZ_TYPES['find-note']).name;
   if (it.kind === 'scale') { const S = SCALES[it.type]; return pn(rootName(it.root, S.labels)) + ' ' + (S.short || S.name.toLowerCase()); }
   return chordName(it.root, it.type);
 }
 function itemSub(it){
   if (it.kind === 'text') return 'Your own task';
+  if (it.kind === 'quiz') return `Fretboard quiz · frets ${QUIZ_RANGES[state.quizCfg.range].join('–')} · questions keep coming until time is up`;
   if (it.kind === 'scale') {
     if (!it.pos) return 'Scale · whole neck';
     const p = scalePositions(itemLike(it)).find(z => z.f === it.pos.f);
@@ -1525,8 +1752,15 @@ function rollItem(cfg, avoid){
     const kinds = [];
     if (cfg.scales && cfg.scalePool.length) kinds.push('scale');
     if (cfg.chords && cfg.chordPool.length) kinds.push('chord');
+    if (cfg.quizzes && cfg.quizPool.length) kinds.push('quiz');
     if (!kinds.length) return null;
-    const kind = rnd(kinds), root = rnd(cfg.keys.length ? cfg.keys : [0,1,2,3,4,5,6,7,8,9,10,11]);
+    const kind = rnd(kinds);
+    if (kind === 'quiz') {
+      const qt = rnd(cfg.quizPool);
+      if (avoid && avoid.kind === 'quiz' && avoid.quiz === qt) continue;
+      return {id:state.lesson.nextItem++, kind:'quiz', quiz:qt, min:cfg.minutes, bpm:null};
+    }
+    const root = rnd(cfg.keys.length ? cfg.keys : [0,1,2,3,4,5,6,7,8,9,10,11]);
     const type = rnd(kind === 'scale' ? cfg.scalePool : cfg.chordPool);
     const it = {id:state.lesson.nextItem++, kind, root, type, pos:null, min:cfg.minutes, bpm:null};
     if (cfg.positions) {
@@ -1556,6 +1790,7 @@ function itemFromNeck(){
 }
 function loadItem(it){
   if (it.bpm) setBpm(it.bpm);
+  if (it.kind === 'quiz') { quizStart({type:it.quiz, range:state.quizCfg.range, pool:state.quizCfg.pool, mode:'session'}); return; }
   if (it.kind === 'text') return;
   const L = state.layers[0];
   L.kind = it.kind; L.root = it.root; L.type = it.type; L.hidden = []; L.visible = true;
@@ -1578,6 +1813,7 @@ const sessRemaining = s => s.paused ? s.remaining : s.endsAt - Date.now();
 function sessStart(i){
   const it = state.lesson.items[i]; if (!it) return;
   const startedAt = state.session && !state.session.done && state.session.startedAt ? state.session.startedAt : Date.now();
+  if (quiz) quizEnd();   // a running quiz reports its score as you move on
   state.session = {idx:i, paused:false, endsAt:Date.now() + it.min * 60000, remaining:0, done:false, timeUp:false, startedAt};
   loadItem(it); requestWake(); render();
 }
@@ -1591,9 +1827,10 @@ function sessStep(dir){
 }
 function sessFinish(){
   const total = state.lesson.items.reduce((a, it) => a + it.min, 0), n = state.lesson.items.length;
+  if (quiz && quiz.mode === 'session') quizEnd();
   state.session = {done:true, total, n}; chime(true); releaseWake(); render();
 }
-function sessStop(){ state.session = null; releaseWake(); render(); }
+function sessStop(){ if (quiz && quiz.mode === 'session') quizEnd(); state.session = null; releaseWake(); render(); }
 function sessAddMinute(){ const s = state.session; if (!s || s.done) return; if (s.paused) s.remaining += 60000; else s.endsAt += 60000; s.timeUp = false; tickUI(); }
 function fmt(ms){ const t = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
 function tickUI(){
@@ -1618,9 +1855,10 @@ setInterval(tickUI, 250);
 function renderStrip(){
   const el = $('#strip'), s = state.session, items = state.lesson.items;
   const live = s && !s.done && items[s.idx];
-  el.hidden = !(live || metro.on);
+  el.hidden = !(live || metro.on || quiz);
   if (el.hidden) { el.innerHTML = ''; return; }
   let h = '';
+  if (quiz) h += `<div class="qrow">${quizStripHtml()}</div>`;
   if (live) {
     h += `<span class="st-item"><small>${s.idx + 1}/${items.length}</small><b>${itemTitle(items[s.idx])}</b></span>
       <span class="t" data-sess-time>${fmt(sessRemaining(s))}</span>
@@ -1633,6 +1871,9 @@ function renderStrip(){
 }
 
 let lessonArmed = false, lessonTimer = null;
+function stepper(act, val, label, step){
+  return `<span class="stepper"><button type="button" class="ib" data-act="${act}" data-v="-${step || 1}" aria-label="Less: ${label}">−</button><span class="val">${val}</span><button type="button" class="ib" data-act="${act}" data-v="${step || 1}" aria-label="More: ${label}">+</button></span>`;
+}
 function renderPractice(){
   const m = state.metro, Ls = state.lesson, cfg = Ls.cfg, s = state.session, items = Ls.items;
   const total = items.reduce((a, it) => a + it.min, 0);
@@ -1650,6 +1891,15 @@ function renderPractice(){
       <label class="chk"><input type="checkbox" id="mAccent" data-act="maccent"${m.accent ? ' checked' : ''}> Accent beat 1</label></div>
     <div class="row"><span class="rl">Subdivision</span><div class="seg">${subs.map(([v, t]) => `<button type="button" data-act="msub" data-v="${v}" aria-pressed="${m.sub === v}">${t}</button>`).join('')}</div></div>
     <div class="row"><span class="rl">Volume</span><input type="range" id="mVol" min="0.05" max="1" step="0.05" value="${m.vol}" data-act="mvol" aria-label="Metronome volume"></div>
+    <div class="metro-opts">
+      <div class="row"><span class="rl">Click on</span><div class="seg">
+        ${[['all','Every beat'],['backbeat','2 & 4'],['one','Beat 1']].map(([v, t]) => `<button type="button" data-act="mclick" data-v="${v}" aria-pressed="${m.clickMode === v}">${t}</button>`).join('')}</div>
+        ${m.clickMode === 'backbeat' ? '<span class="opt-note">Feel 1 and 3 yourself, like a drummer’s hi-hat.</span>' : ''}</div>
+      <div class="row"><label class="chk"><input type="checkbox" id="mGap" data-act="mgap"${m.gap.on ? ' checked' : ''}> Gap click</label>
+        ${m.gap.on ? `<span>play</span>${stepper('mgplay', m.gap.play, 'bars of click')}<span>bars, rest</span>${stepper('mgrest', m.gap.rest, 'bars of silence')}<span>bars</span>` : '<span class="opt-note">Drops out for a few bars so you keep time on your own.</span>'}</div>
+      <div class="row"><label class="chk"><input type="checkbox" id="mLadder" data-act="mladder"${m.ladder.on ? ' checked' : ''}> Speed ladder</label>
+        ${m.ladder.on ? `<span>+</span>${stepper('mlstep', m.ladder.step, 'bpm per step')}<span>bpm every</span>${stepper('mlbars', m.ladder.bars, 'bars per step')}<span>bars up to</span>${stepper('mlmax', m.ladder.max, 'top tempo', 5)}<span>bpm</span>` : '<span class="opt-note">Raises the tempo step by step while you play.</span>'}</div>
+    </div>
     <div class="row"><button type="button" class="btn primary big-btn" data-act="mtoggle">${metro.on ? 'Stop' : 'Start'} metronome</button></div>
   </div>`;
 
@@ -1699,6 +1949,8 @@ function renderPractice(){
     <div class="row"><span class="rl">Include</span>${chipT(cfg.scales, 'linc', 'scales', 'Scales')}${chipT(cfg.chords, 'linc', 'chords', 'Chords')}</div>
     ${cfg.scales ? `<div class="row"><span class="rl">Scales to draw from</span>${scaleChoices.map(id => chipT(cfg.scalePool.includes(id), 'lpool', id, SCALES[id].short || SCALES[id].name, 'scale')).join('')}</div>` : ''}
     ${cfg.chords ? `<div class="row"><span class="rl">Chord types to draw from</span>${chordChoices.map(id => chipT(cfg.chordPool.includes(id), 'lpool', id, 'C' + CHORDS[id].sym, 'chord')).join('')}</div>` : ''}
+    <div class="row"><span class="rl">Fretboard quizzes</span>${chipT(cfg.quizzes, 'lquiz', '1', cfg.quizzes ? 'Included' : 'Not included')}
+      ${cfg.quizzes ? Object.entries(QUIZ_TYPES).map(([k, t]) => chipT(cfg.quizPool.includes(k), 'lqpool', k, t.name)).join('') : ''}</div>
     <div class="row"><span class="rl">Keys</span>${[0,1,2,3,4,5,6,7,8,9,10,11].map(pc => chipT(cfg.keys.includes(pc), 'lkey', pc, pn(DEFAULT[pc]))).join('')}
       <button type="button" class="btn" data-act="lkeys" data-v="all">All</button><button type="button" class="btn" data-act="lkeys" data-v="nat">Naturals</button></div>
     <div class="row"><span class="rl">Where on the neck</span><div class="seg">
@@ -1723,7 +1975,22 @@ function renderPractice(){
     <div class="row"><label class="chk"><input type="checkbox" id="lAuto" data-act="lauto"${Ls.auto ? ' checked' : ''}> Move to the next item automatically when time is up</label></div>
     ${ing}
   </div>`;
-  return `<div class="practice">${metroCard}${lessonCard}</div>`;
+  const qc = state.quizCfg, isIv = qc.type.endsWith('interval');
+  const bestOf = state.quizBest[qc.type + '|' + qc.length];
+  const resLine = r => `${r.n} question${r.n === 1 ? '' : 's'} · ${r.acc}% accurate · ${fmt(r.secs * 1000)}`;
+  const quizCard = `<div class="card">
+    <div class="row" style="justify-content:space-between"><b>Fretboard quiz</b>${quiz && quiz.mode !== 'session' ? '<span class="info">Running: answer on the neck</span>' : ''}</div>
+    <div class="quiz-types">${Object.entries(QUIZ_TYPES).map(([k, t]) => `<button type="button" data-act="qtype" data-v="${k}" aria-pressed="${qc.type === k}"><b>${t.name}</b><small>${t.desc}</small></button>`).join('')}</div>
+    <div class="row"><span class="rl">Frets</span><div class="seg">${Object.keys(QUIZ_RANGES).map(k => `<button type="button" data-act="qrange" data-v="${k}" aria-pressed="${qc.range === k}">${k.replace('-', '–')}</button>`).join('')}</div>
+      ${isIv ? `<div class="seg"><button type="button" data-act="qpool" data-v="core" aria-pressed="${qc.pool === 'core'}">Core intervals</button><button type="button" data-act="qpool" data-v="all" aria-pressed="${qc.pool === 'all'}">All intervals</button></div>` : ''}</div>
+    <div class="row"><span class="rl">Length</span><div class="seg">${Object.entries(QUIZ_LENGTHS).map(([k, l]) => `<button type="button" data-act="qlen" data-v="${k}" aria-pressed="${qc.length === k}">${l.label}</button>`).join('')}</div></div>
+    <div class="row">${quiz && quiz.mode !== 'session'
+      ? '<button type="button" class="btn primary big-btn" data-act="qstop">End quiz</button>'
+      : '<button type="button" class="btn primary big-btn" data-act="qstart">▶ Start quiz</button>'}</div>
+    ${state.quizLast ? `<div class="info qres">Last: <b>${QUIZ_TYPES[state.quizLast.type].name}</b>, ${resLine(state.quizLast)}${state.quizLast.best ? ' · new best' : ''}</div>` : ''}
+    ${bestOf ? `<div class="info qres">Best for this quiz and length: ${resLine(bestOf)}</div>` : ''}
+  </div>`;
+  return `<div class="practice"><div class="pcol">${metroCard}${quizCard}</div>${lessonCard}</div>`;
 }
 function handlePractice(act, b){
   const v = b.dataset.v, cfg = state.lesson.cfg, items = state.lesson.items;
@@ -1734,6 +2001,27 @@ function handlePractice(act, b){
     case 'mtap': tapTempo(); return true;
     case 'mbeats': state.metro.beats = Math.max(1, Math.min(12, state.metro.beats + +v)); render(); return true;
     case 'msub': state.metro.sub = +v; render(); return true;
+    case 'mclick': state.metro.clickMode = v; render(); return true;
+    case 'qtype': state.quizCfg.type = v; render(); return true;
+    case 'qrange': state.quizCfg.range = v; render(); return true;
+    case 'qpool': state.quizCfg.pool = v; render(); return true;
+    case 'qlen': state.quizCfg.length = v; render(); return true;
+    case 'qstart': quizStart(); return true;
+    case 'qstop': quizEnd(); return true;
+    case 'qans': quizAnswer(+v); return true;
+    case 'qskip':
+      if (!quiz || quiz.lock) return true;
+      quiz.bad++; quiz.lock = true;
+      if (quiz.type === 'name-note') quiz.reveal = {ok:false, picked:-1};
+      else if (quiz.type === 'name-interval') quiz.reveal = {ok:false, picked:-1};
+      quizScored(); render(); return true;
+    case 'lquiz': cfg.quizzes = !cfg.quizzes; render(); return true;
+    case 'lqpool': { const k = cfg.quizPool.indexOf(v); if (k >= 0) cfg.quizPool.splice(k, 1); else cfg.quizPool.push(v); render(); return true; }
+    case 'mgplay': state.metro.gap.play = Math.max(1, Math.min(16, state.metro.gap.play + +v)); render(); return true;
+    case 'mgrest': state.metro.gap.rest = Math.max(1, Math.min(16, state.metro.gap.rest + +v)); render(); return true;
+    case 'mlstep': state.metro.ladder.step = Math.max(1, Math.min(20, state.metro.ladder.step + +v)); render(); return true;
+    case 'mlbars': state.metro.ladder.bars = Math.max(1, Math.min(32, state.metro.ladder.bars + +v)); render(); return true;
+    case 'mlmax': state.metro.ladder.max = Math.max(40, Math.min(260, state.metro.ladder.max + +v)); render(); return true;
     case 'sesspause': sessPause(); return true;
     case 'sessnext': sessStep(1); return true;
     case 'sessprev': sessStep(-1); return true;
@@ -1790,7 +2078,8 @@ panel.addEventListener('input', e => {
 });
 panel.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'newTask') { e.preventDefault(); handlePractice('iaddtask', e.target); } });
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, tick:() => tickUI(), get metronomeOn(){ return metro.on; }};
+window.fretboardAtlas = {get state(){ return state; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+  get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm};
 
 /* ================= main render ================= */
 function render(){
@@ -1821,6 +2110,7 @@ board.addEventListener('click', e => {
   const cell = e.target.closest('.cell'); if (!cell) return;
   const s = +cell.dataset.s, f = +cell.dataset.f;
   const tun = TUNINGS[state.tuning].midi, midi = tun[s] + f, pc = mod(midi);
+  if (quiz) { quizTap(s, f); return; }
   if (state.tab === 'finder') {
     state.readName = null;
     const idx = state.picks.findIndex(p => p.s === s && p.f === f);
@@ -2022,6 +2312,12 @@ panel.addEventListener('change', e => {
     }
   }
   else if (act === 'maccent') state.metro.accent = el.checked;
+  else if (act === 'mgap') state.metro.gap.on = el.checked;
+  else if (act === 'mladder') {
+    state.metro.ladder.on = el.checked;
+    // switched on mid-run: climb from the current tempo, counting bars from now
+    if (metro.on) { metro.ladderStart = el.checked ? state.metro.bpm : null; metro.ladderBar0 = Math.ceil(metro.tick / (state.metro.sub * state.metro.beats)); }
+  }
   else if (act === 'lauto') state.lesson.auto = el.checked;
   else if (act === 'mrange' || act === 'mvol') return;
   else if (act === 'ops') state.onePerString = el.checked;

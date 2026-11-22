@@ -15,6 +15,8 @@ A guitar neck reference that runs in the browser. It needs no build step or serv
 - Chord finder: pick notes on the neck to get chord names, including slash chords and partial voicings.
 - Pinboard: pin chord shapes and progressions in order, with mini chord diagrams. Play them through, step through them on the neck, or overlay up to four to compare.
 - Practice tab: a metronome (tap tempo, beats per bar, accent, subdivisions), a lesson builder that rolls random scales and chords from the keys, types and positions you choose, and a session timer that loads each item onto the neck and counts it down.
+- Fretboard quizzes: find the note, name the note, find the interval, name the interval; timed or counted, with personal bests. Quizzes can be lesson items.
+- Metronome options: click on 2 & 4 or beat 1 only, gap click (play N bars, rest M), and a speed ladder.
 - Interactive circle of fifths with diatonic chords, suggested scales and common progressions.
 - Alternate tunings, a left-handed neck, sharp/flat spelling, and a plucked-string sound when you tap.
 
