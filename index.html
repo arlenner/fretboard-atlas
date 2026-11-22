@@ -65,6 +65,13 @@ h2,h3{margin:0; text-wrap:balance}
 .ctl{display:flex; align-items:center}
 @media (max-width: 960px){ .seg-label, .brand small{display:none} .bar{gap:6px 8px} .brand{font-size:17px} }
 .menu{position:relative}
+.sound-btn{border:1px solid var(--line); background:var(--surface); border-radius:8px; width:36px; height:31px; display:grid; place-items:center; padding:0}
+.sound-btn svg{width:20px; height:20px; fill:none; stroke:var(--ink); stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round}
+.sound-btn .spk{fill:var(--ink)}
+.sound-btn[aria-pressed="false"] .on, .sound-btn[aria-pressed="true"] .off{display:none}
+.sound-btn[aria-pressed="false"]{color:var(--muted)}
+.sound-btn[aria-pressed="false"] svg{stroke:var(--muted)} .sound-btn[aria-pressed="false"] .spk{fill:var(--muted)}
+.menu-pop .hint{font-size:11px; color:var(--muted); line-height:1.35}
 .menu summary{list-style:none; border:1px solid var(--line); background:var(--surface); border-radius:8px; padding:5px 10px; font-size:13px; font-weight:600; cursor:pointer}
 .menu summary::-webkit-details-marker{display:none}
 .menu[open] summary{background:var(--sel-bg); color:var(--sel-ink)}
@@ -117,8 +124,8 @@ h2,h3{margin:0; text-wrap:balance}
 .shp .f{fill:var(--c); stroke:rgba(0,0,0,.3); stroke-width:3; stroke-linejoin:round}
 .dot.hollow .shp .f{fill:rgba(0,0,0,.5); stroke:var(--c); stroke-width:12}
 .dot.multi .shp .o, .dot.pick .shp .o{stroke:#fff; stroke-width:18; stroke-linejoin:round}
-.dot.s2{padding-top:24%; font-size:calc(var(--dot) * .36)}
-.dot.s6{padding-bottom:28%; font-size:calc(var(--dot) * .36)}
+.dot.s2{padding-top:calc(var(--dot) * .24); font-size:calc(var(--dot) * .36)}
+.dot.s6{padding-bottom:calc(var(--dot) * .28); font-size:calc(var(--dot) * .36)}
 .dot.s5{font-size:calc(var(--dot) * .4)}
 .cell.tapped .dot.sv::after{border-radius:50%}
 /* chord position focus */
@@ -294,6 +301,9 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
       <button type="button" data-color="layer">By layer</button>
     </div>
   </div>
+  <button type="button" class="sound-btn" id="soundBtn" aria-label="Sound" title="Sound on or off">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16 9.5a3.5 3.5 0 0 1 0 5M18.5 7a7 7 0 0 1 0 10"/><path class="off" d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></svg>
+  </button>
   <details class="menu" id="menu">
     <summary>Settings</summary>
     <div class="menu-pop">
@@ -305,6 +315,7 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
       <label class="chk"><input type="checkbox" id="setLefty"> Left-handed neck</label>
       <label class="chk"><input type="checkbox" id="setNames"> Show every note name</label>
       <label class="chk"><input type="checkbox" id="setSound"> Play notes when tapped</label>
+      <span class="hint">No sound? Turn the volume up. On iPhone, older iOS versions also mute the browser when the ring/silent switch is on.</span>
     </div>
   </details>
 </div>
@@ -522,23 +533,79 @@ const swatch = (i, cls) => byIv()
   : `<${cls === 'sw' ? 'span' : 'i'} class="${cls === 'sw' ? 'sw' : ''}" style="--c:${colOf(i)}"></${cls === 'sw' ? 'span' : 'i'}>`;
 
 /* ================= audio (plucked string) ================= */
-let ac = null; const bufCache = {};
+let ac = null, master = null, unlocked = false, blockedWarned = false; const bufCache = {};
+const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && 'ontouchend' in document);
+function getAudio(){
+  if (!ac) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    // iOS 17+: treat this as media playback so the ring/silent switch doesn't mute it
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+    ac = new AC({latencyHint:'interactive'});
+    master = ac.createDynamicsCompressor();            // keeps six-note strums from clipping
+    master.threshold.value = -10; master.ratio.value = 4;
+    master.connect(ac.destination);
+  }
+  return ac;
+}
+/* older iOS: a looping silent <audio> element moves the page into the "playback" audio session */
+let silentEl = null;
+function silentWav(){
+  const n = 2205, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 22050, true); v.setUint32(28, 44100, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  let s = ''; new Uint8Array(buf).forEach(b => { s += String.fromCharCode(b); });
+  return 'data:audio/wav;base64,' + btoa(s);
+}
+/* must run inside a real tap: resume the context and start a sound so mobile browsers unlock audio */
+function unlockAudio(){
+  if (!state.sound) return;
+  const a = getAudio(); if (!a) return;
+  if (a.state !== 'running') a.resume().catch(() => {});
+  if (unlocked) return;
+  try { const b = a.createBuffer(1, 1, 22050), s = a.createBufferSource(); s.buffer = b; s.connect(a.destination); s.start(0); } catch (e) {}
+  if (IS_IOS && !navigator.audioSession) {
+    try {
+      silentEl = silentEl || Object.assign(document.createElement('audio'), {src:silentWav(), loop:true, preload:'auto'});
+      silentEl.setAttribute('playsinline', ''); silentEl.volume = 0.01;
+      const pr = silentEl.play(); if (pr && pr.catch) pr.catch(() => {});
+    } catch (e) {}
+  }
+  unlocked = true;
+}
+['pointerdown', 'touchend', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, {capture:true, passive:true}));
+function warnIfBlocked(){
+  setTimeout(() => {
+    if (!state.sound || !ac || ac.state === 'running' || blockedWarned) return;
+    blockedWarned = true;
+    toast(IS_IOS ? 'Sound is blocked. Tap the neck again, and check the silent switch and volume.' : 'Sound is blocked by the browser. Tap the neck again to enable it.');
+  }, 600);
+}
+function makeBuf(midi){
+  let buf = bufCache[midi];
+  if (buf) return buf;
+  const sr = ac.sampleRate, f = 440 * Math.pow(2, (midi - 69) / 12), N = Math.max(2, Math.round(sr / f)), len = Math.floor(sr * 1.8);
+  buf = ac.createBuffer(1, len, sr); const d = buf.getChannelData(0);
+  let prev = 0; for (let i = 0; i < N; i++) { const r = Math.random() * 2 - 1; d[i] = (r + prev) * .5; prev = r; }
+  for (let i = N; i < len; i++) d[i] = 0.996 * 0.5 * (d[i - N] + (i - N - 1 >= 0 ? d[i - N - 1] : 0));
+  // short fade-in removes the click at the start of each note
+  for (let i = 0; i < 64 && i < len; i++) d[i] *= i / 64;
+  return (bufCache[midi] = buf);
+}
 function pluck(midi, delay = 0){
   if (!state.sound) return;
   try {
-    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
-    if (ac.state === 'suspended') ac.resume();
-    let buf = bufCache[midi];
-    if (!buf) {
-      const sr = ac.sampleRate, f = 440 * Math.pow(2, (midi - 69) / 12), N = Math.max(2, Math.round(sr / f)), len = Math.floor(sr * 1.8);
-      buf = ac.createBuffer(1, len, sr); const d = buf.getChannelData(0);
-      let prev = 0; for (let i = 0; i < N; i++) { const r = Math.random() * 2 - 1; d[i] = (r + prev) * .5; prev = r; }
-      for (let i = N; i < len; i++) d[i] = 0.996 * 0.5 * (d[i - N] + (i - N - 1 >= 0 ? d[i - N - 1] : 0));
-      bufCache[midi] = buf;
-    }
-    const src = ac.createBufferSource(), g = ac.createGain();
-    src.buffer = buf; g.gain.value = 0.32; src.connect(g); g.connect(ac.destination);
-    src.start(ac.currentTime + delay);
+    const a = getAudio(); if (!a) return;
+    const play = () => {
+      const src = a.createBufferSource(), g = a.createGain();
+      src.buffer = makeBuf(midi); g.gain.value = 0.32; src.connect(g); g.connect(master);
+      src.start(a.currentTime + delay + 0.005);
+    };
+    // never queue notes on a suspended context: they would all fire at once when it wakes up
+    if (a.state === 'running') play();
+    else { a.resume().then(() => { if (a.state === 'running') play(); }).catch(() => {}); warnIfBlocked(); }
   } catch (e) {}
 }
 function strumMidis(midis, gap = .035){ midis.slice().sort((a, b) => a - b).forEach((m, k) => pluck(m, k * gap)); }
@@ -644,6 +711,7 @@ function renderToolbar(){
   $('#setLefty').checked = state.lefty;
   $('#setNames').checked = state.allNames;
   $('#setSound').checked = state.sound;
+  $('#soundBtn').setAttribute('aria-pressed', String(!!state.sound));
   neck.classList.toggle('lefty', state.lefty);
 }
 
@@ -1297,7 +1365,14 @@ $('#setPref').addEventListener('change', e => { state.pref = e.target.value; ren
 $('#setFlip').addEventListener('change', e => { state.flip = e.target.checked; render(); });
 $('#setLefty').addEventListener('change', e => { state.lefty = e.target.checked; render(); });
 $('#setNames').addEventListener('change', e => { state.allNames = e.target.checked; render(); });
-$('#setSound').addEventListener('change', e => { state.sound = e.target.checked; save(); });
+function setSound(on){
+  state.sound = on; blockedWarned = false;
+  if (on) { unlockAudio(); pluck(57); }          // a test note (A3) so you know it works
+  renderToolbar(); save();
+  toast(on ? 'Sound on' : 'Sound off');
+}
+$('#setSound').addEventListener('change', e => setSound(e.target.checked));
+$('#soundBtn').addEventListener('click', () => setSound(!state.sound));
 document.addEventListener('click', e => { const m = $('#menu'); if (m.open && !m.contains(e.target)) m.open = false; });
 
 panel.addEventListener('click', e => {
