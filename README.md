@@ -2,6 +2,8 @@
 
 A guitar neck reference that runs in the browser. It needs no build step or server code.
 
+**Live:** https://arlenner.github.io/fretboard-atlas/
+
 - Full 24-fret neck. It's laid out for a phone held sideways and can be added to your home screen.
 - Tap a note to set the root and light up every note with the same name.
 - Layers for intervals, 35 chord types, the seven modes plus pentatonic, blues, minor-family and symmetric scales, or any notes you pick.
