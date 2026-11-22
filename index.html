@@ -505,7 +505,7 @@ function renderToolbar(){
 }
 
 /* ================= rendering: neck ================= */
-function fretCols(){ const a = []; for (let f = 1; f <= 24; f++) a.push(Math.pow(2, -f / 40).toFixed(3) + 'fr'); return a.join(' '); }
+function fretCols(){ const a = []; for (let f = 1; f <= 24; f++) a.push('minmax(0, ' + Math.pow(2, -f / 40).toFixed(3) + 'fr)'); return a.join(' '); }
 const FRET_COLS = fretCols();
 
 function renderBoard(){
@@ -701,17 +701,18 @@ function renderCircle(){
   let svg = '';
   for (let k = 0; k < 12; k++) {
     const a0 = (k * 30 - 105) * Math.PI / 180, a1 = (k * 30 - 75) * Math.PI / 180, am = (k * 30 - 90) * Math.PI / 180;
-    const pos = r => `x="${(160 + r * Math.cos(am)).toFixed(1)}" y="${(160 + r * Math.sin(am)).toFixed(1)}"`;
+    const pos = (r, dy = 0) => `x="${(160 + r * Math.cos(am)).toFixed(1)}" y="${(160 + r * Math.sin(am) + dy).toFixed(1)}"`;
     for (const ring of ['o', 'n']) {
       const isKey = ring === (minor ? 'n' : 'o') && k === i;
       const num = nums[ring + k];
       const dimSeg = num && num.includes('°');
       const cls = ring + (isKey ? ' key' : dimSeg ? ' dim' : num ? ' dia' : '');
-      const [r0, r1, rn, rnum] = ring === 'o' ? [110, 156, 139, 120] : [70, 110, 95, 80];
+      const [r0, r1, rn] = ring === 'o' ? [110, 156, 133] : [70, 110, 90];
       const label = ring === 'o' ? MAJ_DISP[k] : MIN_DISP[k];
+      const shown = dimSeg ? label.replace(/m$/, '°') : label;
       svg += `<path class="${cls}" d="${arc(r0, r1, a0, a1)}" data-act="ck" data-k="${k}" data-m="${ring === 'n' ? 1 : 0}" role="button" aria-label="${label}${ring === 'o' ? ' major' : ' minor'}"/>`;
-      svg += `<text class="${ring === 'o' ? 'nmj' : 'nmn'}${isKey ? ' on' : ''}" ${pos(rn)}>${label}</text>`;
-      if (num) svg += `<text class="num${isKey ? ' on' : ''}" ${pos(rnum)}>${num}</text>`;
+      svg += `<text class="${ring === 'o' ? 'nmj' : 'nmn'}${isKey ? ' on' : ''}" ${pos(rn, num ? -5 : 0)}>${shown}</text>`;
+      if (num) svg += `<text class="num${isKey ? ' on' : ''}" ${pos(rn, ring === 'o' ? 11 : 9)}>${num}</text>`;
     }
   }
   const kpc = minor ? mod(i * 7 + 9) : mod(i * 7);
