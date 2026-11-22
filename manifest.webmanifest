@@ -1,0 +1,14 @@
+{
+  "name": "Fretboard Atlas",
+  "short_name": "Fretboard",
+  "description": "Guitar neck reference with interval, chord, scale and mode overlays, a chord finder and a circle of fifths.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0f1115",
+  "theme_color": "#24180f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

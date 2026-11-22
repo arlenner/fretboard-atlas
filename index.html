@@ -1,0 +1,914 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fretboard Atlas</title>
+<meta name="description" content="A 24-fret guitar neck with interval, chord, scale and mode overlays, a chord finder and an interactive circle of fifths.">
+<meta name="theme-color" content="#24180f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fretboard">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap">
+<style>
+/* Layout: the neck runs full width across the top as the hero; tabs for layers, chord finder and the circle sit beneath it. */
+:root{
+  --bg:#e8eaed; --surface:#fbfbfc; --surface-2:#f0f2f5; --ink:#17191e; --muted:#5a606c; --line:#d2d6dd;
+  --accent:#a65a0a; --sel-bg:#17191e; --sel-ink:#fbfbfc;
+  --wood-a:#24180f; --wood-b:#3a2719; --fret:#b8bdc5; --nut:#ece3cb; --inlay:#e7ddc4;
+  --string-a:#f4f4f4; --string-b:#868a91;
+  --l0:#f5a524; --l1:#2fc6b0; --l2:#f27aae; --l3:#8fb0ff; --dot-ink:#16130e; --pick:#ffffff;
+  --font:'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --open:42px;
+  --row:clamp(24px, 8.4vh, 40px);
+  --dot:min(30px, calc(var(--row) - 5px));
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115; --surface:#171a20; --surface-2:#1f232a; --ink:#e8eaee; --muted:#959cab; --line:#2b3039;
+    --accent:#f5a524; --sel-bg:#e8eaee; --sel-ink:#0f1115; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --surface:#171a20; --surface-2:#1f232a; --ink:#e8eaee; --muted:#959cab; --line:#2b3039;
+  --accent:#f5a524; --sel-bg:#e8eaee; --sel-ink:#0f1115; color-scheme:dark;
+}
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px)}
+[hidden]{display:none !important}
+body{margin:0;background:var(--bg); color:var(--ink); font-family:var(--font); font-size:14px; line-height:1.4;
+  padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); padding-block:8px 32px}
+button,select,input{font:inherit; color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+h2,h3{margin:0; text-wrap:balance}
+
+/* ---------- toolbar ---------- */
+.bar{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding-block:2px 8px}
+.brand{font-weight:800; font-variation-settings:'wdth' 72; font-size:19px; letter-spacing:.01em; margin-right:auto; display:flex; align-items:baseline; gap:8px}
+.brand small{font-weight:500; font-size:12px; color:var(--muted); font-variation-settings:'wdth' 100}
+.seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--surface)}
+.seg button{border:0; background:transparent; padding:5px 10px; font-size:13px; font-weight:600; white-space:nowrap}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--sel-bg); color:var(--sel-ink)}
+.seg-label{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-right:4px}
+.ctl{display:flex; align-items:center}
+.menu{position:relative}
+.menu summary{list-style:none; border:1px solid var(--line); background:var(--surface); border-radius:8px; padding:5px 10px; font-size:13px; font-weight:600; cursor:pointer}
+.menu summary::-webkit-details-marker{display:none}
+.menu[open] summary{background:var(--sel-bg); color:var(--sel-ink)}
+.menu-pop{position:absolute; right:0; top:calc(100% + 6px); z-index:30; width:min(300px, calc(100vw - 32px)); background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px; display:grid; gap:10px; box-shadow:0 12px 32px rgba(0,0,0,.18)}
+.menu-pop label{display:grid; gap:4px; font-size:12px; color:var(--muted)}
+.menu-pop select{padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); color:var(--ink)}
+.chk{display:flex !important; grid-template-columns:none; align-items:center; gap:8px; color:var(--ink) !important; font-size:13px !important}
+.chk input{accent-color:var(--accent); width:16px; height:16px}
+
+/* ---------- neck ---------- */
+.neck{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:8px 0 6px; position:relative}
+.neck.flash{animation:flash .6s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--l0)}100%{box-shadow:0 0 0 0 transparent}}
+.board-scroll{overflow-x:auto; overflow-y:hidden; padding:0 10px; scrollbar-width:thin}
+.board{position:relative; display:grid; grid-template-rows:repeat(6, var(--row)); min-width:740px}
+.wood{position:absolute; top:0; bottom:0; left:var(--open); right:0; z-index:0; display:grid; border-radius:0 5px 5px 0;
+  background:
+    repeating-linear-gradient(178deg, rgba(255,255,255,.025) 0 2px, transparent 2px 6px),
+    linear-gradient(180deg, var(--wood-b), var(--wood-a) 50%, var(--wood-b));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06), inset 0 -1px 0 rgba(0,0,0,.4)}
+.lefty .wood{left:0; right:var(--open); border-radius:5px 0 0 5px}
+.lefty .board, .lefty .fretnums{direction:rtl}
+.inl{position:relative}
+.inl i{position:absolute; left:50%; width:11px; height:11px; border-radius:50%; background:var(--inlay); opacity:.5; transform:translate(-50%,-50%)}
+.cell{position:relative; z-index:1; border:0; margin:0; padding:0; background:transparent; display:grid; place-items:center;
+  border-inline-end:2px solid var(--fret); -webkit-tap-highlight-color:transparent; touch-action:manipulation}
+.cell.open{border-inline-end:6px solid var(--nut)}
+.cell::before{content:""; position:absolute; inset-inline:0; top:50%; height:var(--g); transform:translateY(-50%);
+  background:linear-gradient(180deg, var(--string-a), var(--string-b)); box-shadow:0 1px 1px rgba(0,0,0,.45); pointer-events:none}
+.cell.open::before{opacity:.7}
+.cell:focus-visible{outline:2px solid var(--l0); outline-offset:-3px}
+.cell:hover .dot.nm{color:rgba(255,255,255,.75)}
+.dot{position:relative; z-index:1; width:var(--dot); height:var(--dot); border-radius:50%; display:grid; place-items:center;
+  font-weight:750; font-variation-settings:'wdth' 78; font-size:calc(var(--dot) * .44); line-height:1; letter-spacing:-.01em;
+  background:var(--c); color:var(--dot-ink); box-shadow:0 1px 3px rgba(0,0,0,.55); transition:transform .12s ease-out}
+.dot.root{border-radius:26%}
+.dot.ring{box-shadow:0 0 0 3px var(--c2), 0 1px 4px rgba(0,0,0,.6)}
+.dot .pip{position:absolute; top:-3px; right:-3px; width:9px; height:9px; border-radius:50%; background:var(--c3); box-shadow:0 0 0 1.5px var(--wood-a)}
+.dot.ghost{background:rgba(0,0,0,.25); box-shadow:inset 0 0 0 2px var(--c); color:var(--c)}
+.dot.faint{opacity:.45; transform:scale(.55)}
+.dot.pick{background:var(--pick); color:#111; box-shadow:0 0 0 3px var(--l0), 0 2px 5px rgba(0,0,0,.6)}
+.dot.echo{background:rgba(0,0,0,.3); box-shadow:inset 0 0 0 2px rgba(255,255,255,.75); color:#fff}
+.dot.nm{background:transparent; box-shadow:none; color:rgba(255,255,255,.32); font-weight:500}
+.cell.open .dot.nm{color:var(--muted)}
+.cell.tapped .dot{transform:scale(1.12)}
+.cell.tapped .dot::after{content:""; position:absolute; inset:-6px; border-radius:inherit; border:2px solid var(--c); opacity:0; animation:ping 1s ease-out 2}
+@keyframes ping{0%{opacity:.9; transform:scale(.85)}100%{opacity:0; transform:scale(1.35)}}
+.fretnums{display:grid; min-width:740px; font-size:11px; color:var(--muted); text-align:center; padding-top:4px; font-variant-numeric:tabular-nums}
+.fretnums .mk{color:var(--ink); font-weight:700}
+.legend{display:flex; flex-wrap:wrap; gap:4px 14px; padding:6px 12px 0; font-size:12px; color:var(--muted)}
+.legend span{display:inline-flex; align-items:center; gap:6px}
+.legend i{width:10px; height:10px; border-radius:50%; background:var(--c); display:inline-block}
+.legend b{color:var(--ink); font-weight:650}
+.rotate-hint{display:none; margin:0 0 8px; font-size:12px; color:var(--muted)}
+@media (orientation: portrait) and (max-width: 700px){ .rotate-hint{display:block} }
+@media (min-height: 640px){
+  .neck-wrap{position:sticky; top:env(safe-area-inset-top, 0px); z-index:20; background:var(--bg); padding-bottom:6px}
+  body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:10; background:var(--bg)}
+}
+
+/* ---------- tabs + panel ---------- */
+.tabs{display:flex; gap:4px; margin-top:10px; border-bottom:1px solid var(--line); overflow-x:auto}
+.tabs button{border:0; background:transparent; padding:8px 12px; font-weight:650; font-size:14px; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink); border-bottom-color:var(--accent)}
+.panel{padding-top:12px}
+.cards{display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap:12px; align-items:start}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px; display:grid; gap:10px; min-width:0}
+.card.off{opacity:.6}
+.card-h{display:flex; align-items:center; gap:10px}
+.sw{width:18px; height:18px; border-radius:50%; background:var(--c); flex:none; box-shadow:inset 0 0 0 2px rgba(0,0,0,.15)}
+.ttl{flex:1; min-width:0; display:grid}
+.ttl b{font-size:17px; font-weight:750; font-variation-settings:'wdth' 85}
+.ttl small{color:var(--muted); font-size:12px}
+.acts{display:flex; gap:6px}
+.btn{border:1px solid var(--line); background:var(--surface-2); border-radius:8px; padding:5px 10px; font-size:13px; font-weight:600}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--sel-bg); color:var(--sel-ink); border-color:var(--sel-bg)}
+.row{display:flex; flex-wrap:wrap; gap:6px; align-items:center; min-width:0}
+.rl{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); width:100%}
+.chip{min-width:34px; height:30px; padding:0 9px; border-radius:15px; border:1px solid var(--line); background:var(--surface); font-weight:650; font-size:13px; display:inline-flex; align-items:center; justify-content:center; gap:5px; white-space:nowrap}
+.chip:hover{border-color:var(--muted)}
+.chip.on{background:var(--c, var(--sel-bg)); border-color:var(--c, var(--sel-bg)); color:var(--dot-ink)}
+.chip.sel{background:var(--sel-bg); border-color:var(--sel-bg); color:var(--sel-ink)}
+.chip.flt{height:38px; flex-direction:column; gap:0; padding:0 8px; border-radius:10px; line-height:1.05}
+.chip.flt span{font-size:10px; font-weight:500; opacity:.8}
+.chip.flt:not(.on){color:var(--muted)}
+.chip.flt:not(.on) b{text-decoration:line-through; text-decoration-thickness:1px}
+select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); color:var(--ink); font-size:13px; max-width:100%}
+.info{font-size:13px; color:var(--muted)}
+.info b{color:var(--ink)}
+.notes-line{font-weight:650; color:var(--ink); letter-spacing:.02em}
+.toolbar2{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; align-items:center}
+
+/* finder */
+.finder{display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap:12px; align-items:start}
+.big{font-size:34px; font-weight:800; font-variation-settings:'wdth' 82; line-height:1.05; letter-spacing:-.01em}
+.cand{display:flex; flex-wrap:wrap; gap:6px}
+.cand button{border:1px solid var(--line); background:var(--surface-2); border-radius:10px; padding:6px 10px; text-align:left; display:grid}
+.cand button b{font-size:15px}
+.cand button small{color:var(--muted); font-size:11px}
+.cand button:hover{border-color:var(--muted)}
+.empty{background:var(--surface); border:1px dashed var(--line); border-radius:14px; padding:16px; display:grid; gap:10px}
+.empty p{margin:0; color:var(--muted); max-width:60ch}
+
+/* circle */
+.circle-wrap{display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start}
+.cof{width:min(320px, 100%); height:auto; flex:0 1 320px; max-width:100%}
+.cof path{stroke:var(--bg); stroke-width:2; cursor:pointer; transition:fill .15s}
+.cof .o{fill:var(--surface)}
+.cof .n{fill:var(--surface-2)}
+.cof .dia{fill:color-mix(in srgb, var(--l0) 30%, var(--surface))}
+.cof .dim{fill:color-mix(in srgb, var(--l0) 14%, var(--surface))}
+.cof .key{fill:var(--l0)}
+.cof path:hover{filter:brightness(.95)}
+.cof text{fill:var(--ink); font-family:var(--font); pointer-events:none; text-anchor:middle; dominant-baseline:middle}
+.cof .key + text, .cof text.on{fill:var(--dot-ink)}
+.cof .nmj{font-size:15px; font-weight:750}
+.cof .nmn{font-size:11.5px; font-weight:650}
+.cof .num{font-size:9px; font-weight:700; fill:var(--accent)}
+.cof .num.on{fill:var(--dot-ink)}
+.cof .ctr{fill:var(--surface); stroke:var(--line)}
+.cof .ck{font-size:22px; font-weight:800}
+.cof .cs{font-size:10px; fill:var(--muted)}
+.kinfo{flex:1 1 320px; min-width:0; display:grid; gap:14px}
+.kinfo h3{font-size:24px; font-weight:800; font-variation-settings:'wdth' 85}
+.chordbtn{border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:5px 9px; display:grid; justify-items:center; min-width:52px}
+.chordbtn small{font-size:10px; font-weight:700; color:var(--accent); letter-spacing:.04em}
+.chordbtn b{font-size:14px}
+.chordbtn:hover{border-color:var(--muted)}
+.prog{display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:6px 0; border-top:1px solid var(--line)}
+.prog .pn{font-size:12px; color:var(--muted); width:100%}
+.scl{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:6px}
+.scl button{border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:6px 10px; text-align:left; display:grid}
+.scl button small{color:var(--muted); font-size:11px}
+.scl button:hover{border-color:var(--muted)}
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="brand">Fretboard Atlas <small>24 frets · 6 strings</small></div>
+  <div class="ctl"><span class="seg-label">Tap</span>
+    <div class="seg" id="modeSeg">
+      <button type="button" data-mode="root">Set root</button>
+      <button type="button" data-mode="pick">Pick notes</button>
+    </div>
+  </div>
+  <div class="ctl"><span class="seg-label">Show</span>
+    <div class="seg" id="labelSeg">
+      <button type="button" data-label="interval">Intervals</button>
+      <button type="button" data-label="note">Notes</button>
+    </div>
+  </div>
+  <details class="menu" id="menu">
+    <summary>Settings</summary>
+    <div class="menu-pop">
+      <label>Tuning <select id="setTuning"></select></label>
+      <label>Note spelling
+        <select id="setPref"><option value="auto">Auto (by key)</option><option value="sharp">Prefer sharps</option><option value="flat">Prefer flats</option></select>
+      </label>
+      <label class="chk"><input type="checkbox" id="setFlip"> Low E string on top</label>
+      <label class="chk"><input type="checkbox" id="setLefty"> Left-handed neck</label>
+      <label class="chk"><input type="checkbox" id="setNames"> Show every note name</label>
+      <label class="chk"><input type="checkbox" id="setSound"> Play notes when tapped</label>
+    </div>
+  </details>
+</div>
+
+<p class="rotate-hint">Turn your phone sideways to see the whole neck. You can also swipe the neck left and right.</p>
+
+<div class="neck-wrap">
+  <div class="neck" id="neck">
+    <div class="board-scroll" id="boardScroll">
+      <div class="board" id="board"></div>
+      <div class="fretnums" id="fretnums"></div>
+    </div>
+    <div class="legend" id="legend"></div>
+  </div>
+</div>
+
+<div class="tabs" role="tablist">
+  <button type="button" role="tab" data-tab="layers">Layers</button>
+  <button type="button" role="tab" data-tab="finder">Chord finder</button>
+  <button type="button" role="tab" data-tab="circle">Circle of fifths</button>
+</div>
+<div class="panel" id="panel"></div>
+
+<script>
+(function(){
+"use strict";
+/* ================= music theory ================= */
+const mod = (n, m = 12) => ((n % m) + m) % m;
+const LETTERS = 'CDEFGAB';
+const NAT = [0, 2, 4, 5, 7, 9, 11];
+const BASE = {1:0, 2:2, 3:4, 4:5, 5:7, 6:9, 7:11, 9:14, 11:17, 13:21};
+const ACC = {bb:-2, b:-1, '':0, '#':1, '##':2};
+const SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const FLAT  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const DEFAULT = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+
+function lab(l){ const m = /^(bb|b|##|#)?(\d+)$/.exec(l); return {n:+m[2], semi:BASE[+m[2]] + ACC[m[1] || '']}; }
+const semi = l => mod(lab(l).semi);
+function pcOf(nm){ let p = NAT[LETTERS.indexOf(nm[0])]; for (const ch of nm.slice(1)) p += ch === '#' ? 1 : ch === 'b' ? -1 : 0; return mod(p); }
+function spell(root, l){
+  const {n, semi:s} = lab(l);
+  const li = (LETTERS.indexOf(root[0]) + n - 1) % 7;
+  const target = mod(pcOf(root) + s);
+  let d = mod(target - NAT[li]); if (d > 6) d -= 12;
+  if (Math.abs(d) > 2) return DEFAULT[target];
+  return LETTERS[li] + ({'-2':'bb','-1':'b','0':'','1':'#','2':'##'})[d];
+}
+const pn = nm => nm ? nm[0] + nm.slice(1).replace(/##/g, '𝄪').replace(/#/g, '♯').replace(/b/g, '♭') : '';
+const pl = l => l === '1' ? 'R' : l.replace(/#/g, '♯').replace(/b/g, '♭');
+function noteName(pc){ pc = mod(pc); return state.pref === 'sharp' ? SHARP[pc] : state.pref === 'flat' ? FLAT[pc] : DEFAULT[pc]; }
+function rootName(pc, labels){
+  pc = mod(pc);
+  if (state.pref === 'sharp') return SHARP[pc];
+  if (state.pref === 'flat') return FLAT[pc];
+  if (SHARP[pc] === FLAT[pc]) return SHARP[pc];
+  if (!labels || labels.length < 2) return DEFAULT[pc];
+  const score = r => labels.reduce((a, l) => { const c = spell(r, l).length - 1; return a + (c >= 2 ? 4 : c); }, 0);
+  const a = score(SHARP[pc]), b = score(FLAT[pc]);
+  return a < b ? SHARP[pc] : b < a ? FLAT[pc] : DEFAULT[pc];
+}
+
+const INTERVALS = ['1','b2','2','b3','3','4','b5','5','b6','6','b7','7'];
+const INTERVAL_NAMES = ['Root','Minor 2nd','Major 2nd','Minor 3rd','Major 3rd','Perfect 4th','Tritone','Perfect 5th','Minor 6th','Major 6th','Minor 7th','Major 7th'];
+
+const SCALES = {
+  ionian:    {name:'Ionian (major)', short:'Ionian', labels:['1','2','3','4','5','6','7']},
+  dorian:    {name:'Dorian', short:'Dorian', labels:['1','2','b3','4','5','6','b7']},
+  phrygian:  {name:'Phrygian', short:'Phrygian', labels:['1','b2','b3','4','5','b6','b7']},
+  lydian:    {name:'Lydian', short:'Lydian', labels:['1','2','3','#4','5','6','7']},
+  mixolydian:{name:'Mixolydian', short:'Mixolydian', labels:['1','2','3','4','5','6','b7']},
+  aeolian:   {name:'Aeolian (natural minor)', short:'Aeolian', labels:['1','2','b3','4','5','b6','b7']},
+  locrian:   {name:'Locrian', short:'Locrian', labels:['1','b2','b3','4','b5','b6','b7']},
+  majPent:   {name:'Major pentatonic', labels:['1','2','3','5','6']},
+  minPent:   {name:'Minor pentatonic', labels:['1','b3','4','5','b7']},
+  blues:     {name:'Blues', labels:['1','b3','4','b5','5','b7']},
+  majBlues:  {name:'Major blues', labels:['1','2','b3','3','5','6']},
+  harmMin:   {name:'Harmonic minor', labels:['1','2','b3','4','5','b6','7']},
+  melMin:    {name:'Melodic minor', labels:['1','2','b3','4','5','6','7']},
+  phrygDom:  {name:'Phrygian dominant', labels:['1','b2','3','4','5','b6','b7']},
+  lydDom:    {name:'Lydian dominant', labels:['1','2','3','#4','5','6','b7']},
+  altered:   {name:'Altered', labels:['1','b2','#2','3','#4','b6','b7']},
+  wholeTone: {name:'Whole tone', labels:['1','2','3','#4','#5','b7']},
+  dimHW:     {name:'Diminished (half-whole)', labels:['1','b2','#2','3','#4','5','6','b7']},
+  dimWH:     {name:'Diminished (whole-half)', labels:['1','2','b3','4','b5','b6','6','7']},
+  chromatic: {name:'Chromatic', labels:INTERVALS.slice()}
+};
+const MODES = ['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian'];
+const MODE_OFF = [0, 2, 4, 5, 7, 9, 11];
+const OTHER_SCALES = [
+  ['Pentatonic & blues', ['majPent','minPent','blues','majBlues']],
+  ['Minor family', ['harmMin','melMin','phrygDom','lydDom','altered']],
+  ['Symmetric', ['wholeTone','dimHW','dimWH','chromatic']]
+];
+
+const CHORD_LIST = [
+  ['Triads', [
+    ['maj','','Major',['1','3','5']], ['min','m','Minor',['1','b3','5']], ['dim','dim','Diminished',['1','b3','b5']],
+    ['aug','aug','Augmented',['1','3','#5']], ['sus2','sus2','Suspended 2nd',['1','2','5']], ['sus4','sus4','Suspended 4th',['1','4','5']],
+    ['5','5','Power chord',['1','5']]]],
+  ['Sixths & sevenths', [
+    ['6','6','Major 6th',['1','3','5','6']], ['m6','m6','Minor 6th',['1','b3','5','6']],
+    ['7','7','Dominant 7th',['1','3','5','b7']], ['maj7','maj7','Major 7th',['1','3','5','7']], ['m7','m7','Minor 7th',['1','b3','5','b7']],
+    ['mM7','m(maj7)','Minor-major 7th',['1','b3','5','7']], ['m7b5','m7♭5','Half-diminished',['1','b3','b5','b7']],
+    ['dim7','dim7','Diminished 7th',['1','b3','b5','bb7']], ['7sus4','7sus4','Dominant 7th sus4',['1','4','5','b7']],
+    ['7s5','7♯5','Augmented 7th',['1','3','#5','b7']], ['M7s5','maj7♯5','Augmented major 7th',['1','3','#5','7']],
+    ['7b5','7♭5','Dominant 7th flat 5',['1','3','b5','b7']]]],
+  ['Extended', [
+    ['add9','add9','Added 9th',['1','3','5','9']], ['madd9','m(add9)','Minor added 9th',['1','b3','5','9']],
+    ['69','6/9','Six-nine',['1','3','5','6','9']], ['9','9','Dominant 9th',['1','3','5','b7','9']],
+    ['maj9','maj9','Major 9th',['1','3','5','7','9']], ['m9','m9','Minor 9th',['1','b3','5','b7','9']],
+    ['7b9','7♭9','Dominant 7th flat 9',['1','3','5','b7','b9']], ['7s9','7♯9','Dominant 7th sharp 9',['1','3','5','b7','#9']],
+    ['add11','add11','Added 11th',['1','3','5','11']], ['11','11','Dominant 11th',['1','3','5','b7','9','11']],
+    ['m11','m11','Minor 11th',['1','b3','5','b7','9','11']], ['7s11','7♯11','Dominant 7th sharp 11',['1','3','5','b7','#11']],
+    ['M7s11','maj7♯11','Major 7th sharp 11',['1','3','5','7','#11']], ['13','13','Dominant 13th',['1','3','5','b7','9','13']],
+    ['maj13','maj13','Major 13th',['1','3','5','7','9','13']], ['m13','m13','Minor 13th',['1','b3','5','b7','9','13']]]]
+];
+const CHORDS = {}; const CHORD_ORDER = [];
+CHORD_LIST.forEach(([, list]) => list.forEach(([id, sym, name, labels]) => { CHORDS[id] = {id, sym, name, labels}; CHORD_ORDER.push(id); }));
+const QUICK_CHORDS = ['maj','min','7','maj7','m7','dim','sus4','m7b5'];
+
+const TUNINGS = {
+  std:{name:'Standard  E A D G B E', midi:[40,45,50,55,59,64]},
+  halfDown:{name:'Half step down', midi:[39,44,49,54,58,63]},
+  dropD:{name:'Drop D  D A D G B E', midi:[38,45,50,55,59,64]},
+  dStd:{name:'D standard', midi:[38,43,48,53,57,62]},
+  dadgad:{name:'DADGAD', midi:[38,45,50,55,57,62]},
+  openG:{name:'Open G  D G D G B D', midi:[38,43,50,55,59,62]},
+  openD:{name:'Open D  D A D F♯ A D', midi:[38,45,50,54,57,62]},
+  openE:{name:'Open E  E B E G♯ B E', midi:[40,47,52,56,59,64]}
+};
+const GAUGE = [3.2, 2.7, 2.2, 1.8, 1.35, 1.05];
+const INLAY = [3,5,7,9,15,17,19,21], DOUBLE = [12,24];
+
+/* ================= state ================= */
+const KEY = 'fretboard-atlas-v1';
+const DEF = {
+  tuning:'std', labelMode:'interval', pref:'auto', flip:false, lefty:false, sound:true, allNames:false,
+  onePerString:true, echoes:true, tab:'layers',
+  layers:[{id:1, kind:'scale', root:9, type:'dorian', hidden:[], notes:[], visible:true, color:0}],
+  picks:[], tap:null, circle:{i:0, minor:false, sevenths:false}, nextId:2
+};
+const clone = o => JSON.parse(JSON.stringify(o));
+let state = clone(DEF);
+try {
+  const s = JSON.parse(localStorage.getItem(KEY));
+  if (s && Array.isArray(s.layers) && s.layers.length) state = Object.assign(clone(DEF), s);
+} catch (e) {}
+state.layers = state.layers.filter(L => L && ['intervals','chord','scale','notes'].includes(L.kind)).slice(0, 4);
+if (!state.layers.length) state.layers = clone(DEF.layers);
+state.layers.forEach(L => {
+  if (L.kind === 'chord' && !CHORDS[L.type]) L.type = 'maj';
+  if (L.kind === 'scale' && !SCALES[L.type]) L.type = 'ionian';
+  L.hidden = L.hidden || []; L.notes = L.notes || [];
+});
+if (!TUNINGS[state.tuning]) state.tuning = 'std';
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+/* ================= layer helpers ================= */
+function layerLabels(L){
+  if (L.kind === 'intervals') return INTERVALS;
+  if (L.kind === 'chord') return CHORDS[L.type].labels;
+  if (L.kind === 'scale') return SCALES[L.type].labels;
+  return [];
+}
+const layerRoot = L => rootName(L.root, layerLabels(L));
+function layerMap(L){
+  const m = new Map();
+  if (L.kind === 'notes') { L.notes.forEach(pc => m.set(pc, {label:null, name:noteName(pc), isRoot:false})); return m; }
+  const rn = layerRoot(L);
+  layerLabels(L).forEach(l => {
+    if (L.hidden.includes(l)) return;
+    const pc = mod(L.root + semi(l));
+    if (!m.has(pc)) m.set(pc, {label:l, name:spell(rn, l), isRoot:l === '1'});
+  });
+  return m;
+}
+function layerTitle(L){
+  const rn = pn(layerRoot(L));
+  if (L.kind === 'intervals') return rn + ' intervals';
+  if (L.kind === 'chord') return rn + CHORDS[L.type].sym + ' chord';
+  if (L.kind === 'scale') return rn + ' ' + (SCALES[L.type].short || SCALES[L.type].name.toLowerCase());
+  return 'Custom notes';
+}
+function layerFilterText(L){
+  if (L.kind === 'notes') return L.notes.map(pc => pn(noteName(pc))).join(' ') || 'none picked';
+  if (!L.hidden.length) return '';
+  const shown = layerLabels(L).filter(l => !L.hidden.includes(l)).map(pl);
+  return shown.length ? 'only ' + shown.join(', ') : 'all hidden';
+}
+const colOf = i => 'var(--l' + state.layers[i].color + ')';
+
+/* ================= audio (plucked string) ================= */
+let ac = null; const bufCache = {};
+function pluck(midi, delay = 0){
+  if (!state.sound) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') ac.resume();
+    let buf = bufCache[midi];
+    if (!buf) {
+      const sr = ac.sampleRate, f = 440 * Math.pow(2, (midi - 69) / 12), N = Math.max(2, Math.round(sr / f)), len = Math.floor(sr * 1.8);
+      buf = ac.createBuffer(1, len, sr); const d = buf.getChannelData(0);
+      let prev = 0; for (let i = 0; i < N; i++) { const r = Math.random() * 2 - 1; d[i] = (r + prev) * .5; prev = r; }
+      for (let i = N; i < len; i++) d[i] = 0.996 * 0.5 * (d[i - N] + (i - N - 1 >= 0 ? d[i - N - 1] : 0));
+      bufCache[midi] = buf;
+    }
+    const src = ac.createBufferSource(), g = ac.createGain();
+    src.buffer = buf; g.gain.value = 0.32; src.connect(g); g.connect(ac.destination);
+    src.start(ac.currentTime + delay);
+  } catch (e) {}
+}
+function strumMidis(midis, gap = .035){ midis.slice().sort((a, b) => a - b).forEach((m, k) => pluck(m, k * gap)); }
+function chordMidis(rootPc, type){ const base = 48 + mod(rootPc); return CHORDS[type].labels.map(l => base + lab(l).semi); }
+
+/* ================= chord identification ================= */
+function identify(pcs, bass){
+  const uniq = [...new Set(pcs)];
+  const out = [];
+  if (uniq.length < 2) return {exact:out, near:[]};
+  const near = [];
+  for (const r of uniq) {
+    const rel = new Set(uniq.map(p => mod(p - r)));
+    for (const id of CHORD_ORDER) {
+      const c = CHORDS[id];
+      const tset = new Set(c.labels.map(semi));
+      const optional = [];
+      if (c.labels.length >= 4 && c.labels.includes('5')) optional.push(7);
+      if (['11','m11','13','maj13','m13'].includes(id)) optional.push(2);
+      let found = null;
+      for (let mask = 0; mask < (1 << optional.length) && !found; mask++) {
+        const omit = optional.filter((_, k) => mask & (1 << k));
+        const t = [...tset].filter(x => !omit.includes(x));
+        if (t.length === rel.size && t.every(x => rel.has(x))) found = omit;
+      }
+      if (found) {
+        out.push(makeCand(r, id, bass, found, 100 - 6 * found.length - c.labels.length + (r === bass ? 12 : 0)));
+      } else if (rel.size >= 2 && c.labels.length >= 3 && tset.size - rel.size === 1 && [...rel].every(x => tset.has(x))) {
+        const missing = c.labels.find(l => !rel.has(semi(l)));
+        near.push(Object.assign(makeCand(r, id, bass, [], 50 - c.labels.length + (r === bass ? 8 : 0)), {missing}));
+      }
+    }
+  }
+  const dedupe = arr => { const seen = new Set(); return arr.sort((a, b) => b.score - a.score || a.name.length - b.name.length).filter(c => !seen.has(c.name) && seen.add(c.name)); };
+  return {exact:dedupe(out), near:dedupe(near).slice(0, 6)};
+}
+function makeCand(r, id, bass, omit, score){
+  const c = CHORDS[id], rn = rootName(r, c.labels);
+  let name = pn(rn) + c.sym;
+  if (bass !== r) {
+    const bl = c.labels.find(l => semi(l) === mod(bass - r));
+    name += '/' + pn(bl ? spell(rn, bl) : noteName(bass));
+  }
+  const tags = [];
+  if (omit.includes(7)) tags.push('no 5');
+  if (omit.includes(2)) tags.push('no 9');
+  return {root:r, type:id, name, tags, score, rn, labels:c.labels.filter(l => !omit.includes(semi(l)))};
+}
+
+/* ================= rendering: toolbar ================= */
+const $ = s => document.querySelector(s);
+const board = $('#board'), panel = $('#panel'), neck = $('#neck');
+const tuningSel = $('#setTuning');
+tuningSel.innerHTML = Object.entries(TUNINGS).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('');
+
+function renderToolbar(){
+  const pick = state.tab === 'finder';
+  document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.mode === 'pick') === pick)));
+  document.querySelectorAll('#labelSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.label === state.labelMode)));
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
+  tuningSel.value = state.tuning;
+  $('#setPref').value = state.pref;
+  $('#setFlip').checked = state.flip;
+  $('#setLefty').checked = state.lefty;
+  $('#setNames').checked = state.allNames;
+  $('#setSound').checked = state.sound;
+  neck.classList.toggle('lefty', state.lefty);
+}
+
+/* ================= rendering: neck ================= */
+function fretCols(){ const a = []; for (let f = 1; f <= 24; f++) a.push(Math.pow(2, -f / 40).toFixed(3) + 'fr'); return a.join(' '); }
+const FRET_COLS = fretCols();
+
+function renderBoard(){
+  const tun = TUNINGS[state.tuning].midi;
+  const pickMode = state.tab === 'finder';
+  const maps = state.layers.map(L => L.visible ? layerMap(L) : null);
+  const main = state.layers[0];
+  const pickPcs = new Set(state.picks.map(p => mod(tun[p.s] + p.f)));
+  const R = 'var(--row)';
+  let inl = '';
+  for (let f = 1; f <= 24; f++) {
+    let dots = '';
+    if (INLAY.includes(f)) dots = `<i style="top:calc(${R} * 3)"></i>`;
+    if (DOUBLE.includes(f)) dots = `<i style="top:calc(${R} * 2)"></i><i style="top:calc(${R} * 4)"></i>`;
+    inl += `<div class="inl">${dots}</div>`;
+  }
+  let html = `<div class="wood" style="grid-template-columns:${FRET_COLS}">${inl}</div>`;
+  for (let r = 0; r < 6; r++) {
+    const s = state.flip ? r : 5 - r;
+    for (let f = 0; f <= 24; f++) {
+      const pc = mod(tun[s] + f);
+      const hits = [];
+      maps.forEach((m, i) => { if (m && m.has(pc)) hits.push(Object.assign({i}, m.get(pc))); });
+      let dot = '';
+      if (pickMode) {
+        if (state.picks.some(p => p.s === s && p.f === f)) dot = `<span class="dot pick">${pn(noteName(pc))}</span>`;
+        else if (state.echoes && pickPcs.has(pc)) dot = `<span class="dot echo">${pn(noteName(pc))}</span>`;
+        else if (hits.length) dot = `<span class="dot faint" style="--c:${colOf(hits[0].i)}"></span>`;
+      } else if (hits.length) {
+        const h = hits[0];
+        const text = (state.labelMode === 'note' || h.label == null) ? pn(h.name) : pl(h.label);
+        let cls = 'dot', st = `--c:${colOf(h.i)};`;
+        if (h.isRoot) cls += ' root';
+        if (hits[1]) { cls += ' ring'; st += `--c2:${colOf(hits[1].i)};`; }
+        const pip = hits[2] ? `<span class="pip" style="--c3:${colOf(hits[2].i)}"></span>` : '';
+        dot = `<span class="${cls}" style="${st}">${text}${pip}</span>`;
+      } else if (main.visible && main.kind !== 'notes' && pc === main.root) {
+        dot = `<span class="dot ghost root" style="--c:${colOf(0)}">${state.labelMode === 'note' ? pn(layerRoot(main)) : 'R'}</span>`;
+      }
+      if (!dot && (state.allNames || f === 0)) dot = `<span class="dot nm">${pn(noteName(pc))}</span>`;
+      const tapped = !pickMode && state.tap && state.tap.s === s && state.tap.f === f;
+      html += `<button type="button" class="cell${f === 0 ? ' open' : ''}${tapped ? ' tapped' : ''}" data-s="${s}" data-f="${f}" style="--g:${GAUGE[s]}px" aria-label="String ${6 - s}, ${f === 0 ? 'open' : 'fret ' + f}, ${noteName(pc)}">${dot}</button>`;
+    }
+  }
+  board.style.gridTemplateColumns = 'var(--open) ' + FRET_COLS;
+  board.innerHTML = html;
+  const fn = $('#fretnums');
+  fn.style.gridTemplateColumns = 'var(--open) ' + FRET_COLS;
+  let nums = '';
+  for (let f = 0; f <= 24; f++) nums += `<span class="${INLAY.includes(f) || DOUBLE.includes(f) ? 'mk' : ''}">${f}</span>`;
+  fn.innerHTML = nums;
+  // legend
+  const lg = state.layers.map((L, i) => {
+    if (!L.visible) return '';
+    const ft = layerFilterText(L);
+    return `<span><i style="--c:${colOf(i)}"></i><b>${layerTitle(L)}</b>${ft ? ' · ' + ft : ''}</span>`;
+  }).join('');
+  $('#legend').innerHTML = pickMode
+    ? `<span><i style="--c:var(--pick)"></i><b>Picked notes</b> · tap frets to add or remove</span>`
+    : (lg || '<span>All layers are hidden</span>');
+}
+
+/* ================= rendering: layers tab ================= */
+function rootChips(L, i){
+  const lbls = layerLabels(L);
+  let h = '';
+  for (let pc = 0; pc < 12; pc++) h += `<button type="button" class="chip${L.root === pc ? ' sel' : ''}" data-act="root" data-i="${i}" data-v="${pc}">${pn(rootName(pc, lbls))}</button>`;
+  return h;
+}
+function layerCard(L, i){
+  const c = colOf(i);
+  const rn = layerRoot(L);
+  const kinds = [['intervals','Intervals'],['chord','Chord'],['scale','Scale'],['notes','Notes']];
+  let h = `<div class="card${L.visible ? '' : ' off'}" style="--c:${c}">
+    <div class="card-h"><span class="sw"></span>
+      <div class="ttl"><b>${layerTitle(L)}</b><small>${i === 0 ? 'Main layer · follows your taps on the neck' : 'Overlay ' + i}</small></div>
+      <div class="acts"><button type="button" class="btn" data-act="vis" data-i="${i}">${L.visible ? 'Hide' : 'Show'}</button>
+      ${i > 0 ? `<button type="button" class="btn" data-act="del" data-i="${i}" aria-label="Remove overlay ${i}">Remove</button>` : ''}</div>
+    </div>
+    <div class="row"><div class="seg">${kinds.map(([k, t]) => `<button type="button" aria-pressed="${L.kind === k}" data-act="kind" data-i="${i}" data-v="${k}">${t}</button>`).join('')}</div></div>`;
+  if (L.kind !== 'notes') h += `<div class="row"><span class="rl">Root</span>${rootChips(L, i)}</div>`;
+  if (L.kind === 'chord') {
+    h += `<div class="row"><span class="rl">Chord type</span>${QUICK_CHORDS.map(id => `<button type="button" class="chip${L.type === id ? ' sel' : ''}" data-act="ctype" data-i="${i}" data-v="${id}">${pn(rn) + CHORDS[id].sym}</button>`).join('')}
+      <select class="sel" id="ctype-${L.id}" data-act="ctype-sel" data-i="${i}" aria-label="All chord types">
+      ${CHORD_LIST.map(([g, list]) => `<optgroup label="${g}">${list.map(([id, sym, name]) => `<option value="${id}"${L.type === id ? ' selected' : ''}>${pn(rn)}${sym} · ${name}</option>`).join('')}</optgroup>`).join('')}
+      </select></div>`;
+  }
+  if (L.kind === 'scale') {
+    h += `<div class="row"><span class="rl">Mode</span>${MODES.map((m, k) => `<button type="button" class="chip${L.type === m ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="${m}">${pn(rootName(L.root, SCALES[m].labels))} ${SCALES[m].short}</button>`).join('')}</div>
+      <div class="row"><span class="rl">Other scales</span><select class="sel" id="stype-${L.id}" data-act="stype-sel" data-i="${i}" aria-label="Other scales">
+        <option value="">${MODES.includes(L.type) ? 'Choose a scale…' : ''}</option>
+        ${OTHER_SCALES.map(([g, ids]) => `<optgroup label="${g}">${ids.map(id => `<option value="${id}"${L.type === id ? ' selected' : ''}>${pn(rootName(L.root, SCALES[id].labels))} ${SCALES[id].name}</option>`).join('')}</optgroup>`).join('')}
+      </select></div>`;
+  }
+  if (L.kind === 'notes') {
+    let n = '';
+    for (let pc = 0; pc < 12; pc++) n += `<button type="button" class="chip${L.notes.includes(pc) ? ' on' : ''}" data-act="note" data-i="${i}" data-v="${pc}">${pn(noteName(pc))}</button>`;
+    h += `<div class="row"><span class="rl">Notes to show${i === 0 ? ' · tapping the neck toggles notes too' : ''}</span>${n}</div>`;
+  } else {
+    const lbls = layerLabels(L);
+    h += `<div class="row"><span class="rl">Filter · tap to show or hide</span>${lbls.map((l, k) => {
+      const title = L.kind === 'intervals' ? INTERVAL_NAMES[k] : 'Interval ' + pl(l);
+      return `<button type="button" class="chip flt${L.hidden.includes(l) ? '' : ' on'}" data-act="flt" data-i="${i}" data-v="${l}" title="${title}" aria-pressed="${!L.hidden.includes(l)}"><b>${pl(l)}</b><span>${pn(spell(rn, l))}</span></button>`;
+    }).join('')}
+      <button type="button" class="btn" data-act="fall" data-i="${i}">All</button>
+      <button type="button" class="btn" data-act="froot" data-i="${i}">Root only</button></div>`;
+    let info = `<span class="notes-line">${lbls.map(l => pn(spell(rn, l))).join('  ')}</span>`;
+    if (L.kind === 'scale' && MODES.includes(L.type)) {
+      const k = MODES.indexOf(L.type), ppc = mod(L.root - MODE_OFF[k]);
+      info += ` · same notes as <b>${pn(rootName(ppc, SCALES.ionian.labels))} major</b>${k ? ` (mode ${k + 1})` : ''}`;
+    }
+    if (L.kind === 'chord') info += ` · ${CHORDS[L.type].name}, ${lbls.map(pl).join(' ')}`;
+    if (L.kind === 'intervals') info = 'Every interval from the root. Turn on the ones you want to see.';
+    h += `<div class="info">${info}</div>`;
+  }
+  return h + '</div>';
+}
+function renderLayers(){
+  return `<div class="toolbar2">
+      <button type="button" class="btn primary" data-act="add"${state.layers.length >= 4 ? ' disabled' : ''}>+ Add overlay</button>
+      <button type="button" class="btn" data-act="example">Example: G major 3rds &amp; 5ths + A roots &amp; ♭7s</button>
+      <span class="info">${state.layers.length >= 4 ? 'Four layers is the limit.' : 'Where layers overlap, the first fills the dot and the second draws the ring.'}</span>
+    </div>
+    <div class="cards">${state.layers.map(layerCard).join('')}</div>`;
+}
+
+/* ================= rendering: finder tab ================= */
+function renderFinder(){
+  const tun = TUNINGS[state.tuning].midi;
+  const opts = `<label class="chk"><input type="checkbox" id="opt-ops" data-act="ops"${state.onePerString ? ' checked' : ''}> One note per string</label>
+    <label class="chk"><input type="checkbox" id="opt-echo" data-act="echo"${state.echoes ? ' checked' : ''}> Outline the same notes elsewhere</label>`;
+  if (!state.picks.length) {
+    return `<div class="empty"><h3>Pick notes on the neck</h3>
+      <p>Tap frets to build a shape. Possible chord names appear here as you add notes, with the lowest note used as the bass.</p>
+      <div class="row"><button type="button" class="btn primary" data-act="pickex">Load an example shape</button></div>
+      <div class="row">${opts}</div></div>`;
+  }
+  const picks = state.picks.map(p => Object.assign({}, p, {midi:tun[p.s] + p.f})).sort((a, b) => a.midi - b.midi);
+  const pcs = picks.map(p => mod(p.midi)), bass = pcs[0];
+  const {exact, near} = identify(pcs, bass);
+  const uniq = [...new Set(pcs)];
+  const pickList = picks.map(p => `<span class="chip" title="String ${6 - p.s}, ${p.f ? 'fret ' + p.f : 'open'}">${pn(noteName(p.midi))}<small style="opacity:.6">${Math.floor(p.midi / 12) - 1}</small></span>`).join('');
+  let main = '';
+  if (uniq.length === 1) {
+    main = `<div class="big">${pn(noteName(bass))}</div><p class="info">One note. Add more to name a chord.</p>`;
+  } else if (exact.length) {
+    const top = exact[0];
+    main = `<div class="big">${top.name}</div>
+      <p class="info">${CHORDS[top.type].name}${top.tags.length ? ' (' + top.tags.join(', ') + ')' : ''} · ${top.labels.map(l => pl(l) + ' ' + pn(spell(top.rn, l))).join(' · ')}</p>
+      <div class="row"><button type="button" class="btn primary" data-act="cand" data-r="${top.root}" data-t="${top.type}">Show ${top.name.split('/')[0]} on the neck</button></div>`;
+    if (exact.length > 1) main += `<span class="rl">Also reads as</span><div class="cand">${exact.slice(1, 9).map(c => `<button type="button" data-act="cand" data-r="${c.root}" data-t="${c.type}"><b>${c.name}</b><small>${CHORDS[c.type].name}${c.tags.length ? ', ' + c.tags.join(', ') : ''}</small></button>`).join('')}</div>`;
+  } else {
+    main = `<div class="big" style="font-size:24px">No standard chord name</div><p class="info">These notes don't match a chord in the library as they are.</p>`;
+  }
+  if (uniq.length === 2) {
+    const iv = mod(pcs.find(p => p !== bass) - bass);
+    main += `<p class="info">Interval from the bass: <b>${INTERVAL_NAMES[iv]}</b> (${pl(INTERVALS[iv])}).</p>`;
+  }
+  if (near.length && (!exact.length || uniq.length <= 3)) {
+    main += `<span class="rl">Add one note to make</span><div class="cand">${near.map(c => `<button type="button" data-act="cand" data-r="${c.root}" data-t="${c.type}"><b>${c.name}</b><small>add ${pl(c.missing)} (${pn(spell(c.rn, c.missing))})</small></button>`).join('')}</div>`;
+  }
+  return `<div class="finder">
+    <div class="card"><div class="row" style="justify-content:space-between"><b>Your notes, low to high</b>
+      <span class="acts"><button type="button" class="btn" data-act="strum">Strum</button><button type="button" class="btn" data-act="clear">Clear</button></span></div>
+      <div class="row">${pickList}</div>
+      <div class="row"><button type="button" class="btn" data-act="pick2layer"${state.layers.length >= 4 ? ' disabled' : ''}>Add these notes as an overlay</button></div>
+      <div class="row">${opts}</div></div>
+    <div class="card" style="gap:8px">${main}</div></div>`;
+}
+
+/* ================= rendering: circle tab ================= */
+const MAJ_DISP = ['C','G','D','A','E','B','F♯','D♭','A♭','E♭','B♭','F'];
+const MIN_DISP = ['Am','Em','Bm','F♯m','C♯m','G♯m','E♭m','B♭m','Fm','Cm','Gm','Dm'];
+function keySig(i){
+  const S = 'FCGDAEB', F = 'BEADGCF';
+  if (i === 0) return 'No sharps or flats';
+  if (i <= 5) return `${i} sharp${i > 1 ? 's' : ''}: ${S.slice(0, i).split('').map(x => x + '♯').join(' ')}`;
+  if (i === 6) return '6 sharps (F♯) or 6 flats (G♭)';
+  const n = 12 - i; return `${n} flat${n > 1 ? 's' : ''}: ${F.slice(0, n).split('').map(x => x + '♭').join(' ')}`;
+}
+function arc(r0, r1, a0, a1){
+  const p = (r, a) => [(160 + r * Math.cos(a)).toFixed(2), (160 + r * Math.sin(a)).toFixed(2)];
+  const [x0, y0] = p(r1, a0), [x1, y1] = p(r1, a1), [x2, y2] = p(r0, a1), [x3, y3] = p(r0, a0);
+  return `M${x0} ${y0}A${r1} ${r1} 0 0 1 ${x1} ${y1}L${x2} ${y2}A${r0} ${r0} 0 0 0 ${x3} ${y3}Z`;
+}
+let progCache = [];
+function renderCircle(){
+  const {i, minor, sevenths} = state.circle;
+  const nums = {};
+  const at = k => mod(i + k);
+  if (!minor) { nums['o' + at(0)] = 'I'; nums['o' + at(-1)] = 'IV'; nums['o' + at(1)] = 'V'; nums['n' + at(0)] = 'vi'; nums['n' + at(-1)] = 'ii'; nums['n' + at(1)] = 'iii'; nums['n' + at(2)] = 'vii°'; }
+  else { nums['n' + at(0)] = 'i'; nums['n' + at(-1)] = 'iv'; nums['n' + at(1)] = 'v'; nums['n' + at(2)] = 'ii°'; nums['o' + at(0)] = 'III'; nums['o' + at(-1)] = 'VI'; nums['o' + at(1)] = 'VII'; }
+  let svg = '';
+  for (let k = 0; k < 12; k++) {
+    const a0 = (k * 30 - 105) * Math.PI / 180, a1 = (k * 30 - 75) * Math.PI / 180, am = (k * 30 - 90) * Math.PI / 180;
+    const pos = r => `x="${(160 + r * Math.cos(am)).toFixed(1)}" y="${(160 + r * Math.sin(am)).toFixed(1)}"`;
+    for (const ring of ['o', 'n']) {
+      const isKey = ring === (minor ? 'n' : 'o') && k === i;
+      const num = nums[ring + k];
+      const dimSeg = num && num.includes('°');
+      const cls = ring + (isKey ? ' key' : dimSeg ? ' dim' : num ? ' dia' : '');
+      const [r0, r1, rn, rnum] = ring === 'o' ? [110, 156, 139, 120] : [70, 110, 95, 80];
+      const label = ring === 'o' ? MAJ_DISP[k] : MIN_DISP[k];
+      svg += `<path class="${cls}" d="${arc(r0, r1, a0, a1)}" data-act="ck" data-k="${k}" data-m="${ring === 'n' ? 1 : 0}" role="button" aria-label="${label}${ring === 'o' ? ' major' : ' minor'}"/>`;
+      svg += `<text class="${ring === 'o' ? 'nmj' : 'nmn'}${isKey ? ' on' : ''}" ${pos(rn)}>${label}</text>`;
+      if (num) svg += `<text class="num${isKey ? ' on' : ''}" ${pos(rnum)}>${num}</text>`;
+    }
+  }
+  const kpc = minor ? mod(i * 7 + 9) : mod(i * 7);
+  const sc = minor ? SCALES.aeolian : SCALES.ionian;
+  const kn = rootName(kpc, sc.labels);
+  svg += `<circle class="ctr" cx="160" cy="160" r="68"/><text class="ck" x="160" y="152">${pn(kn)}${minor ? 'm' : ''}</text><text class="cs" x="160" y="174">${minor ? 'minor' : 'major'} key</text>`;
+
+  const TRI = minor ? ['min','dim','maj','min','min','maj','maj'] : ['maj','min','min','maj','maj','min','dim'];
+  const SEV = minor ? ['m7','m7b5','maj7','m7','m7','maj7','7'] : ['maj7','m7','m7','maj7','7','m7','m7b5'];
+  const NUM = minor ? ['i','ii°','III','iv','v','VI','VII'] : ['I','ii','iii','IV','V','vi','vii°'];
+  const dia = sc.labels.map((l, d) => {
+    const type = (sevenths ? SEV : TRI)[d];
+    return {num:NUM[d], root:mod(kpc + semi(l)), name:spell(kn, l), type};
+  });
+  if (minor) dia.push({num:'V (harmonic)', root:mod(kpc + 7), name:spell(kn, '5'), type:sevenths ? '7' : 'maj'});
+  const chordBtn = c => `<button type="button" class="chordbtn" data-act="cchord" data-r="${c.root}" data-t="${c.type}"><small>${c.num}</small><b>${pn(c.name)}${CHORDS[c.type].sym}</b></button>`;
+  const deg = n => dia[n];
+  const PROGS = minor ? [
+    ['Minor blues motion · i–iv–v', [0, 3, 4]],
+    ['Epic minor · i–VI–III–VII', [0, 5, 2, 6]],
+    ['Andalusian cadence · i–VII–VI–V', [0, 6, 5, 7]],
+    ['Minor ii–V–i', [1, 7, 0]]
+  ] : [
+    ['Pop · I–V–vi–IV', [0, 4, 5, 3]],
+    ['Three-chord rock · I–IV–V', [0, 3, 4]],
+    ['Doo-wop · I–vi–IV–V', [0, 5, 3, 4]],
+    ['Jazz ii–V–I', [1, 4, 0]],
+    ['Sad pop · vi–IV–I–V', [5, 3, 0, 4]]
+  ];
+  progCache = PROGS.map(([, d]) => d.map(deg));
+  const rel = minor ? {pc:mod(kpc + 3), t:'ionian', what:'Relative major'} : {pc:mod(kpc + 9), t:'aeolian', what:'Relative minor'};
+  const scaleRows = [];
+  const addS = (pc, t, sub) => scaleRows.push({pc, t, sub});
+  if (!minor) {
+    addS(kpc, 'ionian', 'The key itself');
+    addS(rel.pc, rel.t, rel.what + ', same notes');
+    addS(kpc, 'majPent', 'Five safe notes for melodies');
+    addS(rel.pc, 'minPent', 'Works over the whole key');
+    addS(rel.pc, 'blues', 'Minor pentatonic plus ♭5');
+    [1, 2, 3, 4, 6].forEach(d => addS(mod(kpc + MODE_OFF[d]), MODES[d], 'Same notes, centred on ' + NUM[d]));
+  } else {
+    addS(kpc, 'aeolian', 'The key itself');
+    addS(kpc, 'harmMin', 'Raised 7th for a strong V–i');
+    addS(kpc, 'melMin', 'Raised 6th and 7th');
+    addS(kpc, 'minPent', 'Five safe notes for melodies');
+    addS(kpc, 'blues', 'Minor pentatonic plus ♭5');
+    addS(kpc, 'dorian', 'Brighter minor, raised 6th');
+    addS(kpc, 'phrygian', 'Darker minor, ♭2');
+    addS(rel.pc, rel.t, rel.what + ', same notes');
+  }
+  const scaleHtml = scaleRows.map(s => {
+    const S = SCALES[s.t];
+    return `<button type="button" data-act="cscale" data-r="${s.pc}" data-t="${s.t}"><b>${pn(rootName(s.pc, S.labels))} ${S.short || S.name.toLowerCase()}</b><small>${s.sub}</small></button>`;
+  }).join('');
+  return `<div class="circle-wrap">
+    <svg class="cof" viewBox="0 0 320 320" role="group" aria-label="Circle of fifths">${svg}</svg>
+    <div class="kinfo">
+      <div><h3>${pn(kn)} ${minor ? 'minor' : 'major'}</h3><div class="info">${keySig(i)} · ${minor ? 'relative major' : 'relative minor'} <b>${pn(rootName(rel.pc, SCALES[rel.t].labels))}${minor ? '' : 'm'}</b> · tap any wedge to change key, tap a chord to put it on the neck</div></div>
+      <div class="row"><span class="rl" style="width:auto;margin-right:8px">Diatonic chords</span>
+        <div class="seg"><button type="button" data-act="c7" data-v="0" aria-pressed="${!sevenths}">Triads</button><button type="button" data-act="c7" data-v="1" aria-pressed="${sevenths}">7ths</button></div></div>
+      <div class="row">${dia.map(chordBtn).join('')}</div>
+      <div><span class="rl">Suggested scales</span><div class="scl">${scaleHtml}</div></div>
+      <div><span class="rl">Common progressions</span>
+        ${PROGS.map(([name], p) => `<div class="prog"><span class="pn">${name}</span>${progCache[p].map(chordBtn).join('<span class="info">→</span>')}<button type="button" class="btn" data-act="prog" data-p="${p}" aria-label="Play ${name}">Play</button></div>`).join('')}</div>
+    </div></div>`;
+}
+
+/* ================= main render ================= */
+function render(){
+  renderToolbar();
+  renderBoard();
+  panel.innerHTML = state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : renderLayers();
+  save();
+}
+function revealNeck(){
+  const r = neck.getBoundingClientRect();
+  if (r.top < 0 || r.bottom > window.innerHeight) neck.scrollIntoView({block:'start', behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+  neck.classList.remove('flash'); void neck.offsetWidth; neck.classList.add('flash');
+}
+function loadMain(kind, root, type){
+  const L = state.layers[0];
+  L.kind = kind; L.root = mod(root); L.type = type; L.hidden = []; L.visible = true;
+  state.tap = null;
+  if (state.tab === 'finder') state.tab = 'layers';
+  render(); revealNeck();
+}
+function nextColor(){ const used = state.layers.map(L => L.color); for (let c = 0; c < 4; c++) if (!used.includes(c)) return c; return 0; }
+
+/* ================= events ================= */
+board.addEventListener('click', e => {
+  const cell = e.target.closest('.cell'); if (!cell) return;
+  const s = +cell.dataset.s, f = +cell.dataset.f;
+  const tun = TUNINGS[state.tuning].midi, midi = tun[s] + f, pc = mod(midi);
+  if (state.tab === 'finder') {
+    const idx = state.picks.findIndex(p => p.s === s && p.f === f);
+    if (idx >= 0) state.picks.splice(idx, 1);
+    else {
+      if (state.onePerString) state.picks = state.picks.filter(p => p.s !== s);
+      state.picks.push({s, f}); pluck(midi);
+    }
+  } else {
+    const L = state.layers[0];
+    if (L.kind === 'notes') { const k = L.notes.indexOf(pc); if (k >= 0) L.notes.splice(k, 1); else L.notes.push(pc); }
+    else { L.root = pc; L.visible = true; }
+    state.tap = {s, f}; pluck(midi);
+  }
+  render();
+});
+
+document.getElementById('modeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.tab = b.dataset.mode === 'pick' ? 'finder' : (state.tab === 'finder' ? 'layers' : state.tab);
+  render();
+});
+document.getElementById('labelSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.labelMode = b.dataset.label; render();
+});
+document.querySelector('.tabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.tab = b.dataset.tab; render();
+});
+tuningSel.addEventListener('change', () => { state.tuning = tuningSel.value; state.tap = null; render(); });
+$('#setPref').addEventListener('change', e => { state.pref = e.target.value; render(); });
+$('#setFlip').addEventListener('change', e => { state.flip = e.target.checked; render(); });
+$('#setLefty').addEventListener('change', e => { state.lefty = e.target.checked; render(); });
+$('#setNames').addEventListener('change', e => { state.allNames = e.target.checked; render(); });
+$('#setSound').addEventListener('change', e => { state.sound = e.target.checked; save(); });
+document.addEventListener('click', e => { const m = $('#menu'); if (m.open && !m.contains(e.target)) m.open = false; });
+
+panel.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b || b.tagName === 'SELECT' || b.tagName === 'INPUT') return;
+  const act = b.dataset.act, i = +b.dataset.i, L = state.layers[i], v = b.dataset.v;
+  switch (act) {
+    case 'vis': L.visible = !L.visible; break;
+    case 'del': state.layers.splice(i, 1); break;
+    case 'kind':
+      if (L.kind === v) return;
+      L.kind = v; L.hidden = [];
+      if (v === 'chord') L.type = 'maj';
+      if (v === 'scale') L.type = 'ionian';
+      if (v === 'intervals') L.hidden = INTERVALS.filter(l => !['1','3','5','b7'].includes(l));
+      if (v === 'notes' && !L.notes.length) L.notes = [L.root];
+      break;
+    case 'root': L.root = +v; if (i === 0) state.tap = null; break;
+    case 'ctype': L.type = v; L.hidden = []; break;
+    case 'stype': L.type = v; L.hidden = []; break;
+    case 'note': { const pc = +v, k = L.notes.indexOf(pc); if (k >= 0) L.notes.splice(k, 1); else L.notes.push(pc); break; }
+    case 'flt': { const k = L.hidden.indexOf(v); if (k >= 0) L.hidden.splice(k, 1); else L.hidden.push(v); break; }
+    case 'fall': L.hidden = []; break;
+    case 'froot': L.hidden = layerLabels(L).filter(l => l !== '1'); break;
+    case 'add':
+      if (state.layers.length >= 4) return;
+      state.layers.push({id:state.nextId++, kind:'scale', root:state.layers[0].root, type:'ionian', hidden:[], notes:[], visible:true, color:nextColor()});
+      break;
+    case 'example':
+      state.layers = [
+        {id:state.nextId++, kind:'scale', root:7, type:'ionian', hidden:['1','2','4','6','7'], notes:[], visible:true, color:0},
+        {id:state.nextId++, kind:'intervals', root:9, type:'', hidden:INTERVALS.filter(l => l !== '1' && l !== 'b7'), notes:[], visible:true, color:1}
+      ];
+      state.tap = null; render(); revealNeck(); return;
+    case 'pickex':
+      state.picks = [{s:1, f:3}, {s:2, f:2}, {s:3, f:0}, {s:4, f:0}, {s:5, f:0}];
+      if (state.tuning !== 'std') state.tuning = 'std';
+      break;
+    case 'clear': state.picks = []; break;
+    case 'strum': { const tun = TUNINGS[state.tuning].midi; strumMidis(state.picks.map(p => tun[p.s] + p.f)); return; }
+    case 'pick2layer': {
+      if (state.layers.length >= 4) return;
+      const tun = TUNINGS[state.tuning].midi;
+      const notes = [...new Set(state.picks.map(p => mod(tun[p.s] + p.f)))];
+      state.layers.push({id:state.nextId++, kind:'notes', root:notes[0] || 0, type:'', hidden:[], notes, visible:true, color:nextColor()});
+      state.tab = 'layers'; break;
+    }
+    case 'cand': loadMain('chord', +b.dataset.r, b.dataset.t); return;
+    case 'ck': state.circle.i = +b.dataset.k; state.circle.minor = b.dataset.m === '1'; break;
+    case 'c7': state.circle.sevenths = v === '1'; break;
+    case 'cchord': strumMidis(chordMidis(+b.dataset.r, b.dataset.t)); loadMain('chord', +b.dataset.r, b.dataset.t); return;
+    case 'cscale': loadMain('scale', +b.dataset.r, b.dataset.t); return;
+    case 'prog': progCache[+b.dataset.p].forEach((c, k) => chordMidis(c.root, c.type).forEach((m, j) => pluck(m, k * .9 + j * .03))); return;
+    default: return;
+  }
+  render();
+});
+panel.addEventListener('change', e => {
+  const el = e.target, act = el.dataset.act; if (!act) return;
+  const L = state.layers[+el.dataset.i];
+  if (act === 'ctype-sel') { L.type = el.value; L.hidden = []; }
+  else if (act === 'stype-sel') { if (!el.value) return; L.type = el.value; L.hidden = []; }
+  else if (act === 'ops') state.onePerString = el.checked;
+  else if (act === 'echo') state.echoes = el.checked;
+  else return;
+  render();
+});
+
+render();
+})();
+</script>
+</body>
+</html>
