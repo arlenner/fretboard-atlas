@@ -256,6 +256,50 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
 .scl button{border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:6px 10px; text-align:left; display:grid}
 .scl button small{color:var(--muted); font-size:11px}
 .scl button:hover{border-color:var(--muted)}
+/* practice: metronome, lesson, session */
+.practice{display:grid; grid-template-columns:minmax(0, 1fr); gap:12px; align-items:start}
+@media (min-width: 900px){ .practice{grid-template-columns:minmax(300px, 380px) minmax(0, 1fr)} }
+.bpm-row{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+.bpm{font-size:46px; font-weight:800; font-variation-settings:'wdth' 78; font-variant-numeric:tabular-nums; line-height:1}
+.tempo-name{color:var(--muted); font-style:italic}
+.beats{display:inline-flex; gap:6px; align-items:center}
+.beats i{width:14px; height:14px; border-radius:50%; background:var(--line); transition:background .05s, transform .05s}
+.beats i.acc{box-shadow:inset 0 0 0 2px var(--accent)}
+.beats i.on{background:var(--accent); transform:scale(1.25)}
+input[type="range"]{width:100%; accent-color:var(--accent)}
+.stepper{display:inline-flex; align-items:center; gap:4px}
+.stepper .val{min-width:40px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums}
+.big-btn{font-size:16px; padding:9px 18px}
+.items{display:grid; gap:6px}
+.item{display:grid; grid-template-columns:28px minmax(0, 1fr) auto; gap:8px; align-items:center; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:var(--surface-2)}
+.item.cur{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:var(--surface)}
+.item.past{opacity:.55}
+.item .n{font-weight:800; color:var(--muted); font-variant-numeric:tabular-nums; text-align:center}
+.item .it{display:grid; min-width:0}
+.item .it b{font-size:15px; overflow-wrap:anywhere}
+.item .it small{color:var(--muted); font-size:11px}
+.item .ctl2{display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; align-items:center}
+.item .dur{min-width:48px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums}
+.sess{background:var(--sel-bg); color:var(--sel-ink); border-radius:12px; padding:12px 14px; display:grid; gap:8px}
+.sess .time{font-size:44px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; font-variation-settings:'wdth' 80}
+.sess .btn{background:transparent; color:var(--sel-ink); border-color:color-mix(in srgb, var(--sel-ink) 35%, transparent)}
+.sess .btn.primary{background:var(--sel-ink); color:var(--sel-bg); border-color:var(--sel-ink)}
+.bar-track{height:6px; border-radius:3px; background:color-mix(in srgb, var(--sel-ink) 22%, transparent); overflow:hidden}
+.bar-track i{display:block; height:100%; width:0; background:var(--l0)}
+.sess .timeup{color:var(--l0); font-weight:700}
+.ingredients summary{cursor:pointer; font-weight:700; padding:4px 0}
+.ingredients[open] summary{margin-bottom:8px}
+.ing{display:grid; gap:10px}
+.task-in{flex:1 1 180px; min-width:0; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink)}
+.strip{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; background:var(--sel-bg); color:var(--sel-ink); border-radius:10px; padding:6px 10px; margin-bottom:6px; font-size:13px}
+.strip .ib{background:transparent; color:inherit; border-color:color-mix(in srgb, var(--sel-ink) 35%, transparent); height:28px}
+.strip .t{font-weight:800; font-variant-numeric:tabular-nums; font-size:17px}
+.strip .st-item{display:flex; gap:6px; align-items:baseline; min-width:0; flex:1 1 160px}
+.strip .st-item b{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.strip .st-item small{opacity:.7}
+.strip .st-metro{display:inline-flex; gap:8px; align-items:center; margin-left:auto}
+.strip .beats i{width:9px; height:9px; background:color-mix(in srgb, var(--sel-ink) 30%, transparent)}
+.strip .beats i.on{background:var(--l0)}
 /* pinboard */
 .pins{display:grid; grid-template-columns:repeat(auto-fill, minmax(168px, 1fr)); gap:10px}
 .pin{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:10px; display:grid; gap:8px; position:relative; min-width:0; align-content:start}
@@ -328,6 +372,7 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
 <p class="rotate-hint">Turn your phone sideways to see the whole neck. You can also swipe the neck left and right.</p>
 
 <div class="neck-wrap">
+  <div class="strip" id="strip" hidden></div>
   <div class="neck" id="neck">
     <div class="board-scroll" id="boardScroll">
       <div class="board" id="board"></div>
@@ -342,6 +387,7 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
   <button type="button" role="tab" data-tab="finder">Chord finder</button>
   <button type="button" role="tab" data-tab="circle">Circle of fifths</button>
   <button type="button" role="tab" data-tab="pins" id="pinsTab">Pinboard</button>
+  <button type="button" role="tab" data-tab="practice">Practice</button>
 </div>
 <div class="panel" id="panel"></div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
@@ -475,7 +521,14 @@ const DEF = {
   onePerString:true, echoes:true, tab:'layers',
   layers:[{id:1, kind:'scale', root:9, type:'dorian', hidden:[], notes:[], visible:true, color:0}],
   picks:[], tap:null, circle:{i:0, minor:false, sevenths:false, pin:false}, nextId:2,
-  pins:[], nextPin:1, pinView:null
+  pins:[], nextPin:1, pinView:null,
+  metro:{bpm:80, beats:4, sub:1, accent:true, vol:0.8},
+  lesson:{items:[], nextItem:1, auto:true, cfg:{
+    scales:true, chords:true,
+    scalePool:['ionian','dorian','mixolydian','aeolian','majPent','minPent','blues'],
+    chordPool:['maj','min','7','maj7','m7','m7b5'],
+    keys:[0,1,2,3,4,5,6,7,8,9,10,11], positions:true, style:'box', count:4, minutes:5}},
+  session:null
 };
 const MAX_PINS = 32;
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -493,7 +546,16 @@ state.layers.forEach(L => {
 });
 if (!TUNINGS[state.tuning]) state.tuning = 'std';
 state.pins = (Array.isArray(state.pins) ? state.pins : []).filter(p => p && (p.type == null || CHORDS[p.type]));
-if (!['layers','finder','circle','pins'].includes(state.tab)) state.tab = 'layers';
+if (!['layers','finder','circle','pins','practice'].includes(state.tab)) state.tab = 'layers';
+state.metro = Object.assign(clone(DEF.metro), state.metro || {});
+state.lesson = Object.assign(clone(DEF.lesson), state.lesson || {});
+state.lesson.cfg = Object.assign(clone(DEF.lesson.cfg), state.lesson.cfg || {});
+state.lesson.items = (state.lesson.items || []).filter(it => it && (it.kind === 'text' || (it.kind === 'scale' && SCALES[it.type]) || (it.kind === 'chord' && CHORDS[it.type])));
+// a session that was running when the page closed comes back paused, with its time left intact
+if (state.session && !state.session.done) {
+  if (!state.lesson.items[state.session.idx]) state.session = null;
+  else if (!state.session.paused) { state.session.paused = true; state.session.remaining = Math.max(0, state.session.endsAt - Date.now()); }
+}
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
 
 /* ================= layer helpers ================= */
@@ -1378,11 +1440,365 @@ function showPin(p){
   }
 }
 
+/* ================= practice: metronome ================= */
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'})[c]);
+const metro = {on:false, next:0, tick:0, timer:null, taps:[]};
+const clickBufs = {};
+function clickBuf(kind){
+  // short synthetic woodblock-ish clicks: accent, beat, subdivision
+  if (clickBufs[kind]) return clickBufs[kind];
+  const a = getAudio(), sr = a.sampleRate, len = Math.floor(sr * 0.04), b = a.createBuffer(1, len, sr), d = b.getChannelData(0);
+  const f = {acc:1760, beat:1180, sub:820}[kind];
+  for (let i = 0; i < len; i++) { const t = i / sr; d[i] = Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 90) * (kind === 'sub' ? 0.5 : 1); }
+  return (clickBufs[kind] = b);
+}
+function playClick(kind, when){
+  const a = getAudio(), src = a.createBufferSource(), g = a.createGain();
+  src.buffer = clickBuf(kind); g.gain.value = state.metro.vol; src.connect(g); g.connect(a.destination); src.start(when);
+}
+function flashBeat(n){
+  document.querySelectorAll('.beats').forEach(el => [...el.children].forEach((d, k) => d.classList.toggle('on', k === n)));
+}
+function metroSchedule(){
+  const a = ac; if (!a || !metro.on) return;
+  const m = state.metro, spt = 60 / m.bpm / m.sub;
+  if (metro.next < a.currentTime) metro.next = a.currentTime + 0.03;      // fell behind (tab was asleep): skip ahead, don't burst
+  while (metro.next < a.currentTime + 0.12) {
+    const isBeat = metro.tick % m.sub === 0, beatNo = Math.floor(metro.tick / m.sub) % m.beats;
+    playClick(isBeat ? (beatNo === 0 && m.accent ? 'acc' : 'beat') : 'sub', metro.next);
+    if (isBeat) { const n = beatNo; setTimeout(() => { if (metro.on) flashBeat(n); }, Math.max(0, (metro.next - a.currentTime) * 1000)); }
+    metro.tick++; metro.next += spt;
+  }
+}
+function metroStart(){
+  const a = getAudio(); if (!a) { toast('This browser has no audio support.'); return; }
+  if (a.state !== 'running') a.resume().catch(() => {});
+  metro.on = true; metro.tick = 0; metro.next = a.currentTime + 0.06;
+  clearInterval(metro.timer); metro.timer = setInterval(metroSchedule, 25); metroSchedule();
+  requestWake();
+  setTimeout(() => { if (metro.on && ac.state !== 'running') toast('The metronome is silent because the browser blocked sound. Tap Start again.'); }, 600);
+}
+function metroStop(){ metro.on = false; clearInterval(metro.timer); metro.timer = null; flashBeat(-1); releaseWake(); }
+function setBpm(b){
+  state.metro.bpm = Math.max(30, Math.min(260, Math.round(b)));
+  document.querySelectorAll('[data-bpm-out]').forEach(el => { el.textContent = state.metro.bpm; });
+  const nm = $('#mName'); if (nm) nm.textContent = tempoName(state.metro.bpm);
+  const r = $('#mRange'); if (r && +r.value !== state.metro.bpm) r.value = state.metro.bpm;
+  save();
+}
+function tapTempo(){
+  const now = performance.now();
+  metro.taps = metro.taps.filter(t => now - t < 2500); metro.taps.push(now);
+  if (metro.taps.length >= 2) {
+    const iv = []; for (let k = 1; k < metro.taps.length; k++) iv.push(metro.taps[k] - metro.taps[k - 1]);
+    const recent = iv.slice(-4); setBpm(60000 / (recent.reduce((s, x) => s + x, 0) / recent.length));
+  }
+}
+const TEMPO_NAMES = [[40,'Grave'],[60,'Largo'],[66,'Larghetto'],[76,'Adagio'],[108,'Andante'],[120,'Moderato'],[156,'Allegro'],[176,'Vivace'],[200,'Presto'],[999,'Prestissimo']];
+const tempoName = b => TEMPO_NAMES.find(([lim]) => b < lim)[1];
+
+/* screen wake lock while practicing (optional: refused on some browsers) */
+let wake = null;
+async function requestWake(){ try { if ('wakeLock' in navigator && !wake) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } } catch (e) {} }
+function releaseWake(){ try { if (wake && !metro.on && !(state.session && !state.session.done && !state.session.paused)) { wake.release(); wake = null; } } catch (e) {} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (metro.on || (state.session && !state.session.done && !state.session.paused))) requestWake(); });
+
+/* ================= practice: lesson & session ================= */
+const rnd = a => a[Math.floor(Math.random() * a.length)];
+const itemLike = it => ({kind:it.kind, root:it.root, type:it.type, pos:it.pos, hidden:[], notes:[]});
+function itemTitle(it){
+  if (it.kind === 'text') return esc(it.text);
+  if (it.kind === 'scale') { const S = SCALES[it.type]; return pn(rootName(it.root, S.labels)) + ' ' + (S.short || S.name.toLowerCase()); }
+  return chordName(it.root, it.type);
+}
+function itemSub(it){
+  if (it.kind === 'text') return 'Your own task';
+  if (it.kind === 'scale') {
+    if (!it.pos) return 'Scale · whole neck';
+    const p = scalePositions(itemLike(it)).find(z => z.f === it.pos.f);
+    return `Position ${p ? p.n : ''} at fret ${it.pos.f} · ${it.pos.style === 'nps' ? (SCALES[it.type].labels.length >= 7 ? '3' : '2') + ' per string' : 'box'}`;
+  }
+  return CHORDS[it.type].name + (it.pos ? ` · root on the ${STRING_ORD[it.pos.s]} string, fret ${it.pos.f}` : ' · whole neck');
+}
+function rollItem(cfg, avoid){
+  for (let tries = 0; tries < 25; tries++) {
+    const kinds = [];
+    if (cfg.scales && cfg.scalePool.length) kinds.push('scale');
+    if (cfg.chords && cfg.chordPool.length) kinds.push('chord');
+    if (!kinds.length) return null;
+    const kind = rnd(kinds), root = rnd(cfg.keys.length ? cfg.keys : [0,1,2,3,4,5,6,7,8,9,10,11]);
+    const type = rnd(kind === 'scale' ? cfg.scalePool : cfg.chordPool);
+    const it = {id:state.lesson.nextItem++, kind, root, type, pos:null, min:cfg.minutes, bpm:null};
+    if (cfg.positions) {
+      if (kind === 'scale') {
+        const ps = scalePositions(itemLike(it)).filter(p => p.f <= 12);
+        if (ps.length) it.pos = {s:0, f:rnd(ps).f, style:cfg.style === 'mix' ? rnd(['box', 'nps']) : cfg.style};
+      } else {
+        const ps = rootPositions(itemLike(it)).filter(p => p.f <= 12 && findVoicing(root, type, p.s, p.f));
+        if (ps.length) { const p = rnd(ps); it.pos = {s:p.s, f:p.f}; }
+      }
+    }
+    if (avoid && avoid.kind === it.kind && avoid.root === it.root && avoid.type === it.type) continue;
+    return it;
+  }
+  return null;
+}
+function generateLesson(){
+  const cfg = state.lesson.cfg, items = [];
+  for (let k = 0; k < cfg.count; k++) { const it = rollItem(cfg, items[k - 1]); if (it) items.push(it); }
+  if (!items.length) { toast('Pick at least one scale or chord type to build a lesson from.'); return false; }
+  state.lesson.items = items; state.session = null; return true;
+}
+function itemFromNeck(){
+  const L = state.layers[0];
+  if (L.kind !== 'scale' && L.kind !== 'chord') return null;
+  return {id:state.lesson.nextItem++, kind:L.kind, root:L.root, type:L.type, pos:L.pos ? Object.assign({}, L.pos) : null, min:state.lesson.cfg.minutes, bpm:null};
+}
+function loadItem(it){
+  if (it.bpm) setBpm(it.bpm);
+  if (it.kind === 'text') return;
+  const L = state.layers[0];
+  L.kind = it.kind; L.root = it.root; L.type = it.type; L.hidden = []; L.visible = true;
+  L.pos = it.pos ? Object.assign({}, it.pos) : null;
+  state.tap = null; state.pinView = null; state.compare = null;
+}
+function chime(final){
+  try {
+    const a = getAudio(); if (!a) return; if (a.state !== 'running') a.resume().catch(() => {});
+    const notes = final ? [784, 988, 1175, 1568] : [880, 1319];
+    notes.forEach((f, k) => {
+      const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + 0.02 + k * 0.14;
+      o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.25, t + 0.01); g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+      o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + 1);
+    });
+    if (navigator.vibrate) navigator.vibrate(final ? [120, 80, 120] : 150);
+  } catch (e) {}
+}
+const sessRemaining = s => s.paused ? s.remaining : s.endsAt - Date.now();
+function sessStart(i){
+  const it = state.lesson.items[i]; if (!it) return;
+  const startedAt = state.session && !state.session.done && state.session.startedAt ? state.session.startedAt : Date.now();
+  state.session = {idx:i, paused:false, endsAt:Date.now() + it.min * 60000, remaining:0, done:false, timeUp:false, startedAt};
+  loadItem(it); requestWake(); render();
+}
+function sessPause(){ const s = state.session; if (!s || s.done) return; if (s.paused) { s.paused = false; s.timeUp = false; s.endsAt = Date.now() + Math.max(s.remaining, 0); requestWake(); } else { s.paused = true; s.remaining = Math.max(0, s.endsAt - Date.now()); releaseWake(); } render(); }
+function sessStep(dir){
+  const s = state.session; if (!s || s.done) return;
+  const j = s.idx + dir;
+  if (j >= state.lesson.items.length) return sessFinish();
+  if (j < 0) return;
+  sessStart(j);
+}
+function sessFinish(){
+  const total = state.lesson.items.reduce((a, it) => a + it.min, 0), n = state.lesson.items.length;
+  state.session = {done:true, total, n}; chime(true); releaseWake(); render();
+}
+function sessStop(){ state.session = null; releaseWake(); render(); }
+function sessAddMinute(){ const s = state.session; if (!s || s.done) return; if (s.paused) s.remaining += 60000; else s.endsAt += 60000; s.timeUp = false; tickUI(); }
+function fmt(ms){ const t = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
+function tickUI(){
+  const s = state.session;
+  if (s && !s.done && !s.paused && s.endsAt - Date.now() <= 0) {
+    if (state.lesson.auto && s.idx < state.lesson.items.length - 1) { chime(false); sessStep(1); return; }
+    if (state.lesson.auto) { sessFinish(); return; }
+    s.paused = true; s.remaining = 0; s.timeUp = true; chime(false); render(); return;
+  }
+  if (!s || s.done) return;
+  const it = state.lesson.items[s.idx], rem = sessRemaining(s);
+  const t = fmt(rem);
+  document.querySelectorAll('[data-sess-time]').forEach(el => { el.textContent = t; });
+  // overall progress through the lesson
+  const all = state.lesson.items.reduce((a, x) => a + x.min, 0) * 60000;
+  const before = state.lesson.items.slice(0, s.idx).reduce((a, x) => a + x.min, 0) * 60000;
+  const doneMs = before + Math.max(0, it.min * 60000 - rem);
+  document.querySelectorAll('[data-sess-bar]').forEach(el => { el.style.width = (all ? Math.min(100, doneMs / all * 100) : 0) + '%'; });
+}
+setInterval(tickUI, 250);
+
+function renderStrip(){
+  const el = $('#strip'), s = state.session, items = state.lesson.items;
+  const live = s && !s.done && items[s.idx];
+  el.hidden = !(live || metro.on);
+  if (el.hidden) { el.innerHTML = ''; return; }
+  let h = '';
+  if (live) {
+    h += `<span class="st-item"><small>${s.idx + 1}/${items.length}</small><b>${itemTitle(items[s.idx])}</b></span>
+      <span class="t" data-sess-time>${fmt(sessRemaining(s))}</span>
+      <button type="button" class="ib" data-act="sesspause">${s.paused ? (s.timeUp ? 'Time’s up · Resume' : 'Resume') : 'Pause'}</button>
+      <button type="button" class="ib" data-act="sessnext">${s.idx === items.length - 1 ? 'Finish' : 'Next'}</button>`;
+  }
+  h += `<span class="st-metro"><span class="beats">${Array.from({length:state.metro.beats}, () => '<i></i>').join('')}</span>
+    <button type="button" class="ib" data-act="mtoggle" aria-label="${metro.on ? 'Stop' : 'Start'} metronome">${metro.on ? '■' : '▶'} <span data-bpm-out>${state.metro.bpm}</span> bpm</button></span>`;
+  el.innerHTML = h;
+}
+
+let lessonArmed = false, lessonTimer = null;
+function renderPractice(){
+  const m = state.metro, Ls = state.lesson, cfg = Ls.cfg, s = state.session, items = Ls.items;
+  const total = items.reduce((a, it) => a + it.min, 0);
+  const subs = [[1, 'Quarters'], [2, '8ths'], [3, 'Triplets'], [4, '16ths']];
+  const metroCard = `<div class="card">
+    <div class="row" style="justify-content:space-between"><b>Metronome</b><span class="beats">${Array.from({length:m.beats}, (_, k) => `<i class="${k === 0 && m.accent ? 'acc' : ''}"></i>`).join('')}</span></div>
+    <div class="bpm-row"><span class="bpm" data-bpm-out>${m.bpm}</span><span>bpm</span><span class="tempo-name" id="mName">${tempoName(m.bpm)}</span></div>
+    <input type="range" id="mRange" min="30" max="260" step="1" value="${m.bpm}" data-act="mrange" aria-label="Tempo">
+    <div class="row">
+      <button type="button" class="ib" data-act="mbpm" data-v="-5">−5</button><button type="button" class="ib" data-act="mbpm" data-v="-1">−1</button>
+      <button type="button" class="ib" data-act="mbpm" data-v="1">+1</button><button type="button" class="ib" data-act="mbpm" data-v="5">+5</button>
+      <button type="button" class="btn" data-act="mtap">Tap tempo</button></div>
+    <div class="row"><span class="rl">Beats per bar</span>
+      <span class="stepper"><button type="button" class="ib" data-act="mbeats" data-v="-1" aria-label="Fewer beats">−</button><span class="val">${m.beats}</span><button type="button" class="ib" data-act="mbeats" data-v="1" aria-label="More beats">+</button></span>
+      <label class="chk"><input type="checkbox" id="mAccent" data-act="maccent"${m.accent ? ' checked' : ''}> Accent beat 1</label></div>
+    <div class="row"><span class="rl">Subdivision</span><div class="seg">${subs.map(([v, t]) => `<button type="button" data-act="msub" data-v="${v}" aria-pressed="${m.sub === v}">${t}</button>`).join('')}</div></div>
+    <div class="row"><span class="rl">Volume</span><input type="range" id="mVol" min="0.05" max="1" step="0.05" value="${m.vol}" data-act="mvol" aria-label="Metronome volume"></div>
+    <div class="row"><button type="button" class="btn primary big-btn" data-act="mtoggle">${metro.on ? 'Stop' : 'Start'} metronome</button></div>
+  </div>`;
+
+  // session panel
+  let sess = '';
+  if (s && s.done) {
+    sess = `<div class="sess"><span class="rl" style="color:inherit;opacity:.7">Lesson complete</span>
+      <span class="time">${s.total} min</span><span>${s.n} item${s.n > 1 ? 's' : ''} practiced. Nice work.</span>
+      <div class="row"><button type="button" class="btn primary" data-act="sessstart" data-v="0">Run it again</button><button type="button" class="btn" data-act="sessstop">Close</button></div></div>`;
+  } else if (s && items[s.idx]) {
+    const it = items[s.idx];
+    sess = `<div class="sess">
+      <div class="row" style="justify-content:space-between"><span class="rl" style="color:inherit;opacity:.7">Now practicing · ${s.idx + 1} of ${items.length}</span>${s.timeUp ? '<span class="timeup">Time’s up</span>' : ''}</div>
+      <b style="font-size:20px">${itemTitle(it)}</b><small style="opacity:.75">${itemSub(it)}${it.bpm ? ` · ${it.bpm} bpm` : ''}</small>
+      <span class="time" data-sess-time>${fmt(sessRemaining(s))}</span>
+      <div class="bar-track"><i data-sess-bar></i></div>
+      <div class="row">
+        <button type="button" class="btn primary" data-act="sesspause">${s.paused ? 'Resume' : 'Pause'}</button>
+        <button type="button" class="btn" data-act="sessprev"${s.idx === 0 ? ' disabled' : ''}>Previous</button>
+        <button type="button" class="btn" data-act="sessnext">${s.idx === items.length - 1 ? 'Finish' : 'Next'}</button>
+        <button type="button" class="btn" data-act="sessplus">+1 min</button>
+        <button type="button" class="btn" data-act="sessstop">Stop</button></div></div>`;
+  }
+
+  const itemRows = items.map((it, k) => {
+    const cur = s && !s.done && s.idx === k, past = s && !s.done && k < s.idx;
+    return `<div class="item${cur ? ' cur' : ''}${past ? ' past' : ''}">
+      <span class="n">${k + 1}</span>
+      <span class="it"><b>${itemTitle(it)}</b><small>${itemSub(it)}</small></span>
+      <span class="ctl2">
+        <button type="button" class="ib" data-act="imin" data-id="${it.id}" data-v="-1" aria-label="One minute less">−</button>
+        <span class="dur">${it.min} min</span>
+        <button type="button" class="ib" data-act="imin" data-id="${it.id}" data-v="1" aria-label="One minute more">+</button>
+        <button type="button" class="ib" data-act="ibpm" data-id="${it.id}" title="Tempo for this item: tap to set it to the metronome's tempo, tap again to clear">${it.bpm ? it.bpm + ' bpm' : '♩ —'}</button>
+        ${it.kind !== 'text' ? `<button type="button" class="ib" data-act="iroll" data-id="${it.id}" aria-label="Re-roll this item" title="Re-roll">🎲</button>` : ''}
+        <button type="button" class="ib" data-act="imove" data-id="${it.id}" data-v="-1" aria-label="Move up"${k === 0 ? ' disabled' : ''}>↑</button>
+        <button type="button" class="ib" data-act="imove" data-id="${it.id}" data-v="1" aria-label="Move down"${k === items.length - 1 ? ' disabled' : ''}>↓</button>
+        <button type="button" class="ib" data-act="idel" data-id="${it.id}" aria-label="Remove">✕</button>
+        <button type="button" class="ib" data-act="sessstart" data-v="${k}" aria-label="Start from here" title="Start from here">▶</button>
+      </span></div>`;
+  }).join('');
+
+  const scaleChoices = ['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian','majPent','minPent','blues','harmMin','melMin'];
+  const chordChoices = ['maj','min','7','maj7','m7','m7b5','dim7','sus4','6','9','m9','maj9','7s9','13'];
+  const chipT = (on, act, v, label, k) => `<button type="button" class="chip${on ? ' sel' : ''}" data-act="${act}" data-v="${v}"${k ? ` data-k="${k}"` : ''} aria-pressed="${on}">${label}</button>`;
+  const ing = `<details class="ingredients"${items.length ? '' : ' open'}><summary>Lesson ingredients</summary><div class="ing">
+    <div class="row"><span class="rl">Include</span>${chipT(cfg.scales, 'linc', 'scales', 'Scales')}${chipT(cfg.chords, 'linc', 'chords', 'Chords')}</div>
+    ${cfg.scales ? `<div class="row"><span class="rl">Scales to draw from</span>${scaleChoices.map(id => chipT(cfg.scalePool.includes(id), 'lpool', id, SCALES[id].short || SCALES[id].name, 'scale')).join('')}</div>` : ''}
+    ${cfg.chords ? `<div class="row"><span class="rl">Chord types to draw from</span>${chordChoices.map(id => chipT(cfg.chordPool.includes(id), 'lpool', id, 'C' + CHORDS[id].sym, 'chord')).join('')}</div>` : ''}
+    <div class="row"><span class="rl">Keys</span>${[0,1,2,3,4,5,6,7,8,9,10,11].map(pc => chipT(cfg.keys.includes(pc), 'lkey', pc, pn(DEFAULT[pc]))).join('')}
+      <button type="button" class="btn" data-act="lkeys" data-v="all">All</button><button type="button" class="btn" data-act="lkeys" data-v="nat">Naturals</button></div>
+    <div class="row"><span class="rl">Where on the neck</span><div class="seg">
+      <button type="button" data-act="lpos" data-v="0" aria-pressed="${!cfg.positions}">Whole neck</button>
+      <button type="button" data-act="lpos" data-v="1" aria-pressed="${cfg.positions}">Random position</button></div>
+      ${cfg.positions && cfg.scales ? `<div class="seg">${[['box','Box'],['nps','Per string'],['mix','Mix']].map(([v, t]) => `<button type="button" data-act="lstyle" data-v="${v}" aria-pressed="${cfg.style === v}">${t}</button>`).join('')}</div>` : ''}</div>
+    <div class="row"><span class="rl">Size</span>
+      <span class="stepper"><button type="button" class="ib" data-act="lcount" data-v="-1" aria-label="Fewer items">−</button><span class="val">${cfg.count}</span><button type="button" class="ib" data-act="lcount" data-v="1" aria-label="More items">+</button></span> items ×
+      <span class="stepper"><button type="button" class="ib" data-act="lminutes" data-v="-1" aria-label="Fewer minutes">−</button><span class="val">${cfg.minutes}</span><button type="button" class="ib" data-act="lminutes" data-v="1" aria-label="More minutes">+</button></span> min each
+      <button type="button" class="btn primary" data-act="lgen">${lessonArmed ? 'Tap again to replace your lesson' : items.length ? 'Generate a new lesson' : 'Generate lesson'}</button></div>
+  </div></details>`;
+
+  const lessonCard = `<div class="card">
+    <div class="row" style="justify-content:space-between"><b>Lesson</b><span class="info">${items.length ? `${items.length} item${items.length > 1 ? 's' : ''} · ${total} min total` : 'Empty'}</span></div>
+    ${sess}
+    ${items.length ? `<div class="items">${itemRows}</div>` : `<p class="info" style="margin:0">Roll a random lesson from the ingredients below, or add what's on the neck and your own tasks. Each item gets its own timer.</p>`}
+    <div class="row">
+      ${items.length && !(s && !s.done) ? `<button type="button" class="btn primary big-btn" data-act="sessstart" data-v="0">▶ Start lesson</button>` : ''}
+      <button type="button" class="btn" data-act="iaddneck">+ What's on the neck</button>
+      <input type="text" class="task-in" id="newTask" maxlength="80" placeholder="Custom task, e.g. alternate picking 16ths" aria-label="Custom task">
+      <button type="button" class="btn" data-act="iaddtask">+ Add task</button></div>
+    <div class="row"><label class="chk"><input type="checkbox" id="lAuto" data-act="lauto"${Ls.auto ? ' checked' : ''}> Move to the next item automatically when time is up</label></div>
+    ${ing}
+  </div>`;
+  return `<div class="practice">${metroCard}${lessonCard}</div>`;
+}
+function handlePractice(act, b){
+  const v = b.dataset.v, cfg = state.lesson.cfg, items = state.lesson.items;
+  const it = b.dataset.id ? items.find(x => x.id === +b.dataset.id) : null;
+  switch (act) {
+    case 'mtoggle': if (metro.on) metroStop(); else metroStart(); render(); return true;
+    case 'mbpm': setBpm(state.metro.bpm + +v); return true;
+    case 'mtap': tapTempo(); return true;
+    case 'mbeats': state.metro.beats = Math.max(1, Math.min(12, state.metro.beats + +v)); render(); return true;
+    case 'msub': state.metro.sub = +v; render(); return true;
+    case 'sesspause': sessPause(); return true;
+    case 'sessnext': sessStep(1); return true;
+    case 'sessprev': sessStep(-1); return true;
+    case 'sessplus': sessAddMinute(); return true;
+    case 'sessstop': sessStop(); return true;
+    case 'sessstart': if (items.length) sessStart(+v || 0); return true;
+    case 'imin': if (it) it.min = Math.max(1, Math.min(90, it.min + +v)); render(); return true;
+    case 'ibpm': if (it) it.bpm = it.bpm ? null : state.metro.bpm; render(); return true;
+    case 'iroll': {
+      if (!it) return true;
+      const k = items.indexOf(it), fresh = rollItem(cfg, it);
+      if (fresh) { fresh.min = it.min; fresh.bpm = it.bpm; items[k] = fresh; if (state.session && !state.session.done && state.session.idx === k) { loadItem(fresh); } }
+      render(); return true;
+    }
+    case 'imove': {
+      const k = items.indexOf(it), to = k + +v; if (k < 0 || to < 0 || to >= items.length) return true;
+      items.splice(k, 1); items.splice(to, 0, it);
+      if (state.session && !state.session.done) { if (state.session.idx === k) state.session.idx = to; else if (state.session.idx === to) state.session.idx = k; }
+      render(); return true;
+    }
+    case 'idel': {
+      const k = items.indexOf(it); if (k < 0) return true;
+      items.splice(k, 1);
+      const s = state.session;
+      if (s && !s.done) { if (!items.length) state.session = null; else if (k < s.idx) s.idx--; else if (k === s.idx) { s.idx = Math.min(s.idx, items.length - 1); sessStart(s.idx); return true; } }
+      render(); return true;
+    }
+    case 'iaddneck': { const x = itemFromNeck(); if (!x) { toast('Set the main layer to a scale or chord first.'); return true; } items.push(x); toast(`Added ${itemTitle(x)}`); render(); return true; }
+    case 'iaddtask': {
+      const inp = $('#newTask'), text = inp ? inp.value.trim() : '';
+      if (!text) { toast('Type a task first, e.g. "spider exercise".'); if (inp) inp.focus(); return true; }
+      items.push({id:state.lesson.nextItem++, kind:'text', text, min:cfg.minutes, bpm:null}); render(); return true;
+    }
+    case 'linc': cfg[v] = !cfg[v]; render(); return true;
+    case 'lpool': { const pool = b.dataset.k === 'scale' ? cfg.scalePool : cfg.chordPool, k = pool.indexOf(v); if (k >= 0) pool.splice(k, 1); else pool.push(v); render(); return true; }
+    case 'lkey': { const pc = +v, k = cfg.keys.indexOf(pc); if (k >= 0) cfg.keys.splice(k, 1); else cfg.keys.push(pc); render(); return true; }
+    case 'lkeys': cfg.keys = v === 'all' ? [0,1,2,3,4,5,6,7,8,9,10,11] : [0,2,4,5,7,9,11]; render(); return true;
+    case 'lpos': cfg.positions = v === '1'; render(); return true;
+    case 'lstyle': cfg.style = v; render(); return true;
+    case 'lcount': cfg.count = Math.max(1, Math.min(12, cfg.count + +v)); render(); return true;
+    case 'lminutes': cfg.minutes = Math.max(1, Math.min(60, cfg.minutes + +v)); render(); return true;
+    case 'lgen':
+      if (items.length && !lessonArmed) { lessonArmed = true; clearTimeout(lessonTimer); lessonTimer = setTimeout(() => { lessonArmed = false; if (state.tab === 'practice') render(); }, 3000); render(); return true; }
+      lessonArmed = false; if (generateLesson()) toast(`New lesson: ${state.lesson.items.length} items, ${state.lesson.items.reduce((a, x) => a + x.min, 0)} min`); render(); return true;
+  }
+  return false;
+}
+$('#strip').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) handlePractice(b.dataset.act, b); });
+// sliders update live without redrawing the panel, so dragging stays smooth
+panel.addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.act === 'mrange') setBpm(+el.value);
+  else if (el.dataset.act === 'mvol') { state.metro.vol = +el.value; save(); }
+});
+panel.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'newTask') { e.preventDefault(); handlePractice('iaddtask', e.target); } });
+// small read-only hook for automated tests and the browser console
+window.fretboardAtlas = {get state(){ return state; }, tick:() => tickUI(), get metronomeOn(){ return metro.on; }};
+
 /* ================= main render ================= */
 function render(){
   renderToolbar();
   renderBoard();
-  panel.innerHTML = state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : renderLayers();
+  renderStrip();
+  panel.innerHTML = state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'practice' ? renderPractice() : renderLayers();
+  tickUI();
   save();
 }
 function revealNeck(){
@@ -1460,6 +1876,7 @@ document.addEventListener('click', e => { const m = $('#menu'); if (m.open && !m
 
 panel.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b || b.tagName === 'SELECT' || b.tagName === 'INPUT') return;
+  if (handlePractice(b.dataset.act, b)) return;
   const act = b.dataset.act, i = +b.dataset.i, L = state.layers[i], v = b.dataset.v;
   switch (act) {
     case 'vis': L.visible = !L.visible; break;
@@ -1604,6 +2021,9 @@ panel.addEventListener('change', e => {
       state.compare = ids.length ? ids : null;
     }
   }
+  else if (act === 'maccent') state.metro.accent = el.checked;
+  else if (act === 'lauto') state.lesson.auto = el.checked;
+  else if (act === 'mrange' || act === 'mvol') return;
   else if (act === 'ops') state.onePerString = el.checked;
   else if (act === 'echo') state.echoes = el.checked;
   else return;
