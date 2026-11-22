@@ -261,6 +261,25 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
 .practice{display:grid; grid-template-columns:minmax(0, 1fr); gap:12px; align-items:start}
 @media (min-width: 900px){ .practice{grid-template-columns:minmax(300px, 380px) minmax(0, 1fr)} }
 .pcol{display:grid; gap:12px; align-content:start; min-width:0}
+.loop-chords{gap:6px}
+.lc{font-weight:750; font-size:15px; padding:4px 10px; border-radius:8px; background:var(--surface-2); border:1px solid var(--line)}
+.lc.on{background:var(--accent); border-color:var(--accent); color:var(--on-accent)}
+.lstats{display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px}
+.lstats span{display:grid; background:var(--surface-2); border-radius:10px; padding:8px 10px}
+.lstats b{font-size:18px; font-variant-numeric:tabular-nums}
+.lstats small{color:var(--muted); font-size:11px}
+.lbars{display:grid; grid-template-columns:repeat(14, minmax(0, 1fr)); gap:4px; height:72px; align-items:end}
+.lbar{display:grid; grid-template-rows:1fr auto; height:100%; gap:2px; text-align:center}
+.lbar i{display:block; align-self:end; background:var(--accent); opacity:.75; border-radius:3px 3px 0 0; min-height:2px}
+.lbar.today i{opacity:1}
+.lbar small{font-size:9px; color:var(--muted)}
+.lrows{display:grid; gap:4px}
+.lrow{display:flex; justify-content:space-between; gap:10px; align-items:center; padding:6px 8px; border-radius:8px; background:var(--surface-2)}
+.lrow .it{display:grid; min-width:0}
+.lrow .it b{font-size:13px; overflow-wrap:anywhere}
+.lrow .it small{font-size:11px; color:var(--muted)}
+.lval{font-size:12px; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums}
+.lval b{color:var(--ink)}
 .bpm-row{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
 .bpm{font-size:46px; font-weight:800; font-variation-settings:'wdth' 78; font-variant-numeric:tabular-nums; line-height:1}
 .tempo-name{color:var(--muted); font-style:italic}
@@ -557,13 +576,15 @@ const DEF = {
   metro:{bpm:80, beats:4, sub:1, accent:true, vol:0.8, clickMode:'all',
     gap:{on:false, play:2, rest:2}, ladder:{on:false, step:5, bars:4, max:140}},
   quizCfg:{type:'find-note', range:'0-12', pool:'core', length:'q10'},
+  backing:{source:'prog', key:0, minor:false, prog:0, sevenths:false, bpc:1, pattern:'strum1', drums:true, click:false, follow:true, vol:0.8},
+  drone:{root:2, fifth:true, vol:0.35},
   quizBest:{}, quizLast:null,
   lesson:{items:[], nextItem:1, auto:true, cfg:{
     scales:true, chords:true,
     scalePool:['ionian','dorian','mixolydian','aeolian','majPent','minPent','blues'],
     chordPool:['maj','min','7','maj7','m7','m7b5'],
     keys:[0,1,2,3,4,5,6,7,8,9,10,11], positions:true, style:'box', count:4, minutes:5,
-    quizzes:true, quizPool:['find-note','name-note','find-interval','name-interval'], v:2}},
+    quizzes:true, quizPool:['find-note','name-note','find-interval','name-interval','ear-interval','ear-chord','ear-find'], v:3}},
   session:null
 };
 const MAX_PINS = 32;
@@ -588,10 +609,15 @@ state.metro.gap = Object.assign(clone(DEF.metro.gap), state.metro.gap || {});
 state.metro.ladder = Object.assign(clone(DEF.metro.ladder), state.metro.ladder || {});
 state.quizCfg = Object.assign(clone(DEF.quizCfg), state.quizCfg || {});
 state.quizBest = state.quizBest || {};
+state.backing = Object.assign(clone(DEF.backing), state.backing || {});
+state.drone = Object.assign(clone(DEF.drone), state.drone || {});
 state.lesson = Object.assign(clone(DEF.lesson), state.lesson || {});
 state.lesson.cfg = Object.assign(clone(DEF.lesson.cfg), state.lesson.cfg || {});
 // quizzes became a regular ingredient (on by default); older saved settings had them off
-if (state.lesson.cfg.v !== 2) { state.lesson.cfg.quizzes = true; state.lesson.cfg.v = 2; }
+if ((state.lesson.cfg.v || 0) < 2) state.lesson.cfg.quizzes = true;
+// v3 added ear-training quizzes to the default quiz pool
+if ((state.lesson.cfg.v || 0) < 3) { ['ear-interval','ear-chord','ear-find'].forEach(k => { if (!state.lesson.cfg.quizPool.includes(k)) state.lesson.cfg.quizPool.push(k); }); }
+state.lesson.cfg.v = 3;
 state.lesson.items = (state.lesson.items || []).filter(it => it && (it.kind === 'text' || it.kind === 'quiz' || (it.kind === 'scale' && SCALES[it.type]) || (it.kind === 'chord' && CHORDS[it.type])));
 // a session that was running when the page closed comes back paused, with its time left intact
 if (state.session && !state.session.done) {
@@ -715,8 +741,15 @@ function makeBuf(midi){
   for (let i = 0; i < 64 && i < len; i++) d[i] *= i / 64;
   return (bufCache[midi] = buf);
 }
-function pluck(midi, delay = 0){
-  if (!state.sound) return;
+/* a plucked note at an exact audio-clock time (used by the backing loop) */
+function pluckAt(midi, when, gain = 0.32){
+  const a = getAudio(); if (!a) return;
+  const src = a.createBufferSource(), g = a.createGain();
+  src.buffer = makeBuf(midi); g.gain.value = gain; src.connect(g); g.connect(master);
+  src.start(Math.max(when, a.currentTime));
+}
+function pluck(midi, delay = 0, force){
+  if (!state.sound && !force) return;
   try {
     const a = getAudio(); if (!a) return;
     const play = () => {
@@ -729,7 +762,7 @@ function pluck(midi, delay = 0){
     else { a.resume().then(() => { if (a.state === 'running') play(); }).catch(() => {}); warnIfBlocked(); }
   } catch (e) {}
 }
-function strumMidis(midis, gap = .035){ midis.slice().sort((a, b) => a - b).forEach((m, k) => pluck(m, k * gap)); }
+function strumMidis(midis, gap = .035, force){ midis.slice().sort((a, b) => a - b).forEach((m, k) => pluck(m, k * gap, force)); }
 function chordMidis(rootPc, type){ const base = 48 + mod(rootPc); return CHORDS[type].labels.map(l => base + lab(l).semi); }
 
 /* ================= chord identification ================= */
@@ -1557,7 +1590,9 @@ function metroSchedule(){
       const b = ladderBpm(metro.ladderStart, Math.max(0, c.bar - (metro.ladderBar0 || 0)), m.ladder);
       if (b !== m.bpm) setBpm(b);
     }
-    if (c.kind) playClick(c.kind, metro.next);
+    if (c.kind && (!loop.on || state.backing.click)) playClick(c.kind, metro.next);
+    if (loop.on) loopTick(c, metro.next);
+    metro.peak = Math.max(metro.peak || 0, m.bpm);
     if (c.isBeat) { const n = c.beatNo, rest = c.resting; setTimeout(() => { if (metro.on) flashBeat(n, rest); }, Math.max(0, (metro.next - a.currentTime) * 1000)); }
     metro.tick++; metro.next += 60 / m.bpm / m.sub;
   }
@@ -1567,11 +1602,17 @@ function metroStart(){
   if (a.state !== 'running') a.resume().catch(() => {});
   metro.on = true; metro.tick = 0; metro.next = a.currentTime + 0.06;
   metro.ladderStart = state.metro.ladder.on ? state.metro.bpm : null; metro.ladderBar0 = 0;
+  metro.startedAt = Date.now(); metro.peak = state.metro.bpm;
   clearInterval(metro.timer); metro.timer = setInterval(metroSchedule, 25); metroSchedule();
   requestWake();
   setTimeout(() => { if (metro.on && ac.state !== 'running') toast('The metronome is silent because the browser blocked sound. Tap Start again.'); }, 600);
 }
 function metroStop(){
+  // metronome practice outside a lesson gets its own log entry (a lesson logs its own items)
+  if (metro.on && metro.startedAt && !(state.session && !state.session.done) && Date.now() - metro.startedAt >= 60000)
+    logEntry({kind:'metro', key:'metro', title:loop.on ? 'Playing along with a loop' : 'Metronome practice', ms:Date.now() - metro.startedAt, bpm:metro.peak || state.metro.bpm});
+  if (loop.on) { loop.on = false; loop.idx = -1; }
+  metro.loopOwned = false;
   metro.on = false; clearInterval(metro.timer); metro.timer = null; flashBeat(-1); releaseWake();
   if (metro.ladderStart != null) {
     const reached = state.metro.bpm; setBpm(metro.ladderStart); metro.ladderStart = null;
@@ -1607,8 +1648,20 @@ const QUIZ_TYPES = {
   'find-note':     {name:'Find the note',     desc:'Tap every place a note appears in the range.'},
   'name-note':     {name:'Name the note',     desc:'A fret is marked. Pick its note name.'},
   'find-interval': {name:'Find the interval', desc:'A root is shown. Tap the interval within 4 frets of it.'},
-  'name-interval': {name:'Name the interval', desc:'Two dots are shown. Name the distance from the root.'}
+  'name-interval': {name:'Name the interval', desc:'Two dots are shown. Name the distance from the root.'},
+  'ear-interval':  {name:'Hear the interval', desc:'Two notes play, low then high. Name the interval.', ear:true},
+  'ear-chord':     {name:'Hear the chord',    desc:'A chord plays. Name its quality.', ear:true},
+  'ear-find':      {name:'Hear it, find it',  desc:'The root is shown and played, then a second note. Tap it.', ear:true}
 };
+const EAR_CHORDS = [['maj','Major'], ['min','Minor'], ['7','Dominant 7'], ['maj7','Major 7'], ['m7','Minor 7'], ['m7b5','Half-dim'], ['dim','Diminished'], ['aug','Augmented']];
+/* play the current ear question (always audible, even with tap sounds muted) */
+function quizPlay(){
+  const q = quiz && quiz.q; if (!q) return;
+  const tun = TUNINGS[state.tuning].midi;
+  if (quiz.type === 'ear-interval') { pluck(q.rootMidi, 0, true); pluck(q.rootMidi + q.iv, 0.75, true); }
+  else if (quiz.type === 'ear-chord') strumMidis(chordMidis(q.root, EAR_CHORDS[q.ci][0]), 0.045, true);
+  else if (quiz.type === 'ear-find') { pluck(tun[q.root.s] + q.root.f, 0, true); pluck(q.targetMidi, 0.8, true); }
+}
 const QUIZ_RANGES = {'0-5':[0, 5], '0-12':[0, 12], '0-24':[0, 24]};
 const QUIZ_LENGTHS = {q10:{mode:'count', n:10, label:'10 questions'}, q20:{mode:'count', n:20, label:'20 questions'}, t60:{mode:'time', s:60, label:'60 seconds'}, t120:{mode:'time', s:120, label:'2 minutes'}};
 const POOL_CORE = [3, 4, 5, 7, 9, 10, 11], POOL_ALL = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
@@ -1632,8 +1685,23 @@ function quizStart(opts){
 function quizNext(){
   const cells = qCells(), last = quiz.q, pool = quiz.pool === 'all' ? POOL_ALL : POOL_CORE;
   quiz.reveal = null; quiz.lock = false;
+  const tun = TUNINGS[state.tuning].midi;
   for (let tries = 0; tries < 60; tries++) {
-    if (quiz.type === 'find-note') {
+    if (quiz.type === 'ear-interval') {
+      const iv = rnd(pool), rootMidi = 45 + Math.floor(Math.random() * 15);   // A2..B3
+      if (last && last.iv === iv && tries < 30) continue;
+      quiz.q = {iv, rootMidi, rpc:mod(rootMidi)};
+    } else if (quiz.type === 'ear-chord') {
+      const ci = Math.floor(Math.random() * EAR_CHORDS.length);
+      if (last && last.ci === ci && tries < 30) continue;
+      quiz.q = {ci, root:Math.floor(Math.random() * 12)};
+    } else if (quiz.type === 'ear-find') {
+      const iv = rnd(pool), root = rnd(cells), rm = tun[root.s] + root.f, targetMidi = rm + iv;
+      // the played note must exist within 4 frets of the root, in range
+      const targets = cells.filter(c => tun[c.s] + c.f === targetMidi && Math.abs(c.f - root.f) <= 4);
+      if (!targets.length) continue;
+      quiz.q = {root, iv, targetMidi, targets, rpc:mod(rm)};
+    } else if (quiz.type === 'find-note') {
       const pc = Math.floor(Math.random() * 12);
       if (last && last.pc === pc) continue;
       quiz.q = {pc, targets:cells.filter(c => qPc(c) === pc), found:[]};
@@ -1654,6 +1722,7 @@ function quizNext(){
     break;
   }
   quiz.qt = Date.now();
+  if (QUIZ_TYPES[quiz.type].ear) setTimeout(() => { if (quiz && quiz.q) quizPlay(); }, 250);
 }
 function quizPrompt(){
   const q = quiz.q; if (!q) return '';
@@ -1661,6 +1730,9 @@ function quizPrompt(){
     case 'find-note': return `Find every <b>${pn(noteName(q.pc))}</b> · ${q.found.length}/${q.targets.length}`;
     case 'name-note': return 'Which note is marked?';
     case 'find-interval': return `Find the <b>${ivLabel(q.iv)}</b> of ${pn(noteName(q.rpc))}`;
+    case 'ear-interval': return 'Listen: which interval is that?';
+    case 'ear-chord': return 'Listen: what kind of chord is that?';
+    case 'ear-find': return `Listen: ${pn(noteName(q.rpc))}, then a higher note. Tap it.`;
     default: return `Interval from ${pn(noteName(q.rpc))} to the ?`;
   }
 }
@@ -1681,6 +1753,11 @@ function quizTap(s, f){
     if (q.found.some(c => c.s === s && c.f === f)) return;
     if (pc === q.pc) { q.found.push({s, f}); quiz.ok++; if (q.found.length === q.targets.length) { quiz.lock = true; quizScored(); } }
     else { quiz.bad++; quizFlash(s, f, false); }
+  } else if (quiz.type === 'ear-find') {
+    if (s === q.root.s && f === q.root.f) { quizPlay(); return; }        // tapping the root replays the question
+    const m = TUNINGS[state.tuning].midi[s] + f;
+    if (m === q.targetMidi) { quiz.ok++; quiz.reveal = {s, f, ok:true}; quiz.lock = true; quizScored(); }
+    else { quiz.bad++; quizFlash(s, f, false); if (mod(m) === mod(q.targetMidi)) toast('Right note name, wrong octave. It was higher, near the root.'); }
   } else if (quiz.type === 'find-interval') {
     if (s === q.root.s && f === q.root.f) return;
     if (q.targets.some(c => c.s === s && c.f === f)) { quiz.ok++; quiz.reveal = {s, f, ok:true}; quiz.lock = true; quizScored(); }
@@ -1690,11 +1767,14 @@ function quizTap(s, f){
 }
 function quizAnswer(v){
   if (!quiz || quiz.lock) return;
-  const q = quiz.q, ok = quiz.type === 'name-note' ? v === q.pc : v === q.iv;
+  const q = quiz.q;
+  const ok = quiz.type === 'name-note' ? v === q.pc : quiz.type === 'ear-chord' ? v === q.ci : v === q.iv;
   if (ok) quiz.ok++; else quiz.bad++;
   quiz.reveal = {ok, picked:v}; quiz.lock = true;
-  const cell = quiz.type === 'name-note' ? q.cell : q.target;
-  pluck(TUNINGS[state.tuning].midi[cell.s] + cell.f);
+  if (quiz.type === 'name-note' || quiz.type === 'name-interval') {
+    const cell = quiz.type === 'name-note' ? q.cell : q.target;
+    pluck(TUNINGS[state.tuning].midi[cell.s] + cell.f);
+  } else if (!ok) quizPlay();                                        // hear it again with the answer in mind
   quizScored(); render();
 }
 function quizResult(){
@@ -1705,6 +1785,7 @@ function quizEnd(silent){
   if (!quiz) return;
   const r = quizResult(), fromLesson = quiz.mode === 'session';
   quiz = null;
+  if (!fromLesson && r.n) logEntry({kind:'quiz', key:'quiz|' + r.type, title:QUIZ_TYPES[r.type].name, ms:r.secs * 1000, quiz:{acc:r.acc, n:r.n}});
   if (!fromLesson && r.n) {
     const key = r.type + '|' + r.length, best = state.quizBest[key];
     // timed runs: most questions answered wins; counted runs: best accuracy, then fastest
@@ -1729,6 +1810,12 @@ function quizDot(s, f){
   if (fl && fl.s === s && fl.f === f && !fl.ok) return '<span class="dot qbad" aria-label="wrong">✕</span>';
   const pc = mod(TUNINGS[state.tuning].midi[s] + f), name = pn(noteName(pc));
   const root = (c) => c && c.s === s && c.f === f;
+  if (quiz.type === 'ear-interval' || quiz.type === 'ear-chord') return '';
+  if (quiz.type === 'ear-find') {
+    if (root(q.root)) return `<span class="dot sv s1 root" style="--c:var(--i0)">${shapeSvg(1)}${state.labelMode === 'note' ? pn(noteName(q.rpc)) : 'R'}</span>`;
+    if (quiz.reveal && quiz.reveal.s === s && quiz.reveal.f === f) return `<span class="dot qok">${ivLabel(q.iv)}</span>`;
+    return '';
+  }
   if (quiz.type === 'find-note') {
     if (q.found.some(c => c.s === s && c.f === f)) return `<span class="dot qok">${name}</span>`;
     return '';
@@ -1752,18 +1839,191 @@ function quizStripHtml(){
     const st = quiz.reveal ? (pc === q.pc ? ' right' : pc === quiz.reveal.picked ? ' wrong' : '') : '';
     return `<button type="button" class="ib qa${st}" data-act="qans" data-v="${pc}">${pn(noteName(pc))}</button>`;
   }).join('');
-  if (quiz.type === 'name-interval') answers = (quiz.pool === 'all' ? POOL_ALL : POOL_CORE).map(iv => {
+  if (quiz.type === 'ear-chord') answers = EAR_CHORDS.map(([, label], ci) => {
+    const st = quiz.reveal ? (ci === q.ci ? ' right' : ci === quiz.reveal.picked ? ' wrong' : '') : '';
+    return `<button type="button" class="ib qa${st}" data-act="qans" data-v="${ci}">${label}</button>`;
+  }).join('');
+  if (quiz.type === 'name-interval' || quiz.type === 'ear-interval') answers = (quiz.pool === 'all' ? POOL_ALL : POOL_CORE).map(iv => {
     const st = quiz.reveal ? (iv === q.iv ? ' right' : iv === quiz.reveal.picked ? ' wrong' : '') : '';
     return `<button type="button" class="ib qa${st}" data-act="qans" data-v="${iv}" title="${intervalName(iv)}">${ivLabel(iv)}</button>`;
   }).join('');
   const prog = quiz.mode === 'count' ? `${Math.min(quiz.n + 1, quiz.limit)}/${quiz.limit}` : `${quiz.n} done`;
   return `<span class="st-item"><small>Quiz · ${prog}</small><span>${quizPrompt()}</span></span>
     ${answers ? `<span class="qanswers">${answers}</span>` : ''}
+    ${QUIZ_TYPES[quiz.type].ear ? '<button type="button" class="ib" data-act="qreplay">▶ Hear again</button>' : ''}
     <span class="qscore"><b class="okc">✓ ${quiz.ok}</b> <b class="badc">✕ ${quiz.bad}</b></span>
     ${quiz.mode !== 'session' ? `<span class="t" data-quiz-time>${quiz.mode === 'time' ? fmt(quiz.endsAt - Date.now()) : fmt(Date.now() - quiz.t0)}</span>` : ''}
     <button type="button" class="ib" data-act="qskip">Skip</button>
     ${quiz.mode !== 'session' ? '<button type="button" class="ib" data-act="qstop">End quiz</button>' : ''}`;
 }
+
+/* ================= practice: backing loop & drone ================= */
+const PROG_LIST = {
+  major:[['Pop · I–V–vi–IV', [0, 4, 5, 3]], ['Three-chord rock · I–IV–V', [0, 3, 4]], ['Doo-wop · I–vi–IV–V', [0, 5, 3, 4]], ['Jazz ii–V–I', [1, 4, 0]], ['Sad pop · vi–IV–I–V', [5, 3, 0, 4]], ['Blues-ish · I–IV–I–V', [0, 3, 0, 4]]],
+  minor:[['Minor · i–iv–v', [0, 3, 4]], ['Epic · i–VI–III–VII', [0, 5, 2, 6]], ['Andalusian · i–VII–VI–V', [0, 6, 5, 7]], ['Minor ii–V–i', [1, 7, 0]], ['Dorian vamp · i–IV', [0, 8]]]
+};
+/* chords of a progression in a key: degree 7 = harmonic-minor V, degree 8 = Dorian IV (major chord on 4) */
+function progressionChords(key, minor, progIdx, sevenths){
+  const sc = minor ? SCALES.aeolian : SCALES.ionian, kn = rootName(key, sc.labels);
+  const TRI = minor ? ['min','dim','maj','min','min','maj','maj'] : ['maj','min','min','maj','maj','min','dim'];
+  const SEV = minor ? ['m7','m7b5','maj7','m7','m7','maj7','7'] : ['maj7','m7','m7','maj7','7','m7','m7b5'];
+  const list = PROG_LIST[minor ? 'minor' : 'major'], pr = list[Math.min(progIdx, list.length - 1)];
+  return pr[1].map(d => {
+    if (d === 7) return {root:mod(key + 7), type:sevenths ? '7' : 'maj', name:pn(spell(kn, '5')) + (sevenths ? '7' : '')};
+    if (d === 8) return {root:mod(key + 5), type:sevenths ? '7' : 'maj', name:pn(spell(kn, '4')) + (sevenths ? '7' : '')};
+    const l = sc.labels[d], type = (sevenths ? SEV : TRI)[d];
+    return {root:mod(key + semi(l)), type, name:pn(spell(kn, l)) + CHORDS[type].sym};
+  });
+}
+function backingChords(){
+  const b = state.backing;
+  if (b.source === 'pins') return state.pins.filter(p => p.type).map(p => ({root:p.root, type:p.type, name:p.name, shape:p.shape && (p.tuning || 'std') === state.tuning ? p.shape : null}));
+  return progressionChords(b.key, b.minor, b.prog, b.sevenths);
+}
+/* a guitar voicing for each loop chord, near the main layer's hand area (or around fret 3) */
+function voiceChord(c){
+  const tun = TUNINGS[state.tuning].midi;
+  if (c.shape) return {midis:c.shape.map(q => tun[q.s] + q.f), pos:null};
+  const M = state.layers[0];
+  const L = {kind:'chord', root:c.root, type:c.type, pos:{s:0, f:0}, anchor:M.anchor != null ? M.anchor : 3, hidden:[], notes:[]};
+  adjustPos(L);
+  const v = L.pos && findVoicing(c.root, c.type, L.pos.s, L.pos.f);
+  return v ? {midis:v.shape.map(q => tun[q.s] + q.f), pos:L.pos, anchor:L.anchor} : {midis:chordMidis(c.root, c.type), pos:null};
+}
+const loop = {on:false, chords:[], voices:[], idx:-1, bar0:0};
+const drumBufs = {};
+function drumBuf(kind){
+  if (drumBufs[kind]) return drumBufs[kind];
+  const a = getAudio(), sr = a.sampleRate, len = Math.floor(sr * (kind === 'kick' ? 0.35 : kind === 'snare' ? 0.22 : 0.06));
+  const b = a.createBuffer(1, len, sr), d = b.getChannelData(0); let prev = 0, ph = 0;
+  for (let i = 0; i < len; i++) {
+    const t = i / sr;
+    if (kind === 'kick') { const f = 45 + 90 * Math.exp(-t * 30); ph += 2 * Math.PI * f / sr; d[i] = Math.sin(ph) * Math.exp(-t * 9); }
+    else if (kind === 'snare') { const n = Math.random() * 2 - 1; d[i] = (n * 0.7 + Math.sin(2 * Math.PI * 190 * t) * 0.4) * Math.exp(-t * 22) * 0.7; }
+    else { const n = Math.random() * 2 - 1; d[i] = (n - prev) * Math.exp(-t * 70) * 0.35; prev = n; }
+  }
+  return (drumBufs[kind] = b);
+}
+function playDrum(kind, when){
+  const a = getAudio(), src = a.createBufferSource(), g = a.createGain();
+  src.buffer = drumBuf(kind); g.gain.value = state.backing.vol * 0.9; src.connect(g); g.connect(master); src.start(when);
+}
+function padChord(midis, when, dur){
+  const a = getAudio();
+  midis.forEach(m => {
+    const o = a.createOscillator(), o2 = a.createOscillator(), g = a.createGain(), f = 440 * Math.pow(2, (m - 69) / 12);
+    o.type = 'triangle'; o2.type = 'sine'; o.frequency.value = f; o2.frequency.value = f * 2.001;
+    const peak = 0.07 * state.backing.vol;
+    g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(peak, when + 0.08); g.gain.setValueAtTime(peak, when + dur - 0.15); g.gain.linearRampToValueAtTime(0, when + dur);
+    o.connect(g); o2.connect(g); g.connect(master); o.start(when); o2.start(when); o.stop(when + dur + 0.05); o2.stop(when + dur + 0.05);
+  });
+}
+/* called from the metronome scheduler for every tick while the loop runs */
+function loopTick(c, when){
+  if (!loop.on || !loop.chords.length || !c.isBeat) return;
+  const m = state.metro, b = state.backing, spb = 60 / m.bpm;
+  const barIn = c.bar - loop.bar0, k = Math.floor(barIn / b.bpc) % loop.chords.length, v = loop.voices[k];
+  const chordStart = c.barStart && barIn % b.bpc === 0;
+  if (chordStart) {
+    const delay = Math.max(0, (when - ac.currentTime) * 1000);
+    setTimeout(() => { if (!loop.on) return; loop.idx = k; if (b.follow) loopShowChord(k); else render(); }, delay);
+  }
+  const vol = 0.3 * b.vol;
+  if (b.pattern === 'pad') { if (chordStart) padChord(v.midis, when, spb * m.beats * b.bpc); }
+  else if (b.pattern === 'quarters' || c.barStart) {
+    const accent = c.beatNo === 0 ? 1 : 0.7;
+    v.midis.slice().sort((x, y) => x - y).forEach((mm, j) => pluckAt(mm, when + j * 0.018, vol * accent));
+  }
+  if (b.drums) {
+    if (c.beatNo % 2 === 0) playDrum('kick', when); else playDrum('snare', when);
+    playDrum('hat', when); playDrum('hat', when + spb / 2);
+  }
+}
+function loopShowChord(k){
+  const c = loop.chords[k], v = loop.voices[k], L = state.layers[0];
+  L.kind = 'chord'; L.root = c.root; L.type = c.type; L.hidden = []; L.visible = true;
+  if (v.pos) { L.pos = Object.assign({}, v.pos); if (L.anchor == null) L.anchor = v.anchor; }
+  state.pinView = null; state.compare = null; state.tap = null;
+  render();
+}
+function loopStart(){
+  const chords = backingChords();
+  if (!chords.length) { toast(state.backing.source === 'pins' ? 'Pin some chords first: the loop plays your Pinboard in order.' : 'That progression has no chords.'); return; }
+  loop.chords = chords; loop.voices = chords.map(voiceChord); loop.idx = -1; loop.on = true;
+  if (!metro.on) { metroStart(); metro.loopOwned = true; loop.bar0 = 0; }
+  else loop.bar0 = Math.ceil(metro.tick / (state.metro.sub * state.metro.beats));
+  render();
+}
+/* settings changed while the loop plays: swap in the new chords without stopping the beat */
+function refreshLoop(){
+  if (!loop.on) return;
+  const chords = backingChords(); if (!chords.length) { loopStop(); return; }
+  loop.chords = chords; loop.voices = chords.map(voiceChord);
+}
+function loopStop(){ if (metro.on && metro.loopOwned) metroStop(); loop.on = false; loop.idx = -1; metro.loopOwned = false; render(); }
+
+/* drone: sustained root (and optional 5th), slightly detuned for a living sound */
+const drone = {on:false, nodes:[], gain:null};
+function droneStart(){
+  const a = getAudio(); if (!a) return; if (a.state !== 'running') a.resume().catch(() => {});
+  droneStop(true);
+  const d = state.drone, g = a.createGain(), lp = a.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 1400; g.gain.setValueAtTime(0, a.currentTime); g.gain.linearRampToValueAtTime(d.vol * 0.5, a.currentTime + 0.6);
+  lp.connect(g); g.connect(a.destination);
+  const base = 36 + mod(d.root - 0);                       // C2..B2
+  const notes = [base, base + 12].concat(d.fifth ? [base + 7, base + 19] : []);
+  notes.forEach((m, k) => [-4, 4].forEach(cents => {
+    const o = a.createOscillator(), og = a.createGain();
+    o.type = k % 2 ? 'triangle' : 'sawtooth'; o.frequency.value = 440 * Math.pow(2, (m - 69 + cents / 100) / 12);
+    og.gain.value = (m >= base + 12 ? 0.12 : 0.2) / notes.length; o.connect(og); og.connect(lp); o.start();
+    drone.nodes.push(o);
+  }));
+  drone.gain = g; drone.on = true; requestWake();
+}
+function droneStop(quiet){
+  if (drone.gain && ac) { const g = drone.gain, t = ac.currentTime; g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(0, t + 0.3); }
+  const old = drone.nodes; setTimeout(() => old.forEach(o => { try { o.stop(); } catch (e) {} }), 350);
+  drone.nodes = []; drone.gain = null; drone.on = false;
+  if (!quiet) releaseWake();
+}
+function droneVolume(){ if (drone.gain && ac) drone.gain.gain.setTargetAtTime(state.drone.vol * 0.5, ac.currentTime, 0.05); }
+
+/* ================= practice log (stored in this browser) ================= */
+const LOGKEY = 'fretboard-atlas-log-v1';
+let practiceLog = [];
+try { practiceLog = JSON.parse(localStorage.getItem(LOGKEY)) || []; if (!Array.isArray(practiceLog)) practiceLog = []; } catch (e) { practiceLog = []; }
+function saveLog(){ try { localStorage.setItem(LOGKEY, JSON.stringify(practiceLog.slice(-3000))); } catch (e) {} }
+const dayKey = ts => { const d = new Date(ts); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+function itemKey(it){
+  if (it.kind === 'text') return 'text|' + it.text.toLowerCase();
+  if (it.kind === 'quiz') return 'quiz|' + it.quiz;
+  const p = it.pos ? (it.kind === 'scale' ? `|f${it.pos.f}${it.pos.style === 'nps' ? 'n' : 'b'}` : `|s${it.pos.s}f${it.pos.f}`) : '';
+  return `${it.kind}|${it.root}|${it.type}${p}`;
+}
+function logEntry(e){
+  practiceLog.push(Object.assign({id:Date.now() + Math.random(), ts:Date.now()}, e));
+  saveLog();
+}
+function logTitleFor(it){ return it.kind === 'text' ? it.text : itemTitle(it) + (it.pos ? ' · ' + itemSub(it).split(' · ')[0] : ''); }
+let logArmed = false, logTimer = null, logShowAll = false;
+function logStats(){
+  const now = Date.now(), byDay = {};
+  practiceLog.forEach(e => { const k = dayKey(e.ts); byDay[k] = (byDay[k] || 0) + (e.ms || 0); });
+  const days = []; for (let i = 13; i >= 0; i--) { const t = now - i * 86400000; days.push({k:dayKey(t), d:new Date(t), ms:byDay[dayKey(t)] || 0}); }
+  const week = days.slice(-7).reduce((a, x) => a + x.ms, 0), total = practiceLog.reduce((a, e) => a + (e.ms || 0), 0);
+  let streak = 0; for (let i = 0; ; i++) { const k = dayKey(now - i * 86400000); if (byDay[k]) streak++; else if (i === 0) continue; else break; if (i > 3650) break; }
+  // per exercise
+  const ex = {};
+  practiceLog.forEach(e => {
+    const x = ex[e.key] || (ex[e.key] = {key:e.key, title:e.title, n:0, ms:0, first:null, best:null, bestQuiz:null, last:0});
+    x.n++; x.ms += e.ms || 0; x.last = Math.max(x.last, e.ts); x.title = e.title;
+    const t = e.clean || e.bpm; if (t) { if (x.first == null) x.first = t; x.best = Math.max(x.best || 0, t); }
+    if (e.quiz) x.bestQuiz = Math.max(x.bestQuiz || 0, e.quiz.acc);
+  });
+  return {days, week, total, streak, exercises:Object.values(ex).sort((a, b) => b.last - a.last)};
+}
+const fmtMin = ms => { const m = Math.round(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; };
+const ago = ts => { const d = Math.floor((Date.now() - ts) / 86400000); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`; };
 
 /* ================= practice: lesson & session ================= */
 const rnd = a => a[Math.floor(Math.random() * a.length)];
@@ -1850,8 +2110,10 @@ const sessRemaining = s => s.paused ? s.remaining : s.endsAt - Date.now();
 function sessStart(i){
   const it = state.lesson.items[i]; if (!it) return;
   const startedAt = state.session && !state.session.done && state.session.startedAt ? state.session.startedAt : Date.now();
+  sessLog();             // log the item we are leaving
   if (quiz) quizEnd();   // a running quiz reports its score as you move on
-  state.session = {idx:i, paused:false, endsAt:Date.now() + it.min * 60000, remaining:0, done:false, timeUp:false, startedAt};
+  state.session = {idx:i, paused:false, endsAt:Date.now() + it.min * 60000, remaining:0, done:false, timeUp:false, startedAt,
+    planned:it.min * 60000, peak:metro.on ? state.metro.bpm : null, clean:null};
   loadItem(it); requestWake(); render();
 }
 function sessPause(){ const s = state.session; if (!s || s.done) return; if (s.paused) { s.paused = false; s.timeUp = false; s.endsAt = Date.now() + Math.max(s.remaining, 0); requestWake(); } else { s.paused = true; s.remaining = Math.max(0, s.endsAt - Date.now()); releaseWake(); } render(); }
@@ -1864,11 +2126,22 @@ function sessStep(dir){
 }
 function sessFinish(){
   const total = state.lesson.items.reduce((a, it) => a + it.min, 0), n = state.lesson.items.length;
+  sessLog();
   if (quiz && quiz.mode === 'session') quizEnd();
   state.session = {done:true, total, n}; chime(true); releaseWake(); render();
 }
-function sessStop(){ if (quiz && quiz.mode === 'session') quizEnd(); state.session = null; releaseWake(); render(); }
-function sessAddMinute(){ const s = state.session; if (!s || s.done) return; if (s.paused) s.remaining += 60000; else s.endsAt += 60000; s.timeUp = false; tickUI(); }
+function sessStop(){ sessLog(); if (quiz && quiz.mode === 'session') quizEnd(); state.session = null; releaseWake(); render(); }
+function sessAddMinute(){ const s = state.session; if (!s || s.done) return; if (s.paused) s.remaining += 60000; else s.endsAt += 60000; s.planned = (s.planned || 0) + 60000; s.timeUp = false; tickUI(); }
+/* write the current lesson item to the practice log: real minutes spent, top tempo, clean tempo, quiz score */
+function sessLog(){
+  const s = state.session; if (!s || s.done || s.noLog) return;
+  const it = state.lesson.items[s.idx]; if (!it) return;
+  const spent = Math.max(0, (s.planned || it.min * 60000) - Math.max(0, sessRemaining(s)));
+  if (spent < 20000) return;                       // skipped straight past it
+  const e = {kind:it.kind, key:itemKey(it), title:logTitleFor(it), ms:spent, bpm:s.peak || null, clean:s.clean || null};
+  if (quiz && quiz.mode === 'session') { const r = quizResult(); if (r.n) e.quiz = {acc:r.acc, n:r.n}; }
+  logEntry(e);
+}
 function fmt(ms){ const t = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
 function tickUI(){
   const s = state.session;
@@ -1878,6 +2151,7 @@ function tickUI(){
     s.paused = true; s.remaining = 0; s.timeUp = true; chime(false); render(); return;
   }
   if (!s || s.done) return;
+  if (metro.on && !s.paused) s.peak = Math.max(s.peak || 0, state.metro.bpm);
   const it = state.lesson.items[s.idx], rem = sessRemaining(s);
   const t = fmt(rem);
   document.querySelectorAll('[data-sess-time]').forEach(el => { el.textContent = t; });
@@ -1892,9 +2166,14 @@ setInterval(tickUI, 250);
 function renderStrip(){
   const el = $('#strip'), s = state.session, items = state.lesson.items;
   const live = s && !s.done && items[s.idx];
-  el.hidden = !(live || metro.on || quiz);
+  el.hidden = !(live || metro.on || quiz || drone.on);
   if (el.hidden) { el.innerHTML = ''; return; }
   let h = '';
+  if (loop.on && loop.chords.length) {
+    const k = Math.max(0, loop.idx), nx = (k + 1) % loop.chords.length;
+    h += `<span class="st-loop">Loop <b>${loop.chords[k].name}</b>${loop.chords.length > 1 ? ` <small>then ${loop.chords[nx].name}</small>` : ''}</span><button type="button" class="ib" data-act="bstart">■ Loop</button>`;
+  }
+  if (drone.on) h += `<button type="button" class="ib" data-act="dstart" aria-label="Stop drone">■ Drone ${pn(DEFAULT[state.drone.root])}</button>`;
   if (quiz) h += `<div class="qrow">${quizStripHtml()}</div>`;
   if (live) {
     h += `<span class="st-item"><small>${s.idx + 1}/${items.length}</small><b>${itemTitle(items[s.idx])}</b></span>
@@ -1958,7 +2237,8 @@ function renderPractice(){
         <button type="button" class="btn" data-act="sessprev"${s.idx === 0 ? ' disabled' : ''}>Previous</button>
         <button type="button" class="btn" data-act="sessnext">${s.idx === items.length - 1 ? 'Finish' : 'Next'}</button>
         <button type="button" class="btn" data-act="sessplus">+1 min</button>
-        <button type="button" class="btn" data-act="sessstop">Stop</button></div></div>`;
+        <button type="button" class="btn" data-act="sessstop">Stop</button></div>
+      ${it.kind !== 'quiz' ? `<div class="row"><button type="button" class="btn" data-act="sessclean">${s.clean ? `✓ Clean at ${s.clean} bpm · update to ${state.metro.bpm}` : `Mark clean at ${state.metro.bpm} bpm`}</button><small style="opacity:.7">Logs the tempo you can play this cleanly.</small></div>` : ''}</div>`;
   }
 
   const itemRows = items.map((it, k) => {
@@ -2017,7 +2297,7 @@ function renderPractice(){
     <div class="row"><label class="chk"><input type="checkbox" id="lAuto" data-act="lauto"${Ls.auto ? ' checked' : ''}> Move to the next item automatically when time is up</label></div>
     ${ing}
   </div>`;
-  const qc = state.quizCfg, isIv = qc.type.endsWith('interval');
+  const qc = state.quizCfg, isIv = qc.type.endsWith('interval') || qc.type === 'ear-find';
   const bestOf = state.quizBest[qc.type + '|' + qc.length];
   const resLine = r => `${r.n} question${r.n === 1 ? '' : 's'} · ${r.acc}% accurate · ${fmt(r.secs * 1000)}`;
   const quizCard = `<div class="card">
@@ -2032,7 +2312,58 @@ function renderPractice(){
     ${state.quizLast ? `<div class="info qres">Last: <b>${QUIZ_TYPES[state.quizLast.type].name}</b>, ${resLine(state.quizLast)}${state.quizLast.best ? ' · new best' : ''}</div>` : ''}
     ${bestOf ? `<div class="info qres">Best for this quiz and length: ${resLine(bestOf)}</div>` : ''}
   </div>`;
-  return `<div class="practice"><div class="pcol">${metroCard}${quizCard}</div>${lessonCard}</div>`;
+  // play along: progression loop + drone
+  const B = state.backing, D = state.drone;
+  const keyName = pc => pn(rootName(pc, (B.minor ? SCALES.aeolian : SCALES.ionian).labels));
+  const chordsNow = backingChords();
+  const playCard = `<div class="card">
+    <div class="row" style="justify-content:space-between"><b>Play along</b><span class="info">Uses the metronome tempo (${state.metro.bpm} bpm)</span></div>
+    <div class="row"><span class="rl">Loop</span><div class="seg"><button type="button" data-act="bsrc" data-v="prog" aria-pressed="${B.source === 'prog'}">Progression</button><button type="button" data-act="bsrc" data-v="pins" aria-pressed="${B.source === 'pins'}">My Pinboard</button></div></div>
+    ${B.source === 'prog' ? `<div class="row">
+      <select class="sel" id="bKey" data-act="bkey" aria-label="Key">${[0,1,2,3,4,5,6,7,8,9,10,11].map(pc => `<option value="${pc}"${B.key === pc ? ' selected' : ''}>${keyName(pc)}</option>`).join('')}</select>
+      <div class="seg"><button type="button" data-act="bmode" data-v="0" aria-pressed="${!B.minor}">Major</button><button type="button" data-act="bmode" data-v="1" aria-pressed="${B.minor}">Minor</button></div>
+      <select class="sel" id="bProg" data-act="bprog" aria-label="Progression">${PROG_LIST[B.minor ? 'minor' : 'major'].map(([n], k) => `<option value="${k}"${B.prog === k ? ' selected' : ''}>${n}</option>`).join('')}</select>
+      <div class="seg"><button type="button" data-act="b7" data-v="0" aria-pressed="${!B.sevenths}">Triads</button><button type="button" data-act="b7" data-v="1" aria-pressed="${B.sevenths}">7ths</button></div></div>` : ''}
+    <div class="row loop-chords">${chordsNow.length ? chordsNow.map((c, k) => `<span class="lc${loop.on && loop.idx === k ? ' on' : ''}">${c.name}</span>`).join('<span class="info">→</span>') : '<span class="info">Your Pinboard is empty. Pin chords to loop them.</span>'}</div>
+    <div class="row"><span class="rl">Feel</span>
+      <div class="seg">${[['strum1','Strum on 1'], ['quarters','Every beat'], ['pad','Sustained']].map(([v, t]) => `<button type="button" data-act="bpat" data-v="${v}" aria-pressed="${B.pattern === v}">${t}</button>`).join('')}</div>
+      <div class="seg">${[1, 2, 4].map(n => `<button type="button" data-act="bbpc" data-v="${n}" aria-pressed="${B.bpc === n}">${n} bar${n > 1 ? 's' : ''} each</button>`).join('')}</div></div>
+    <div class="row"><label class="chk"><input type="checkbox" id="bDrums" data-act="bdrums"${B.drums ? ' checked' : ''}> Drums</label>
+      <label class="chk"><input type="checkbox" id="bClick" data-act="bclick"${B.click ? ' checked' : ''}> Click too</label>
+      <label class="chk"><input type="checkbox" id="bFollow" data-act="bfollow"${B.follow ? ' checked' : ''}> Show each chord on the neck</label></div>
+    <div class="row"><span class="rl">Loop volume</span><input type="range" id="bVol" min="0.1" max="1" step="0.05" value="${B.vol}" data-act="bvol" aria-label="Loop volume"></div>
+    <div class="row"><button type="button" class="btn primary big-btn" data-act="bstart">${loop.on ? '■ Stop loop' : '▶ Start loop'}</button></div>
+    <div class="metro-opts">
+      <div class="row" style="justify-content:space-between"><b>Drone</b><span class="opt-note">A held root note for hearing modes and checking intonation.</span></div>
+      <div class="row">${[0,1,2,3,4,5,6,7,8,9,10,11].map(pc => `<button type="button" class="chip${D.root === pc ? ' sel' : ''}" data-act="droot" data-v="${pc}">${pn(DEFAULT[pc])}</button>`).join('')}
+        <button type="button" class="btn" data-act="dmatch" title="Use the root of the main layer">Match the neck</button></div>
+      <div class="row"><div class="seg"><button type="button" data-act="dfifth" data-v="0" aria-pressed="${!D.fifth}">Root</button><button type="button" data-act="dfifth" data-v="1" aria-pressed="${D.fifth}">Root + 5th</button></div>
+        <input type="range" id="dVol" min="0.05" max="1" step="0.05" value="${D.vol}" data-act="dvol" aria-label="Drone volume" style="flex:1 1 120px; width:auto">
+        <button type="button" class="btn primary" data-act="dstart">${drone.on ? '■ Stop drone' : '▶ Start drone'}</button></div>
+    </div>
+  </div>`;
+
+  // practice log
+  const st = logStats(), maxMs = Math.max(60000, ...st.days.map(x => x.ms));
+  const bars = st.days.map((x, k) => `<span class="lbar${k === 13 ? ' today' : ''}" title="${x.d.toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'})}: ${fmtMin(x.ms)}"><i style="height:${Math.round(x.ms / maxMs * 100)}%"></i><small>${'SMTWTFS'[x.d.getDay()]}</small></span>`).join('');
+  const exRows = (logShowAll ? st.exercises : st.exercises.slice(0, 8)).map(x => `<div class="lrow"><span class="it"><b>${esc(x.title)}</b><small>${x.n} session${x.n > 1 ? 's' : ''} · ${fmtMin(x.ms)} · last ${ago(x.last)}</small></span>
+      <span class="lval">${x.best ? (x.first && x.first !== x.best ? `${x.first} → <b>${x.best}</b> bpm` : `<b>${x.best}</b> bpm`) : x.bestQuiz != null ? `best <b>${x.bestQuiz}%</b>` : ''}</span></div>`).join('');
+  const recent = practiceLog.slice(-6).reverse().map(e => `<div class="lrow"><span class="it"><b>${esc(e.title)}</b><small>${new Date(e.ts).toLocaleString(undefined, {weekday:'short', hour:'numeric', minute:'2-digit'})}</small></span>
+      <span class="lval">${fmtMin(e.ms || 0)}${e.clean ? ` · clean ${e.clean} bpm` : e.bpm ? ` · ${e.bpm} bpm` : ''}${e.quiz ? ` · ${e.quiz.acc}%` : ''}</span></div>`).join('');
+  const logCard = `<div class="card">
+    <div class="row" style="justify-content:space-between"><b>Practice log</b><span class="info">Saved in this browser</span></div>
+    <div class="lstats"><span><b>${fmtMin(st.week)}</b><small>last 7 days</small></span><span><b>${st.streak} day${st.streak === 1 ? '' : 's'}</b><small>streak</small></span><span><b>${fmtMin(st.total)}</b><small>all time</small></span></div>
+    <div class="lbars" role="img" aria-label="Minutes practiced on each of the last 14 days">${bars}</div>
+    ${practiceLog.length ? `<span class="rl">By exercise · tempo is your clean tempo when marked, otherwise the top metronome tempo</span><div class="lrows">${exRows}</div>
+      ${st.exercises.length > 8 ? `<button type="button" class="btn" data-act="logall">${logShowAll ? 'Show fewer' : `Show all ${st.exercises.length}`}</button>` : ''}
+      <span class="rl">Recent</span><div class="lrows">${recent}</div>`
+      : '<p class="info" style="margin:0">Nothing logged yet. Lesson items, quizzes and metronome sessions over a minute are logged here automatically.</p>'}
+    <div class="row"><button type="button" class="btn" data-act="logcopy">Copy backup</button>
+      <button type="button" class="btn" data-act="logrestoreshow">Restore from backup</button>
+      ${practiceLog.length ? `<button type="button" class="btn" data-act="logclear">${logArmed ? 'Tap again to delete the whole log' : 'Clear log'}</button>` : ''}</div>
+    <div class="row" id="restoreRow" hidden><textarea id="restoreText" class="task-in" rows="3" placeholder="Paste a backup here" aria-label="Backup to restore"></textarea><button type="button" class="btn primary" data-act="logrestore">Restore</button></div>
+  </div>`;
+  return `<div class="practice"><div class="pcol">${metroCard}${playCard}${quizCard}</div><div class="pcol">${lessonCard}${logCard}</div></div>`;
 }
 function handlePractice(act, b){
   const v = b.dataset.v, cfg = state.lesson.cfg, items = state.lesson.items;
@@ -2051,6 +2382,41 @@ function handlePractice(act, b){
     case 'qstart': quizStart(); return true;
     case 'qstop': quizEnd(); return true;
     case 'qans': quizAnswer(+v); return true;
+    case 'qreplay': quizPlay(); return true;
+    // play along
+    case 'bsrc': state.backing.source = v; refreshLoop(); render(); return true;
+    case 'bmode': state.backing.minor = v === '1'; state.backing.prog = 0; refreshLoop(); render(); return true;
+    case 'b7': state.backing.sevenths = v === '1'; refreshLoop(); render(); return true;
+    case 'bbpc': state.backing.bpc = +v; render(); return true;
+    case 'bpat': state.backing.pattern = v; render(); return true;
+    case 'bstart': if (loop.on) loopStop(); else loopStart(); return true;
+    case 'droot': state.drone.root = +v; if (drone.on) droneStart(); render(); return true;
+    case 'dfifth': state.drone.fifth = v === '1'; if (drone.on) droneStart(); render(); return true;
+    case 'dmatch': state.drone.root = state.layers[0].root; if (drone.on) droneStart(); toast(`Drone set to ${pn(noteName(state.drone.root))}`); render(); return true;
+    case 'dstart': if (drone.on) droneStop(); else droneStart(); render(); return true;
+    // log
+    case 'sessclean': if (state.session && !state.session.done) { state.session.clean = state.metro.bpm; toast(`Marked clean at ${state.metro.bpm} bpm`); render(); } return true;
+    case 'logall': logShowAll = !logShowAll; render(); return true;
+    case 'logcopy': {
+      const text = JSON.stringify({app:'fretboard-atlas', version:1, exported:new Date().toISOString(), log:practiceLog});
+      const done = () => toast(`Backup copied: ${practiceLog.length} entries. Paste it somewhere safe.`);
+      const fallback = () => { const row = $('#restoreRow'), ta = $('#restoreText'); if (row && ta) { row.hidden = false; ta.value = text; ta.select(); } toast('Copying was blocked. The backup is selected in the box below. Copy it from there.'); };
+      try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+      return true;
+    }
+    case 'logrestoreshow': { const row = $('#restoreRow'); if (row) { row.hidden = !row.hidden; if (!row.hidden) $('#restoreText').focus(); } return true; }
+    case 'logrestore': {
+      const ta = $('#restoreText'); let data;
+      try { data = JSON.parse(ta.value); } catch (e) { toast('That backup could not be read. Paste the whole text from Copy backup.'); return true; }
+      const entries = Array.isArray(data) ? data : data && Array.isArray(data.log) ? data.log : null;
+      if (!entries) { toast('That backup has no practice log in it.'); return true; }
+      const seen = new Set(practiceLog.map(e => e.id)); let added = 0;
+      entries.forEach(e => { if (e && e.ts && e.key && !seen.has(e.id)) { practiceLog.push(e); added++; } });
+      practiceLog.sort((a, b) => a.ts - b.ts); saveLog(); toast(`Restored ${added} entr${added === 1 ? 'y' : 'ies'}${entries.length - added ? `, skipped ${entries.length - added} already here` : ''}.`); render(); return true;
+    }
+    case 'logclear':
+      if (!logArmed) { logArmed = true; clearTimeout(logTimer); logTimer = setTimeout(() => { logArmed = false; if (state.tab === 'practice') render(); }, 3000); render(); return true; }
+      logArmed = false; practiceLog = []; saveLog(); toast('Practice log cleared'); render(); return true;
     case 'qskip':
       if (!quiz || quiz.lock) return true;
       quiz.bad++; quiz.lock = true;
@@ -2100,7 +2466,7 @@ function handlePractice(act, b){
       const k = items.indexOf(it); if (k < 0) return true;
       items.splice(k, 1);
       const s = state.session;
-      if (s && !s.done) { if (!items.length) state.session = null; else if (k < s.idx) s.idx--; else if (k === s.idx) { s.idx = Math.min(s.idx, items.length - 1); sessStart(s.idx); return true; } }
+      if (s && !s.done) { if (!items.length) state.session = null; else if (k < s.idx) s.idx--; else if (k === s.idx) { s.idx = Math.min(s.idx, items.length - 1); s.noLog = true; sessStart(s.idx); return true; } }
       render(); return true;
     }
     case 'iaddneck': { const x = itemFromNeck(); if (!x) { toast('Set the main layer to a scale or chord first.'); return true; } items.push(x); toast(`Added ${itemTitle(x)}`); render(); return true; }
@@ -2129,11 +2495,14 @@ panel.addEventListener('input', e => {
   const el = e.target;
   if (el.dataset.act === 'mrange') setBpm(+el.value);
   else if (el.dataset.act === 'mvol') { state.metro.vol = +el.value; save(); }
+  else if (el.dataset.act === 'bvol') { state.backing.vol = +el.value; save(); }
+  else if (el.dataset.act === 'dvol') { state.drone.vol = +el.value; droneVolume(); save(); }
 });
 panel.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'newTask') { e.preventDefault(); handlePractice('iaddtask', e.target); } });
 // small read-only hook for automated tests and the browser console
 window.fretboardAtlas = {get state(){ return state; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
-  get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm};
+  get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
+  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick};
 
 /* ================= main render ================= */
 function render(){
@@ -2376,6 +2745,12 @@ panel.addEventListener('change', e => {
     }
   }
   else if (act === 'maccent') state.metro.accent = el.checked;
+  else if (act === 'bkey') { state.backing.key = +el.value; refreshLoop(); }
+  else if (act === 'bprog') { state.backing.prog = +el.value; refreshLoop(); }
+  else if (act === 'bdrums') state.backing.drums = el.checked;
+  else if (act === 'bclick') state.backing.click = el.checked;
+  else if (act === 'bfollow') state.backing.follow = el.checked;
+  else if (act === 'bvol' || act === 'dvol') return;
   else if (act === 'mgap') state.metro.gap.on = el.checked;
   else if (act === 'mladder') {
     state.metro.ladder.on = el.checked;
