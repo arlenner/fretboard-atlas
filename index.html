@@ -127,6 +127,8 @@ h2,h3{margin:0; text-wrap:balance}
 .dot.s2{padding-top:calc(var(--dot) * .24); font-size:calc(var(--dot) * .36)}
 .dot.s6{padding-bottom:calc(var(--dot) * .28); font-size:calc(var(--dot) * .36)}
 .dot.s5{font-size:calc(var(--dot) * .4)}
+.dot.lg3{font-size:calc(var(--dot) * .36); letter-spacing:-.03em}
+.dot.lg3.s2, .dot.lg3.s6{font-size:calc(var(--dot) * .31)}
 .cell.tapped .dot.sv::after{border-radius:50%}
 /* chord position focus */
 .cell.dim::after{content:""; position:absolute; inset:0; background:rgba(12,8,5,.6); z-index:3; pointer-events:none}
@@ -311,6 +313,9 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
       <label>Note spelling
         <select id="setPref"><option value="auto">Auto (by key)</option><option value="sharp">Prefer sharps</option><option value="flat">Prefer flats</option></select>
       </label>
+      <label>Extension names
+        <select id="setExt"><option value="auto">As written (chords use 9 · 11 · 13)</option><option value="simple">Always 2 · 4 · 6</option><option value="compound">Always 9 · 11 · 13</option></select>
+      </label>
       <label class="chk"><input type="checkbox" id="setFlip"> Low E string on top</label>
       <label class="chk"><input type="checkbox" id="setLefty"> Left-handed neck</label>
       <label class="chk"><input type="checkbox" id="setNames"> Show every note name</label>
@@ -366,7 +371,19 @@ function spell(root, l){
   return LETTERS[li] + ({'-2':'bb','-1':'b','0':'','1':'#','2':'##'})[d];
 }
 const pn = nm => nm ? nm[0] + nm.slice(1).replace(/##/g, '𝄪').replace(/#/g, '♯').replace(/b/g, '♭') : '';
-const pl = l => l === '1' ? 'R' : l.replace(/#/g, '♯').replace(/b/g, '♭');
+/* interval label for display; the "Extension names" setting can show 2/4/6 as 9/11/13 or the reverse */
+function extLabel(l){
+  const m = /^(bb|b|##|#)?(\d+)$/.exec(l); if (!m) return l;
+  const acc = m[1] || '', n = +m[2], mode = state.extNames;
+  if (mode === 'simple' && (n === 9 || n === 11 || n === 13)) return acc + (n - 7);
+  if (mode === 'compound' && (n === 2 || n === 4 || n === 6)) return acc + (n + 7);
+  return l;
+}
+const pl = l => l === '1' ? 'R' : extLabel(l).replace(/#/g, '♯').replace(/b/g, '♭');
+function intervalName(k){
+  if (state.extNames === 'compound') return ({1:'Minor 9th', 2:'Major 9th', 5:'Perfect 11th', 8:'Minor 13th', 9:'Major 13th'})[k] || INTERVAL_NAMES[k];
+  return INTERVAL_NAMES[k];
+}
 function noteName(pc){ pc = mod(pc); return state.pref === 'sharp' ? SHARP[pc] : state.pref === 'flat' ? FLAT[pc] : DEFAULT[pc]; }
 function rootName(pc, labels){
   pc = mod(pc);
@@ -454,7 +471,7 @@ const INLAY = [3,5,7,9,15,17,19,21], DOUBLE = [12,24];
 /* ================= state ================= */
 const KEY = 'fretboard-atlas-v1';
 const DEF = {
-  tuning:'std', labelMode:'interval', colorBy:'interval', pref:'auto', flip:false, lefty:false, sound:true, allNames:false,
+  tuning:'std', labelMode:'interval', colorBy:'interval', extNames:'auto', pref:'auto', flip:false, lefty:false, sound:true, allNames:false,
   onePerString:true, echoes:true, tab:'layers',
   layers:[{id:1, kind:'scale', root:9, type:'dorian', hidden:[], notes:[], visible:true, color:0}],
   picks:[], tap:null, circle:{i:0, minor:false, sevenths:false, pin:false}, nextId:2,
@@ -707,6 +724,7 @@ function renderToolbar(){
   $('#pinsTab').textContent = state.pins.length ? `Pinboard · ${state.pins.length}` : 'Pinboard';
   tuningSel.value = state.tuning;
   $('#setPref').value = state.pref;
+  $('#setExt').value = state.extNames;
   $('#setFlip').checked = state.flip;
   $('#setLefty').checked = state.lefty;
   $('#setNames').checked = state.allNames;
@@ -802,6 +820,7 @@ function renderBoard(){
         let cls = 'dot sv s' + dg, st, pip = '';
         if (h.isRoot) cls += ' root';
         if (h.focus) cls += ' ' + h.focus;
+        if (text.length >= 3) cls += ' lg3';
         if (byIv()) {
           st = `--c:${ivCol(h.label)};`;
           if (h.i > 0) cls += ' hollow';
@@ -842,7 +861,7 @@ function renderBoard(){
       if (!L.visible || L.kind === 'notes') return;
       layerLabels(L).forEach(l => { if (!L.hidden.includes(l) && !seen.has(semi(l))) seen.set(semi(l), l); });
     });
-    if (seen.size) key = `<span class="key">${[...seen.entries()].sort((a, b) => a[0] - b[0]).map(([n, l]) => `<span class="dot sv kd s${degOf(l)}" style="--c:var(--i${n})" title="${INTERVAL_NAMES[n]}">${shapeSvg(degOf(l))}${pl(l)}</span>`).join('')}</span>`;
+    if (seen.size) key = `<span class="key">${[...seen.entries()].sort((a, b) => a[0] - b[0]).map(([n, l]) => `<span class="dot sv kd s${degOf(l)}" style="--c:var(--i${n})" title="${intervalName(n)}">${shapeSvg(degOf(l))}${pl(l)}</span>`).join('')}</span>`;
   }
   let pickNote = '';
   if (pickMode && reading && !pinShape) pickNote = ` · reading as <b>${reading.name}</b>${byIv() ? ` · colored by interval from ${pn(rootName(pickRoot, reading.labels))}` : ''}`;
@@ -919,7 +938,7 @@ function layerCard(L, i){
   } else {
     const lbls = layerLabels(L);
     h += `<div class="row"><span class="rl">Filter · tap to show or hide</span>${lbls.map((l, k) => {
-      const title = L.kind === 'intervals' ? INTERVAL_NAMES[k] : 'Interval ' + pl(l);
+      const title = L.kind === 'intervals' ? intervalName(k) : 'Interval ' + pl(l);
       return `<button type="button" class="chip flt${L.hidden.includes(l) ? '' : ' on'}"${byIv() ? ` style="--c:${ivCol(l)}"` : ''} data-act="flt" data-i="${i}" data-v="${l}" title="${title}" aria-pressed="${!L.hidden.includes(l)}"><b>${pl(l)}</b><span>${pn(spell(rn, l))}</span></button>`;
     }).join('')}
       <button type="button" class="btn" data-act="fall" data-i="${i}">All</button>
@@ -995,7 +1014,7 @@ function renderFinder(){
   }
   if (uniq.length === 2) {
     const iv = mod(pcs.find(p => p !== bass) - bass);
-    main += `<p class="info">Interval from the bass: <b>${INTERVAL_NAMES[iv]}</b> (${pl(INTERVALS[iv])}).</p>`;
+    main += `<p class="info">Interval from the bass: <b>${INTERVAL_NAMES[iv]}</b> (${INTERVALS[iv].replace(/b/g, '♭')}).</p>`;
   }
   if (near.length && (!exact.length || uniq.length <= 3)) {
     main += `<span class="rl">Add one note to make</span><div class="cand">${near.map(c => `<button type="button" data-act="cand" data-r="${c.root}" data-t="${c.type}"><b>${c.name}</b><small>add ${pl(c.missing)} (${pn(spell(c.rn, c.missing))})</small></button>`).join('')}</div>`;
@@ -1362,6 +1381,7 @@ document.querySelector('.tabs').addEventListener('click', e => {
 });
 tuningSel.addEventListener('change', () => { state.tuning = tuningSel.value; state.tap = null; state.layers.forEach(adjustPos); render(); });
 $('#setPref').addEventListener('change', e => { state.pref = e.target.value; render(); });
+$('#setExt').addEventListener('change', e => { state.extNames = e.target.value; render(); });
 $('#setFlip').addEventListener('change', e => { state.flip = e.target.checked; render(); });
 $('#setLefty').addEventListener('change', e => { state.lefty = e.target.checked; render(); });
 $('#setNames').addEventListener('change', e => { state.allNames = e.target.checked; render(); });
