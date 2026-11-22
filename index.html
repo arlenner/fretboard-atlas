@@ -110,6 +110,19 @@ h2,h3{margin:0; text-wrap:balance}
 .sw.hollow, .legend i.hollow{background:transparent; box-shadow:inset 0 0 0 2.5px var(--c)}
 .legend .key{display:inline-flex; gap:4px; align-items:center}
 .legend .key em{font-style:normal; font-weight:750; font-size:11px; color:var(--dot-ink); background:var(--c); border-radius:9px; padding:1px 6px; min-width:22px; text-align:center}
+/* interval shapes: shape = degree (R ▲ ● ⬟ ◆ ▼ ⬢), colour = exact interval */
+.dot.sv, .dot.sv.hollow, .dot.sv.multi, .dot.sv.pick.iv{background:transparent; box-shadow:none; border-radius:0}
+.shp{position:absolute; inset:0; width:100%; height:100%; overflow:visible; z-index:-1; filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.55))}
+.shp .o{fill:none; stroke:none}
+.shp .f{fill:var(--c); stroke:rgba(0,0,0,.3); stroke-width:3; stroke-linejoin:round}
+.dot.hollow .shp .f{fill:rgba(0,0,0,.5); stroke:var(--c); stroke-width:12}
+.dot.multi .shp .o, .dot.pick .shp .o{stroke:#fff; stroke-width:18; stroke-linejoin:round}
+.dot.s2{padding-top:24%; font-size:calc(var(--dot) * .36)}
+.dot.s6{padding-bottom:28%; font-size:calc(var(--dot) * .36)}
+.dot.s5{font-size:calc(var(--dot) * .4)}
+.cell.tapped .dot.sv::after{border-radius:50%}
+.legend .dot.kd{--dot:22px; font-size:10px; display:inline-grid}
+.legend .dot.kd.s2, .legend .dot.kd.s6{font-size:9px}
 .dot.ghost{background:rgba(0,0,0,.25); box-shadow:inset 0 0 0 2px var(--c); color:var(--c)}
 .dot.faint{opacity:.45; transform:scale(.55)}
 .dot.pick{background:var(--pick); color:#111; box-shadow:0 0 0 3px var(--l0), 0 2px 5px rgba(0,0,0,.6)}
@@ -207,6 +220,28 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
 .scl button{border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:6px 10px; text-align:left; display:grid}
 .scl button small{color:var(--muted); font-size:11px}
 .scl button:hover{border-color:var(--muted)}
+/* pinboard */
+.pins{display:grid; grid-template-columns:repeat(auto-fill, minmax(168px, 1fr)); gap:10px}
+.pin{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:10px; display:grid; gap:8px; position:relative; min-width:0; align-content:start}
+.pin.active{outline:2px solid var(--accent); outline-offset:-1px}
+.pin.sel{background:var(--surface-2)}
+.pin-num{position:absolute; top:9px; right:11px; font-size:11px; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums}
+.pin-main{border:0; background:transparent; padding:0; text-align:left; display:grid; gap:4px; justify-items:start; min-width:0}
+.pin-main b{font-size:21px; font-weight:800; font-variation-settings:'wdth' 85; line-height:1.1; padding-right:22px}
+.pin-main small{color:var(--muted); font-size:11px}
+.pin-acts{display:flex; gap:4px; flex-wrap:wrap; align-items:center}
+.ib{border:1px solid var(--line); background:var(--surface-2); border-radius:8px; min-width:32px; height:30px; padding:0 8px; font-size:13px; font-weight:650}
+.ib:disabled{opacity:.35; cursor:default}
+.ib:hover:not(:disabled){border-color:var(--muted)}
+.pin .chk{font-size:12px !important; margin-left:auto}
+.diag{width:92px; height:auto; display:block}
+.diag line{stroke:var(--muted); stroke-width:1}
+.diag .nut{stroke:var(--ink); stroke-width:3.5}
+.diag text{fill:var(--muted); font-size:9px; font-family:var(--font); font-weight:600}
+.diag .od{fill:none; stroke:var(--muted); stroke-width:1.3}
+.diag .fd{stroke:rgba(0,0,0,.35); stroke-width:1}
+.pin-notes{font-weight:650; letter-spacing:.02em}
+.toast{position:fixed; left:50%; bottom:calc(16px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); z-index:40; background:var(--sel-bg); color:var(--sel-ink); padding:8px 14px; border-radius:10px; font-weight:600; font-size:13px; box-shadow:0 8px 24px rgba(0,0,0,.25); max-width:calc(100vw - 32px); text-align:center}
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
 </style>
 </head>
@@ -263,8 +298,10 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
   <button type="button" role="tab" data-tab="layers">Layers</button>
   <button type="button" role="tab" data-tab="finder">Chord finder</button>
   <button type="button" role="tab" data-tab="circle">Circle of fifths</button>
+  <button type="button" role="tab" data-tab="pins" id="pinsTab">Pinboard</button>
 </div>
 <div class="panel" id="panel"></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script>
 (function(){
@@ -382,8 +419,10 @@ const DEF = {
   tuning:'std', labelMode:'interval', colorBy:'interval', pref:'auto', flip:false, lefty:false, sound:true, allNames:false,
   onePerString:true, echoes:true, tab:'layers',
   layers:[{id:1, kind:'scale', root:9, type:'dorian', hidden:[], notes:[], visible:true, color:0}],
-  picks:[], tap:null, circle:{i:0, minor:false, sevenths:false}, nextId:2
+  picks:[], tap:null, circle:{i:0, minor:false, sevenths:false, pin:false}, nextId:2,
+  pins:[], nextPin:1, pinView:null
 };
+const MAX_PINS = 32;
 const clone = o => JSON.parse(JSON.stringify(o));
 let state = clone(DEF);
 try {
@@ -398,6 +437,8 @@ state.layers.forEach(L => {
   L.hidden = L.hidden || []; L.notes = L.notes || [];
 });
 if (!TUNINGS[state.tuning]) state.tuning = 'std';
+state.pins = (Array.isArray(state.pins) ? state.pins : []).filter(p => p && (p.type == null || CHORDS[p.type]));
+if (!['layers','finder','circle','pins'].includes(state.tab)) state.tab = 'layers';
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
 
 /* ================= layer helpers ================= */
@@ -434,6 +475,19 @@ function layerFilterText(L){
 }
 const colOf = i => 'var(--l' + state.layers[i].color + ')';
 const byIv = () => state.colorBy === 'interval';
+/* shape per scale degree, in a 0–100 box (slightly overshooting so pointed shapes look as big as round ones) */
+const SHAPE_PATHS = {
+  1:'M26 4H74A22 22 0 0 1 96 26V74A22 22 0 0 1 74 96H26A22 22 0 0 1 4 74V26A22 22 0 0 1 26 4Z',
+  2:'M50 -2L103 93H-3Z',
+  3:'M2 50A48 48 0 1 0 98 50A48 48 0 1 0 2 50Z',
+  4:'M50 0L101 38L82 98H18L-1 38Z',
+  5:'M50 -5L105 50L50 105L-5 50Z',
+  6:'M-3 7H103L50 102Z',
+  7:'M25 4H75L101 50L75 96H25L-1 50Z'
+};
+const SHAPE_NAMES = {1:'square', 2:'triangle', 3:'circle', 4:'pentagon', 5:'diamond', 6:'down-triangle', 7:'hexagon'};
+const degOf = l => l == null ? 3 : ((lab(l).n - 1) % 7) + 1;
+const shapeSvg = deg => `<svg class="shp" viewBox="0 0 100 100" aria-hidden="true"><path class="o" d="${SHAPE_PATHS[deg]}"/><path class="f" d="${SHAPE_PATHS[deg]}"/></svg>`;
 const ivCol = l => l == null ? 'var(--neutral)' : 'var(--i' + semi(l) + ')';
 /* swatch for a layer: its colour in layer mode; filled (main) or hollow (overlay) ink circle in interval mode */
 const swatch = (i, cls) => byIv()
@@ -519,6 +573,7 @@ function renderToolbar(){
   document.querySelectorAll('#labelSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.label === state.labelMode)));
   document.querySelectorAll('#colorSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color === state.colorBy)));
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
+  $('#pinsTab').textContent = state.pins.length ? `Pinboard · ${state.pins.length}` : 'Pinboard';
   tuningSel.value = state.tuning;
   $('#setPref').value = state.pref;
   $('#setFlip').checked = state.flip;
@@ -534,14 +589,19 @@ const FRET_COLS = fretCols();
 
 function renderBoard(){
   const tun = TUNINGS[state.tuning].midi;
-  const pickMode = state.tab === 'finder';
+  // on the Pinboard, a pinned shape is shown the same way as picked notes
+  const viewPin = state.tab === 'pins' ? state.pins.find(p => p.id === state.pinView) : null;
+  const pinShape = viewPin && viewPin.shape ? viewPin.shape : null;
+  const pickMode = state.tab === 'finder' || !!pinShape;
+  const picks = pinShape || state.picks;
   const maps = state.layers.map(L => L.visible ? layerMap(L) : null);
   const main = state.layers[0];
-  const pickPcs = new Set(state.picks.map(p => mod(tun[p.s] + p.f)));
+  const pickPcs = new Set(picks.map(p => mod(tun[p.s] + p.f)));
   // in pick mode, colour picked notes by their interval from the best chord name's root
   let pickRoot = null;
-  if (pickMode && byIv() && state.picks.length > 1) {
-    const sorted = state.picks.map(p => tun[p.s] + p.f).sort((a, b) => a - b);
+  if (pinShape && viewPin.type && byIv()) pickRoot = viewPin.root;
+  else if (pickMode && byIv() && picks.length > 1) {
+    const sorted = picks.map(p => tun[p.s] + p.f).sort((a, b) => a - b);
     const top = identify(sorted.map(m => mod(m)), mod(sorted[0])).exact[0];
     if (top) pickRoot = top.root;
   }
@@ -562,17 +622,19 @@ function renderBoard(){
       maps.forEach((m, i) => { if (m && m.has(pc)) hits.push(Object.assign({i}, m.get(pc))); });
       let dot = '';
       if (pickMode) {
-        if (state.picks.some(p => p.s === s && p.f === f)) {
+        if (picks.some(p => p.s === s && p.f === f)) {
+          const iv = pickRoot == null ? null : mod(pc - pickRoot), dg = iv == null ? 0 : degOf(INTERVALS[iv]);
           dot = pickRoot == null
             ? `<span class="dot pick">${pn(noteName(pc))}</span>`
-            : `<span class="dot pick iv" style="--c:var(--i${mod(pc - pickRoot)})">${pn(noteName(pc))}</span>`;
+            : `<span class="dot pick iv sv s${dg}" style="--c:var(--i${iv})">${shapeSvg(dg)}${pn(noteName(pc))}</span>`;
         }
         else if (state.echoes && pickPcs.has(pc)) dot = `<span class="dot echo">${pn(noteName(pc))}</span>`;
         else if (hits.length) dot = `<span class="dot faint" style="--c:${byIv() ? 'var(--neutral)' : colOf(hits[0].i)}"></span>`;
       } else if (hits.length) {
         const h = hits[0];
         const text = (state.labelMode === 'note' || h.label == null) ? pn(h.name) : pl(h.label);
-        let cls = 'dot', st, pip = '';
+        const dg = degOf(h.label);
+        let cls = 'dot sv s' + dg, st, pip = '';
         if (h.isRoot) cls += ' root';
         if (byIv()) {
           st = `--c:${ivCol(h.label)};`;
@@ -583,7 +645,7 @@ function renderBoard(){
           if (hits[1]) { cls += ' ring'; st += `--c2:${colOf(hits[1].i)};`; }
           if (hits[2]) pip = `<span class="pip" style="--c3:${colOf(hits[2].i)}"></span>`;
         }
-        dot = `<span class="${cls}" style="${st}">${text}${pip}</span>`;
+        dot = `<span class="${cls}" style="${st}">${shapeSvg(dg)}${text}${pip}</span>`;
       } else if (main.visible && main.kind !== 'notes' && pc === main.root) {
         dot = `<span class="dot ghost root" style="--c:${byIv() ? 'var(--i0)' : colOf(0)}">${state.labelMode === 'note' ? pn(layerRoot(main)) : 'R'}</span>`;
       }
@@ -613,11 +675,13 @@ function renderBoard(){
       if (!L.visible || L.kind === 'notes') return;
       layerLabels(L).forEach(l => { if (!L.hidden.includes(l) && !seen.has(semi(l))) seen.set(semi(l), l); });
     });
-    if (seen.size) key = `<span class="key">${[...seen.entries()].sort((a, b) => a[0] - b[0]).map(([n, l]) => `<em style="--c:var(--i${n})">${pl(l)}</em>`).join('')}</span>`;
+    if (seen.size) key = `<span class="key">${[...seen.entries()].sort((a, b) => a[0] - b[0]).map(([n, l]) => `<span class="dot sv kd s${degOf(l)}" style="--c:var(--i${n})" title="${INTERVAL_NAMES[n]}">${shapeSvg(degOf(l))}${pl(l)}</span>`).join('')}</span>`;
   }
   let pickNote = '';
   if (pickMode && pickRoot != null) pickNote = ` · colored by interval from ${pn(noteName(pickRoot))}`;
-  $('#legend').innerHTML = pickMode
+  $('#legend').innerHTML = pinShape
+    ? `<span><i style="--c:var(--pick)"></i><b>Pinned shape: ${viewPin.name}</b>${pickNote} · tap the neck to go back to your layers</span>`
+    : pickMode
     ? `<span><i style="--c:var(--pick)"></i><b>Picked notes</b> · tap frets to add or remove${pickNote}</span>`
     : (lg ? lg + key : '<span>All layers are hidden</span>');
 }
@@ -636,7 +700,7 @@ function layerCard(L, i){
   let h = `<div class="card${L.visible ? '' : ' off'}" style="--c:${c}">
     <div class="card-h">${swatch(i, 'sw')}
       <div class="ttl"><b>${layerTitle(L)}</b><small>${i === 0 ? 'Main layer · follows your taps on the neck' : 'Overlay ' + i}</small></div>
-      <div class="acts"><button type="button" class="btn" data-act="vis" data-i="${i}">${L.visible ? 'Hide' : 'Show'}</button>
+      <div class="acts">${L.kind === 'chord' ? `<button type="button" class="btn" data-act="pinlayer" data-i="${i}">Pin</button>` : ''}<button type="button" class="btn" data-act="vis" data-i="${i}">${L.visible ? 'Hide' : 'Show'}</button>
       ${i > 0 ? `<button type="button" class="btn" data-act="del" data-i="${i}" aria-label="Remove overlay ${i}">Remove</button>` : ''}</div>
     </div>
     <div class="row"><div class="seg">${kinds.map(([k, t]) => `<button type="button" aria-pressed="${L.kind === k}" data-act="kind" data-i="${i}" data-v="${k}">${t}</button>`).join('')}</div></div>`;
@@ -711,10 +775,12 @@ function renderFinder(){
     const top = exact[0];
     main = `<div class="big">${top.name}</div>
       <p class="info">${CHORDS[top.type].name}${top.tags.length ? ' (' + top.tags.join(', ') + ')' : ''} · ${top.labels.map(l => pl(l) + ' ' + pn(spell(top.rn, l))).join(' · ')}</p>
-      <div class="row"><button type="button" class="btn primary" data-act="cand" data-r="${top.root}" data-t="${top.type}">Show ${top.name.split('/')[0]} on the neck</button></div>`;
+      <div class="row"><button type="button" class="btn primary" data-act="pinshape">Pin this shape</button>
+        <button type="button" class="btn" data-act="cand" data-r="${top.root}" data-t="${top.type}">Show every ${top.name.split('/')[0]} on the neck</button></div>`;
     if (exact.length > 1) main += `<span class="rl">Also reads as</span><div class="cand">${exact.slice(1, 9).map(c => `<button type="button" data-act="cand" data-r="${c.root}" data-t="${c.type}"><b>${c.name}</b><small>${CHORDS[c.type].name}${c.tags.length ? ', ' + c.tags.join(', ') : ''}</small></button>`).join('')}</div>`;
   } else {
-    main = `<div class="big" style="font-size:24px">No standard chord name</div><p class="info">These notes don't match a chord in the library as they are.</p>`;
+    main = `<div class="big" style="font-size:24px">No standard chord name</div><p class="info">These notes don't match a chord in the library as they are.</p>
+      <div class="row"><button type="button" class="btn" data-act="pinshape">Pin this shape anyway</button></div>`;
   }
   if (uniq.length === 2) {
     const iv = mod(pcs.find(p => p !== bass) - bass);
@@ -750,6 +816,7 @@ function arc(r0, r1, a0, a1){
 let progCache = [];
 function renderCircle(){
   const {i, minor, sevenths} = state.circle;
+  const pinMode = !!state.circle.pin;
   const nums = {};
   const at = k => mod(i + k);
   if (!minor) { nums['o' + at(0)] = 'I'; nums['o' + at(-1)] = 'IV'; nums['o' + at(1)] = 'V'; nums['n' + at(0)] = 'vi'; nums['n' + at(-1)] = 'ii'; nums['n' + at(1)] = 'iii'; nums['n' + at(2)] = 'vii°'; }
@@ -828,19 +895,115 @@ function renderCircle(){
     <div class="kinfo">
       <div><h3>${pn(kn)} ${minor ? 'minor' : 'major'}</h3><div class="info">${keySig(i)} · ${minor ? 'relative major' : 'relative minor'} <b>${pn(rootName(rel.pc, SCALES[rel.t].labels))}${minor ? '' : 'm'}</b> · tap any wedge to change key, tap a chord to put it on the neck</div></div>
       <div class="row"><span class="rl" style="width:auto;margin-right:8px">Diatonic chords</span>
-        <div class="seg"><button type="button" data-act="c7" data-v="0" aria-pressed="${!sevenths}">Triads</button><button type="button" data-act="c7" data-v="1" aria-pressed="${sevenths}">7ths</button></div></div>
+        <div class="seg"><button type="button" data-act="c7" data-v="0" aria-pressed="${!sevenths}">Triads</button><button type="button" data-act="c7" data-v="1" aria-pressed="${sevenths}">7ths</button></div>
+        <span class="rl" style="width:auto;margin:0 8px 0 12px">Tapping a chord</span>
+        <div class="seg"><button type="button" data-act="cpin" data-v="0" aria-pressed="${!pinMode}">Shows it</button><button type="button" data-act="cpin" data-v="1" aria-pressed="${pinMode}">Pins it</button></div></div>
       <div class="row">${dia.map(chordBtn).join('')}</div>
       <div><span class="rl">Suggested scales</span><div class="scl">${scaleHtml}</div></div>
       <div><span class="rl">Common progressions</span>
-        ${PROGS.map(([name], p) => `<div class="prog"><span class="pn">${name}</span>${progCache[p].map(chordBtn).join('<span class="info">→</span>')}<button type="button" class="btn" data-act="prog" data-p="${p}" aria-label="Play ${name}">Play</button></div>`).join('')}</div>
+        ${PROGS.map(([name], p) => `<div class="prog"><span class="pn">${name}</span>${progCache[p].map(chordBtn).join('<span class="info">→</span>')}<button type="button" class="btn" data-act="prog" data-p="${p}" aria-label="Play ${name}">Play</button><button type="button" class="btn" data-act="pinprog" data-p="${p}" aria-label="Pin ${name}">Pin all</button></div>`).join('')}</div>
     </div></div>`;
+}
+
+/* ================= pinboard ================= */
+let toastTimer = null;
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2400);
+}
+function chordName(root, type){ return pn(rootName(root, CHORDS[type].labels)) + CHORDS[type].sym; }
+function addPin(p){
+  if (state.pins.length >= MAX_PINS) { toast(`The board holds ${MAX_PINS} chords. Remove one to pin more.`); return false; }
+  state.pins.push(Object.assign({id:state.nextPin++, shape:null, tuning:null, sel:false}, p));
+  return true;
+}
+function pinFromChord(root, type){ return addPin({root:mod(root), type, name:chordName(root, type)}); }
+function pinFromPicks(){
+  const tun = TUNINGS[state.tuning].midi;
+  const sorted = state.picks.map(p => Object.assign({}, p, {midi:tun[p.s] + p.f})).sort((a, b) => a.midi - b.midi);
+  if (!sorted.length) return false;
+  const pcs = sorted.map(p => mod(p.midi));
+  const top = identify(pcs, pcs[0]).exact[0];
+  const shape = state.picks.map(p => ({s:p.s, f:p.f}));
+  if (top) return addPin({root:top.root, type:top.type, name:top.name, shape, tuning:state.tuning});
+  return addPin({root:pcs[0], type:null, name:[...new Set(pcs)].map(pc => pn(noteName(pc))).join(' '), shape, tuning:state.tuning});
+}
+function pinMidis(p){
+  if (p.shape) { const tun = TUNINGS[p.tuning || 'std'].midi; return p.shape.map(q => tun[q.s] + q.f); }
+  return p.type ? chordMidis(p.root, p.type) : [];
+}
+/* a small chord box: strings low to high, left to right; dots coloured by interval */
+function diagram(p){
+  const tun = TUNINGS[p.tuning || 'std'].midi;
+  const fretted = p.shape.filter(q => q.f > 0).map(q => q.f);
+  const maxF = fretted.length ? Math.max(...fretted) : 0, minF = fretted.length ? Math.min(...fretted) : 1;
+  const start = maxF <= 4 ? 1 : minF;
+  const rows = Math.max(4, maxF - start + 1);
+  const x = s => 18 + s * 13, y = r => 16 + r * 15, W = 18 + 65 + 9, H = y(rows) + 4;
+  let g = '';
+  for (let r = 0; r <= rows; r++) g += `<line class="${r === 0 && start === 1 ? 'nut' : ''}" x1="${x(0)}" x2="${x(5)}" y1="${y(r)}" y2="${y(r)}"/>`;
+  for (let s = 0; s < 6; s++) g += `<line x1="${x(s)}" x2="${x(s)}" y1="${y(0)}" y2="${y(rows)}"/>`;
+  if (start > 1) g += `<text x="2" y="${y(0) + 11}">${start}</text>`;
+  for (let s = 0; s < 6; s++) {
+    const q = p.shape.find(z => z.s === s);
+    if (!q) { g += `<text x="${x(s) - 3}" y="10">×</text>`; continue; }
+    const pc = mod(tun[s] + q.f);
+    const fill = p.type && byIv() ? `var(--i${mod(pc - p.root)})` : 'var(--ink)';
+    if (q.f === 0) g += `<circle class="od" cx="${x(s)}" cy="7" r="3.6"/>`;
+    else g += `<circle class="fd" cx="${x(s)}" cy="${y(q.f - start) + 7.5}" r="5.2" style="fill:${fill}"/>`;
+  }
+  return `<svg class="diag" viewBox="0 0 ${W} ${H}" role="img" aria-label="Chord diagram">${g}</svg>`;
+}
+let clearArmed = false, clearTimer = null;
+function renderPins(){
+  if (!state.pins.length) {
+    return `<div class="empty"><h3>Pin chords to build a progression</h3>
+      <p>Pinned chords stay here in order, so you can play them through, step through them on the neck, or overlay a few at once to compare.</p>
+      <p>Pin a shape from the <b>Chord finder</b>, a chord or a whole progression from the <b>Circle of fifths</b>, or tap <b>Pin</b> on any chord layer.</p>
+      <div class="row"><button type="button" class="btn primary" data-act="pinex">Pin an example: I–V–vi–IV in G</button></div></div>`;
+  }
+  const nSel = state.pins.filter(p => p.sel && p.type).length;
+  const cards = state.pins.map((p, k) => {
+    const sub = p.shape
+      ? (p.type ? CHORDS[p.type].name : 'Custom shape') + (p.tuning && p.tuning !== 'std' ? ' · ' + TUNINGS[p.tuning].name.split('  ')[0] : '')
+      : CHORDS[p.type].name;
+    const body = p.shape ? diagram(p)
+      : `<span class="pin-notes">${CHORDS[p.type].labels.map(l => pn(spell(rootName(p.root, CHORDS[p.type].labels), l))).join(' ')}</span>`;
+    return `<div class="pin${state.pinView === p.id ? ' active' : ''}${p.sel ? ' sel' : ''}">
+      <span class="pin-num">${k + 1}</span>
+      <button type="button" class="pin-main" data-act="pinshow" data-id="${p.id}" aria-label="Show ${p.name} on the neck"><b>${p.name}</b><small>${sub}</small>${body}</button>
+      <div class="pin-acts">
+        <button type="button" class="ib" data-act="pinplay" data-id="${p.id}" aria-label="Play ${p.name}">▶</button>
+        <button type="button" class="ib" data-act="pinmove" data-id="${p.id}" data-v="-1" aria-label="Move earlier"${k === 0 ? ' disabled' : ''}>←</button>
+        <button type="button" class="ib" data-act="pinmove" data-id="${p.id}" data-v="1" aria-label="Move later"${k === state.pins.length - 1 ? ' disabled' : ''}>→</button>
+        <button type="button" class="ib" data-act="pindel" data-id="${p.id}" aria-label="Remove ${p.name}">✕</button>
+        ${p.type ? `<label class="chk"><input type="checkbox" id="pinsel-${p.id}" data-act="pinsel" data-id="${p.id}"${p.sel ? ' checked' : ''}> Compare</label>` : ''}
+      </div></div>`;
+  }).join('');
+  return `<div class="toolbar2">
+      <button type="button" class="btn primary" data-act="pinplayall">▶ Play all</button>
+      <button type="button" class="btn" data-act="pincompare"${nSel ? '' : ' disabled'}>Show ${nSel > 1 ? nSel + ' chords' : nSel === 1 ? '1 chord' : 'chords'} together</button>
+      <button type="button" class="btn" data-act="pinclear">${clearArmed ? 'Tap again to clear all' : 'Clear board'}</button>
+      <span class="info">Tap a chord to show it on the neck. Tick Compare on up to four to overlay them.</span>
+    </div>
+    <div class="pins">${cards}</div>`;
+}
+function showPin(p){
+  if (p.shape) {
+    if (p.tuning && p.tuning !== state.tuning) { state.tuning = p.tuning; toast(`Switched tuning to ${TUNINGS[p.tuning].name.split('  ')[0]} for this shape`); }
+    state.pinView = p.id; state.tap = null;
+    render(); revealNeck();
+  } else {
+    loadMain('chord', p.root, p.type);
+    state.pinView = p.id; render();
+  }
 }
 
 /* ================= main render ================= */
 function render(){
   renderToolbar();
   renderBoard();
-  panel.innerHTML = state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : renderLayers();
+  panel.innerHTML = state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : renderLayers();
   save();
 }
 function revealNeck(){
@@ -870,6 +1033,7 @@ board.addEventListener('click', e => {
       state.picks.push({s, f}); pluck(midi);
     }
   } else {
+    state.pinView = null;
     const L = state.layers[0];
     if (L.kind === 'notes') { const k = L.notes.indexOf(pc); if (k >= 0) L.notes.splice(k, 1); else L.notes.push(pc); }
     else { L.root = pc; L.visible = true; }
@@ -950,7 +1114,44 @@ panel.addEventListener('click', e => {
     case 'cand': loadMain('chord', +b.dataset.r, b.dataset.t); return;
     case 'ck': state.circle.i = +b.dataset.k; state.circle.minor = b.dataset.m === '1'; break;
     case 'c7': state.circle.sevenths = v === '1'; break;
-    case 'cchord': strumMidis(chordMidis(+b.dataset.r, b.dataset.t)); loadMain('chord', +b.dataset.r, b.dataset.t); return;
+    case 'cchord':
+      strumMidis(chordMidis(+b.dataset.r, b.dataset.t));
+      if (state.circle.pin) { if (pinFromChord(+b.dataset.r, b.dataset.t)) toast(`Pinned ${chordName(+b.dataset.r, b.dataset.t)}`); break; }
+      loadMain('chord', +b.dataset.r, b.dataset.t); return;
+    case 'cpin': state.circle.pin = v === '1'; break;
+    case 'pinprog': {
+      const chords = progCache[+b.dataset.p]; let n = 0;
+      for (const c of chords) { if (!pinFromChord(c.root, c.type)) break; n++; }
+      if (n) toast(`Pinned ${chords.slice(0, n).map(c => pn(c.name) + CHORDS[c.type].sym).join(' – ')}`);
+      break;
+    }
+    case 'pinlayer': if (pinFromChord(L.root, L.type)) toast(`Pinned ${chordName(L.root, L.type)}`); break;
+    case 'pinshape': if (pinFromPicks()) toast(`Pinned ${state.pins[state.pins.length - 1].name}`); break;
+    case 'pinex': [[7,'maj'],[2,'maj'],[4,'min'],[0,'maj']].forEach(([r, t]) => pinFromChord(r, t)); break;
+    case 'pinshow': { const p = state.pins.find(z => z.id === +b.dataset.id); if (p) { strumMidis(pinMidis(p)); showPin(p); } return; }
+    case 'pinplay': { const p = state.pins.find(z => z.id === +b.dataset.id); if (p) strumMidis(pinMidis(p)); return; }
+    case 'pinplayall': state.pins.forEach((p, k) => pinMidis(p).slice().sort((a, c) => a - c).forEach((m, j) => pluck(m, k * 0.9 + j * 0.03))); return;
+    case 'pinmove': {
+      const k = state.pins.findIndex(z => z.id === +b.dataset.id), to = k + +v;
+      if (k < 0 || to < 0 || to >= state.pins.length) return;
+      const [p] = state.pins.splice(k, 1); state.pins.splice(to, 0, p); break;
+    }
+    case 'pindel': {
+      state.pins = state.pins.filter(z => z.id !== +b.dataset.id);
+      if (state.pinView === +b.dataset.id) state.pinView = null; break;
+    }
+    case 'pinclear':
+      if (!clearArmed) { clearArmed = true; clearTimeout(clearTimer); clearTimer = setTimeout(() => { clearArmed = false; if (state.tab === 'pins') render(); }, 3000); break; }
+      clearArmed = false; state.pins = []; state.pinView = null; break;
+    case 'pincompare': {
+      const sel = state.pins.filter(p => p.sel && p.type).slice(0, 4);
+      if (!sel.length) return;
+      state.layers = sel.map((p, k) => ({id:state.nextId++, kind:'chord', root:p.root, type:p.type, hidden:[], notes:[], visible:true, color:k}));
+      const switched = state.colorBy !== 'layer';
+      state.colorBy = 'layer'; state.pinView = null; state.tap = null;
+      toast(`Showing ${sel.map(p => p.name.split('/')[0]).join(', ')} together${switched ? ', colored by layer' : ''}`);
+      render(); revealNeck(); return;
+    }
     case 'cscale': loadMain('scale', +b.dataset.r, b.dataset.t); return;
     case 'prog': progCache[+b.dataset.p].forEach((c, k) => chordMidis(c.root, c.type).forEach((m, j) => pluck(m, k * .9 + j * .03))); return;
     default: return;
@@ -962,6 +1163,11 @@ panel.addEventListener('change', e => {
   const L = state.layers[+el.dataset.i];
   if (act === 'ctype-sel') { L.type = el.value; L.hidden = []; }
   else if (act === 'stype-sel') { if (!el.value) return; L.type = el.value; L.hidden = []; }
+  else if (act === 'pinsel') {
+    const p = state.pins.find(z => z.id === +el.dataset.id); if (!p) return;
+    if (el.checked && state.pins.filter(z => z.sel).length >= 4) { el.checked = false; toast('You can compare up to four chords at once.'); return; }
+    p.sel = el.checked;
+  }
   else if (act === 'ops') state.onePerString = el.checked;
   else if (act === 'echo') state.echoes = el.checked;
   else return;
