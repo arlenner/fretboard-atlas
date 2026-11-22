@@ -24,6 +24,9 @@
   --wood-a:#24180f; --wood-b:#3a2719; --fret:#b8bdc5; --nut:#ece3cb; --inlay:#e7ddc4;
   --string-a:#f4f4f4; --string-b:#868a91;
   --l0:#f5a524; --l1:#2fc6b0; --l2:#f27aae; --l3:#8fb0ff; --dot-ink:#16130e; --pick:#ffffff;
+  /* interval colours, indexed by semitones above the root: R red, 3rds warm, 5th blue, 7ths violet */
+  --i0:#ff5c5c; --i1:#ced4da; --i2:#66d9e8; --i3:#ff922b; --i4:#ffd43b; --i5:#a9e34b;
+  --i6:#f783ac; --i7:#4dabf7; --i8:#9775fa; --i9:#20c997; --i10:#cc5de8; --i11:#eebefa; --neutral:#e9ecef;
   --font:'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --open:42px;
   --row:clamp(24px, 8.4vh, 40px);
@@ -60,6 +63,7 @@ h2,h3{margin:0; text-wrap:balance}
 .seg button[aria-pressed="true"]{background:var(--sel-bg); color:var(--sel-ink)}
 .seg-label{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-right:4px}
 .ctl{display:flex; align-items:center}
+@media (max-width: 960px){ .seg-label, .brand small{display:none} .bar{gap:6px 8px} .brand{font-size:17px} }
 .menu{position:relative}
 .menu summary{list-style:none; border:1px solid var(--line); background:var(--surface); border-radius:8px; padding:5px 10px; font-size:13px; font-weight:600; cursor:pointer}
 .menu summary::-webkit-details-marker{display:none}
@@ -99,6 +103,13 @@ h2,h3{margin:0; text-wrap:balance}
 .dot.root{border-radius:26%}
 .dot.ring{box-shadow:0 0 0 3px var(--c2), 0 1px 4px rgba(0,0,0,.6)}
 .dot .pip{position:absolute; top:-3px; right:-3px; width:9px; height:9px; border-radius:50%; background:var(--c3); box-shadow:0 0 0 1.5px var(--wood-a)}
+.dot.hollow{background:rgba(0,0,0,.45); color:var(--c); box-shadow:inset 0 0 0 3px var(--c), 0 1px 3px rgba(0,0,0,.55)}
+.dot.multi{box-shadow:0 0 0 2.5px #fff, 0 1px 4px rgba(0,0,0,.6)}
+.dot.hollow.multi{box-shadow:inset 0 0 0 3px var(--c), 0 0 0 2.5px #fff, 0 1px 4px rgba(0,0,0,.6)}
+.dot.pick.iv{background:var(--c); box-shadow:0 0 0 3px #fff, 0 2px 5px rgba(0,0,0,.6); color:var(--dot-ink)}
+.sw.hollow, .legend i.hollow{background:transparent; box-shadow:inset 0 0 0 2.5px var(--c)}
+.legend .key{display:inline-flex; gap:4px; align-items:center}
+.legend .key em{font-style:normal; font-weight:750; font-size:11px; color:var(--dot-ink); background:var(--c); border-radius:9px; padding:1px 6px; min-width:22px; text-align:center}
 .dot.ghost{background:rgba(0,0,0,.25); box-shadow:inset 0 0 0 2px var(--c); color:var(--c)}
 .dot.faint{opacity:.45; transform:scale(.55)}
 .dot.pick{background:var(--pick); color:#111; box-shadow:0 0 0 3px var(--l0), 0 2px 5px rgba(0,0,0,.6)}
@@ -213,6 +224,12 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
     <div class="seg" id="labelSeg">
       <button type="button" data-label="interval">Intervals</button>
       <button type="button" data-label="note">Notes</button>
+    </div>
+  </div>
+  <div class="ctl"><span class="seg-label">Color</span>
+    <div class="seg" id="colorSeg">
+      <button type="button" data-color="interval">By interval</button>
+      <button type="button" data-color="layer">By layer</button>
     </div>
   </div>
   <details class="menu" id="menu">
@@ -362,7 +379,7 @@ const INLAY = [3,5,7,9,15,17,19,21], DOUBLE = [12,24];
 /* ================= state ================= */
 const KEY = 'fretboard-atlas-v1';
 const DEF = {
-  tuning:'std', labelMode:'interval', pref:'auto', flip:false, lefty:false, sound:true, allNames:false,
+  tuning:'std', labelMode:'interval', colorBy:'interval', pref:'auto', flip:false, lefty:false, sound:true, allNames:false,
   onePerString:true, echoes:true, tab:'layers',
   layers:[{id:1, kind:'scale', root:9, type:'dorian', hidden:[], notes:[], visible:true, color:0}],
   picks:[], tap:null, circle:{i:0, minor:false, sevenths:false}, nextId:2
@@ -416,6 +433,12 @@ function layerFilterText(L){
   return shown.length ? 'only ' + shown.join(', ') : 'all hidden';
 }
 const colOf = i => 'var(--l' + state.layers[i].color + ')';
+const byIv = () => state.colorBy === 'interval';
+const ivCol = l => l == null ? 'var(--neutral)' : 'var(--i' + semi(l) + ')';
+/* swatch for a layer: its colour in layer mode; filled (main) or hollow (overlay) ink circle in interval mode */
+const swatch = (i, cls) => byIv()
+  ? `<${cls === 'sw' ? 'span' : 'i'} class="${cls === 'sw' ? 'sw' : ''}${i > 0 ? ' hollow' : ''}" style="--c:var(--ink)"></${cls === 'sw' ? 'span' : 'i'}>`
+  : `<${cls === 'sw' ? 'span' : 'i'} class="${cls === 'sw' ? 'sw' : ''}" style="--c:${colOf(i)}"></${cls === 'sw' ? 'span' : 'i'}>`;
 
 /* ================= audio (plucked string) ================= */
 let ac = null; const bufCache = {};
@@ -494,6 +517,7 @@ function renderToolbar(){
   const pick = state.tab === 'finder';
   document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.mode === 'pick') === pick)));
   document.querySelectorAll('#labelSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.label === state.labelMode)));
+  document.querySelectorAll('#colorSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color === state.colorBy)));
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
   tuningSel.value = state.tuning;
   $('#setPref').value = state.pref;
@@ -514,6 +538,13 @@ function renderBoard(){
   const maps = state.layers.map(L => L.visible ? layerMap(L) : null);
   const main = state.layers[0];
   const pickPcs = new Set(state.picks.map(p => mod(tun[p.s] + p.f)));
+  // in pick mode, colour picked notes by their interval from the best chord name's root
+  let pickRoot = null;
+  if (pickMode && byIv() && state.picks.length > 1) {
+    const sorted = state.picks.map(p => tun[p.s] + p.f).sort((a, b) => a - b);
+    const top = identify(sorted.map(m => mod(m)), mod(sorted[0])).exact[0];
+    if (top) pickRoot = top.root;
+  }
   const R = 'var(--row)';
   let inl = '';
   for (let f = 1; f <= 24; f++) {
@@ -531,19 +562,30 @@ function renderBoard(){
       maps.forEach((m, i) => { if (m && m.has(pc)) hits.push(Object.assign({i}, m.get(pc))); });
       let dot = '';
       if (pickMode) {
-        if (state.picks.some(p => p.s === s && p.f === f)) dot = `<span class="dot pick">${pn(noteName(pc))}</span>`;
+        if (state.picks.some(p => p.s === s && p.f === f)) {
+          dot = pickRoot == null
+            ? `<span class="dot pick">${pn(noteName(pc))}</span>`
+            : `<span class="dot pick iv" style="--c:var(--i${mod(pc - pickRoot)})">${pn(noteName(pc))}</span>`;
+        }
         else if (state.echoes && pickPcs.has(pc)) dot = `<span class="dot echo">${pn(noteName(pc))}</span>`;
-        else if (hits.length) dot = `<span class="dot faint" style="--c:${colOf(hits[0].i)}"></span>`;
+        else if (hits.length) dot = `<span class="dot faint" style="--c:${byIv() ? 'var(--neutral)' : colOf(hits[0].i)}"></span>`;
       } else if (hits.length) {
         const h = hits[0];
         const text = (state.labelMode === 'note' || h.label == null) ? pn(h.name) : pl(h.label);
-        let cls = 'dot', st = `--c:${colOf(h.i)};`;
+        let cls = 'dot', st, pip = '';
         if (h.isRoot) cls += ' root';
-        if (hits[1]) { cls += ' ring'; st += `--c2:${colOf(hits[1].i)};`; }
-        const pip = hits[2] ? `<span class="pip" style="--c3:${colOf(hits[2].i)}"></span>` : '';
+        if (byIv()) {
+          st = `--c:${ivCol(h.label)};`;
+          if (h.i > 0) cls += ' hollow';
+          if (hits[1]) cls += ' multi';
+        } else {
+          st = `--c:${colOf(h.i)};`;
+          if (hits[1]) { cls += ' ring'; st += `--c2:${colOf(hits[1].i)};`; }
+          if (hits[2]) pip = `<span class="pip" style="--c3:${colOf(hits[2].i)}"></span>`;
+        }
         dot = `<span class="${cls}" style="${st}">${text}${pip}</span>`;
       } else if (main.visible && main.kind !== 'notes' && pc === main.root) {
-        dot = `<span class="dot ghost root" style="--c:${colOf(0)}">${state.labelMode === 'note' ? pn(layerRoot(main)) : 'R'}</span>`;
+        dot = `<span class="dot ghost root" style="--c:${byIv() ? 'var(--i0)' : colOf(0)}">${state.labelMode === 'note' ? pn(layerRoot(main)) : 'R'}</span>`;
       }
       if (!dot && (state.allNames || f === 0)) dot = `<span class="dot nm">${pn(noteName(pc))}</span>`;
       const tapped = !pickMode && state.tap && state.tap.s === s && state.tap.f === f;
@@ -561,11 +603,23 @@ function renderBoard(){
   const lg = state.layers.map((L, i) => {
     if (!L.visible) return '';
     const ft = layerFilterText(L);
-    return `<span><i style="--c:${colOf(i)}"></i><b>${layerTitle(L)}</b>${ft ? ' · ' + ft : ''}</span>`;
+    return `<span>${swatch(i, 'lg')}<b>${layerTitle(L)}</b>${ft ? ' · ' + ft : ''}</span>`;
   }).join('');
+  // colour key: every interval currently on the neck, in order
+  let key = '';
+  if (byIv() && !pickMode) {
+    const seen = new Map();
+    state.layers.forEach(L => {
+      if (!L.visible || L.kind === 'notes') return;
+      layerLabels(L).forEach(l => { if (!L.hidden.includes(l) && !seen.has(semi(l))) seen.set(semi(l), l); });
+    });
+    if (seen.size) key = `<span class="key">${[...seen.entries()].sort((a, b) => a[0] - b[0]).map(([n, l]) => `<em style="--c:var(--i${n})">${pl(l)}</em>`).join('')}</span>`;
+  }
+  let pickNote = '';
+  if (pickMode && pickRoot != null) pickNote = ` · colored by interval from ${pn(noteName(pickRoot))}`;
   $('#legend').innerHTML = pickMode
-    ? `<span><i style="--c:var(--pick)"></i><b>Picked notes</b> · tap frets to add or remove</span>`
-    : (lg || '<span>All layers are hidden</span>');
+    ? `<span><i style="--c:var(--pick)"></i><b>Picked notes</b> · tap frets to add or remove${pickNote}</span>`
+    : (lg ? lg + key : '<span>All layers are hidden</span>');
 }
 
 /* ================= rendering: layers tab ================= */
@@ -580,7 +634,7 @@ function layerCard(L, i){
   const rn = layerRoot(L);
   const kinds = [['intervals','Intervals'],['chord','Chord'],['scale','Scale'],['notes','Notes']];
   let h = `<div class="card${L.visible ? '' : ' off'}" style="--c:${c}">
-    <div class="card-h"><span class="sw"></span>
+    <div class="card-h">${swatch(i, 'sw')}
       <div class="ttl"><b>${layerTitle(L)}</b><small>${i === 0 ? 'Main layer · follows your taps on the neck' : 'Overlay ' + i}</small></div>
       <div class="acts"><button type="button" class="btn" data-act="vis" data-i="${i}">${L.visible ? 'Hide' : 'Show'}</button>
       ${i > 0 ? `<button type="button" class="btn" data-act="del" data-i="${i}" aria-label="Remove overlay ${i}">Remove</button>` : ''}</div>
@@ -608,7 +662,7 @@ function layerCard(L, i){
     const lbls = layerLabels(L);
     h += `<div class="row"><span class="rl">Filter · tap to show or hide</span>${lbls.map((l, k) => {
       const title = L.kind === 'intervals' ? INTERVAL_NAMES[k] : 'Interval ' + pl(l);
-      return `<button type="button" class="chip flt${L.hidden.includes(l) ? '' : ' on'}" data-act="flt" data-i="${i}" data-v="${l}" title="${title}" aria-pressed="${!L.hidden.includes(l)}"><b>${pl(l)}</b><span>${pn(spell(rn, l))}</span></button>`;
+      return `<button type="button" class="chip flt${L.hidden.includes(l) ? '' : ' on'}"${byIv() ? ` style="--c:${ivCol(l)}"` : ''} data-act="flt" data-i="${i}" data-v="${l}" title="${title}" aria-pressed="${!L.hidden.includes(l)}"><b>${pl(l)}</b><span>${pn(spell(rn, l))}</span></button>`;
     }).join('')}
       <button type="button" class="btn" data-act="fall" data-i="${i}">All</button>
       <button type="button" class="btn" data-act="froot" data-i="${i}">Root only</button></div>`;
@@ -627,7 +681,9 @@ function renderLayers(){
   return `<div class="toolbar2">
       <button type="button" class="btn primary" data-act="add"${state.layers.length >= 4 ? ' disabled' : ''}>+ Add overlay</button>
       <button type="button" class="btn" data-act="example">Example: G major 3rds &amp; 5ths + A roots &amp; ♭7s</button>
-      <span class="info">${state.layers.length >= 4 ? 'Four layers is the limit.' : 'Where layers overlap, the first fills the dot and the second draws the ring.'}</span>
+      <span class="info">${state.layers.length >= 4 ? 'Four layers is the limit.' : byIv()
+        ? 'Main layer dots are filled, overlay dots are hollow, and a white outline means more than one layer has that note.'
+        : 'Where layers overlap, the first fills the dot and the second draws the ring.'}</span>
     </div>
     <div class="cards">${state.layers.map(layerCard).join('')}</div>`;
 }
@@ -830,6 +886,10 @@ document.getElementById('modeSeg').addEventListener('click', e => {
 document.getElementById('labelSeg').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   state.labelMode = b.dataset.label; render();
+});
+document.getElementById('colorSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.colorBy = b.dataset.color; render();
 });
 document.querySelector('.tabs').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;

@@ -7,6 +7,7 @@ A guitar neck reference that runs in the browser. It needs no build step or serv
 - Full 24-fret neck. It's laid out for a phone held sideways and can be added to your home screen.
 - Tap a note to set the root and light up every note with the same name.
 - Layers for intervals, 35 chord types, the seven modes plus pentatonic, blues, minor-family and symmetric scales, or any notes you pick.
+- Dots are colored by interval: root red, 3rds yellow/orange, 5th blue, 7ths violet. A toggle switches to coloring by layer.
 - Up to four overlays, each with its own root and an on/off filter for every interval.
 - Chord finder: pick notes on the neck to get chord names, including slash chords and partial voicings.
 - Interactive circle of fifths with diatonic chords, suggested scales and common progressions.
