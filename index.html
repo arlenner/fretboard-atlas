@@ -20,7 +20,7 @@
 /* Layout: the neck runs full width across the top as the hero; tabs for layers, chord finder and the circle sit beneath it. */
 :root{
   --bg:#e8eaed; --surface:#fbfbfc; --surface-2:#f0f2f5; --ink:#17191e; --muted:#5a606c; --line:#d2d6dd;
-  --accent:#a65a0a; --sel-bg:#17191e; --sel-ink:#fbfbfc;
+  --accent:#a65a0a; --on-accent:#ffffff; --sel-bg:#17191e; --sel-ink:#fbfbfc;
   --wood-a:#24180f; --wood-b:#3a2719; --fret:#b8bdc5; --nut:#ece3cb; --inlay:#e7ddc4;
   --string-a:#f4f4f4; --string-b:#868a91;
   --l0:#f5a524; --l1:#2fc6b0; --l2:#f27aae; --l3:#8fb0ff; --dot-ink:#16130e; --pick:#ffffff;
@@ -37,12 +37,12 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#0f1115; --surface:#171a20; --surface-2:#1f232a; --ink:#e8eaee; --muted:#959cab; --line:#2b3039;
-    --accent:#f5a524; --sel-bg:#e8eaee; --sel-ink:#0f1115; color-scheme:dark;
+    --accent:#f5a524; --on-accent:#16130e; --sel-bg:#e8eaee; --sel-ink:#0f1115; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --bg:#0f1115; --surface:#171a20; --surface-2:#1f232a; --ink:#e8eaee; --muted:#959cab; --line:#2b3039;
-  --accent:#f5a524; --sel-bg:#e8eaee; --sel-ink:#0f1115; color-scheme:dark;
+  --accent:#f5a524; --on-accent:#16130e; --sel-bg:#e8eaee; --sel-ink:#0f1115; color-scheme:dark;
 }
 *{box-sizing:border-box}
 :root{padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px)}
@@ -293,6 +293,13 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 .bar-track{height:6px; border-radius:3px; background:color-mix(in srgb, var(--sel-ink) 22%, transparent); overflow:hidden}
 .bar-track i{display:block; height:100%; width:0; background:var(--l0)}
 .sess .timeup{color:var(--l0); font-weight:700}
+.chip.tog{gap:6px}
+.chip.tog::before{content:""; width:13px; height:13px; border-radius:4px; box-shadow:inset 0 0 0 1.5px currentColor; opacity:.55; flex:none}
+.chip.tog.sel{background:var(--accent); border-color:var(--accent); color:var(--on-accent)}
+.chip.tog.sel::before{content:"✓"; box-shadow:none; opacity:1; width:auto; height:auto; font-weight:800; line-height:1}
+.chip.tog:not(.sel){color:var(--muted); border-style:dashed; background:transparent}
+.mix-note{font-size:12px; color:var(--muted); width:100%}
+.mix-note.warn{color:var(--accent); font-weight:600}
 .ingredients summary{cursor:pointer; font-weight:700; padding:4px 0}
 .ingredients[open] summary{margin-bottom:8px}
 .ing{display:grid; gap:10px}
@@ -1974,12 +1981,18 @@ function renderPractice(){
 
   const scaleChoices = ['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian','majPent','minPent','blues','harmMin','melMin'];
   const chordChoices = ['maj','min','7','maj7','m7','m7b5','dim7','sus4','6','9','m9','maj9','7s9','13'];
-  const chipT = (on, act, v, label, k) => `<button type="button" class="chip${on ? ' sel' : ''}" data-act="${act}" data-v="${v}"${k ? ` data-k="${k}"` : ''} aria-pressed="${on}">${label}</button>`;
+  const chipT = (on, act, v, label, k) => `<button type="button" class="chip tog${on ? ' sel' : ''}" data-act="${act}" data-v="${v}"${k ? ` data-k="${k}"` : ''} aria-pressed="${on}">${label}</button>`;
+  const allNone = k => `<button type="button" class="btn" data-act="lpoolall" data-k="${k}" data-v="all">All</button><button type="button" class="btn" data-act="lpoolall" data-k="${k}" data-v="none">None</button>`;
+  const kindsOn = [cfg.scales && cfg.scalePool.length && 'scales', cfg.chords && cfg.chordPool.length && 'chords', cfg.quizzes && cfg.quizPool.length && 'quizzes'].filter(Boolean);
+  const mixNote = !kindsOn.length ? '<span class="mix-note warn">Nothing is included yet. Tick at least one of Scales, Chords or Quizzes.</span>'
+    : kindsOn.length === 1 ? `<span class="mix-note warn">Lessons will only contain ${kindsOn[0]}. Tap the others above to mix them in.</span>`
+    : `<span class="mix-note">Lessons will mix ${kindsOn.slice(0, -1).join(', ')} and ${kindsOn[kindsOn.length - 1]}.</span>`;
   const ing = `<details class="ingredients"${items.length ? '' : ' open'}><summary>Lesson ingredients</summary><div class="ing">
-    <div class="row"><span class="rl">Include</span>${chipT(cfg.scales, 'linc', 'scales', 'Scales')}${chipT(cfg.chords, 'linc', 'chords', 'Chords')}${chipT(cfg.quizzes, 'linc', 'quizzes', 'Quizzes')}</div>
-    ${cfg.scales ? `<div class="row"><span class="rl">Scales to draw from</span>${scaleChoices.map(id => chipT(cfg.scalePool.includes(id), 'lpool', id, SCALES[id].short || SCALES[id].name, 'scale')).join('')}</div>` : ''}
-    ${cfg.chords ? `<div class="row"><span class="rl">Chord types to draw from</span>${chordChoices.map(id => chipT(cfg.chordPool.includes(id), 'lpool', id, 'C' + CHORDS[id].sym, 'chord')).join('')}</div>` : ''}
-    ${cfg.quizzes ? `<div class="row"><span class="rl">Quizzes to draw from</span>${Object.entries(QUIZ_TYPES).map(([k, t]) => chipT(cfg.quizPool.includes(k), 'lqpool', k, t.name)).join('')}</div>` : ''}
+    <div class="row"><span class="rl">Include · tap to turn on or off</span>${chipT(cfg.scales, 'linc', 'scales', 'Scales')}${chipT(cfg.chords, 'linc', 'chords', 'Chords')}${chipT(cfg.quizzes, 'linc', 'quizzes', 'Quizzes')}
+      <button type="button" class="btn" data-act="lall">Select everything</button>${mixNote}</div>
+    ${cfg.scales ? `<div class="row"><span class="rl">Scales to draw from</span>${scaleChoices.map(id => chipT(cfg.scalePool.includes(id), 'lpool', id, SCALES[id].short || SCALES[id].name, 'scale')).join('')}${allNone('scale')}</div>` : ''}
+    ${cfg.chords ? `<div class="row"><span class="rl">Chord types to draw from</span>${chordChoices.map(id => chipT(cfg.chordPool.includes(id), 'lpool', id, 'C' + CHORDS[id].sym, 'chord')).join('')}${allNone('chord')}</div>` : ''}
+    ${cfg.quizzes ? `<div class="row"><span class="rl">Quizzes to draw from</span>${Object.entries(QUIZ_TYPES).map(([k, t]) => chipT(cfg.quizPool.includes(k), 'lqpool', k, t.name)).join('')}${allNone('quiz')}</div>` : ''}
     <div class="row"><span class="rl">Keys</span>${[0,1,2,3,4,5,6,7,8,9,10,11].map(pc => chipT(cfg.keys.includes(pc), 'lkey', pc, pn(DEFAULT[pc]))).join('')}
       <button type="button" class="btn" data-act="lkeys" data-v="all">All</button><button type="button" class="btn" data-act="lkeys" data-v="nat">Naturals</button></div>
     <div class="row"><span class="rl">Where on the neck</span><div class="seg">
@@ -2044,6 +2057,19 @@ function handlePractice(act, b){
       if (quiz.type === 'name-note') quiz.reveal = {ok:false, picked:-1};
       else if (quiz.type === 'name-interval') quiz.reveal = {ok:false, picked:-1};
       quizScored(); render(); return true;
+    case 'lpoolall': {
+      const all = {scale:['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian','majPent','minPent','blues','harmMin','melMin'],
+        chord:['maj','min','7','maj7','m7','m7b5','dim7','sus4','6','9','m9','maj9','7s9','13'], quiz:Object.keys(QUIZ_TYPES)}[b.dataset.k];
+      const list = v === 'all' ? all.slice() : [];
+      if (b.dataset.k === 'scale') cfg.scalePool = list; else if (b.dataset.k === 'chord') cfg.chordPool = list; else cfg.quizPool = list;
+      render(); return true;
+    }
+    case 'lall':
+      cfg.scales = cfg.chords = cfg.quizzes = true;
+      cfg.scalePool = ['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian','majPent','minPent','blues','harmMin','melMin'];
+      cfg.chordPool = ['maj','min','7','maj7','m7','m7b5','dim7','sus4','6','9','m9','maj9','7s9','13'];
+      cfg.quizPool = Object.keys(QUIZ_TYPES); cfg.keys = [0,1,2,3,4,5,6,7,8,9,10,11];
+      toast('Everything selected: all scales, chord types, quizzes and keys'); render(); return true;
     case 'lqpool': { const k = cfg.quizPool.indexOf(v); if (k >= 0) cfg.quizPool.splice(k, 1); else cfg.quizPool.push(v); render(); return true; }
     case 'mgplay': state.metro.gap.play = Math.max(1, Math.min(16, state.metro.gap.play + +v)); render(); return true;
     case 'mgrest': state.metro.gap.rest = Math.max(1, Math.min(16, state.metro.gap.rest + +v)); render(); return true;
