@@ -565,6 +565,12 @@ const CHORD_LIST = [
 const CHORDS = {}; const CHORD_ORDER = [];
 CHORD_LIST.forEach(([, list]) => list.forEach(([id, sym, name, labels]) => { CHORDS[id] = {id, sym, name, labels}; CHORD_ORDER.push(id); }));
 const QUICK_CHORDS = ['maj','min','7','maj7','m7','dim','sus4','m7b5'];
+/* arpeggios: a chord's tones laid out like a scale, so they get positions, patterns and playback */
+const ARP_TYPES = ['maj','min','7','maj7','m7','m7b5','dim7','dim','aug','mM7','6','m6','9','maj9','m9'];
+const QUICK_ARPS = ['maj','min','7','maj7','m7','m7b5','dim7'];
+ARP_TYPES.forEach(cid => { SCALES['arp_' + cid] = {name:CHORDS[cid].name + ' arpeggio', labels:CHORDS[cid].labels.slice(), arp:true, chord:cid}; });
+OTHER_SCALES.push(['Arpeggios', ARP_TYPES.map(c => 'arp_' + c)]);
+const scaleTitle = (rootPc, type) => { const S = SCALES[type], rn = pn(rootName(rootPc, S.labels)); return S.arp ? `${rn}${CHORDS[S.chord].sym} arpeggio` : `${rn} ${S.short || S.name.toLowerCase()}`; };
 
 const TUNINGS = {
   std:{name:'Standard  E A D G B E', midi:[40,45,50,55,59,64]},
@@ -663,7 +669,7 @@ function layerTitle(L){
   const rn = pn(layerRoot(L));
   if (L.kind === 'intervals') return rn + ' intervals';
   if (L.kind === 'chord') return rn + CHORDS[L.type].sym + ' chord';
-  if (L.kind === 'scale') return rn + ' ' + (SCALES[L.type].short || SCALES[L.type].name.toLowerCase());
+  if (L.kind === 'scale') return scaleTitle(L.root, L.type);
   return 'Custom notes';
 }
 function layerFilterText(L){
@@ -1099,8 +1105,9 @@ function layerCard(L, i){
   }
   if (L.kind === 'scale') {
     h += `<div class="row"><span class="rl">Mode</span>${MODES.map((m, k) => `<button type="button" class="chip${L.type === m ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="${m}">${pn(rootName(L.root, SCALES[m].labels))} ${SCALES[m].short}</button>`).join('')}</div>
+      <div class="row"><span class="rl">Arpeggio</span>${QUICK_ARPS.map(c => `<button type="button" class="chip${L.type === 'arp_' + c ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="arp_${c}">${pn(rootName(L.root, CHORDS[c].labels))}${CHORDS[c].sym}</button>`).join('')}</div>
       <div class="row"><span class="rl">Other scales</span><select class="sel" id="stype-${L.id}" data-act="stype-sel" data-i="${i}" aria-label="Other scales">
-        <option value="">${MODES.includes(L.type) ? 'Choose a scale…' : ''}</option>
+        <option value="">${MODES.includes(L.type) || QUICK_ARPS.includes((SCALES[L.type].chord || '')) && SCALES[L.type].arp ? 'Choose a scale…' : ''}</option>
         ${OTHER_SCALES.map(([g, ids]) => `<optgroup label="${g}">${ids.map(id => `<option value="${id}"${L.type === id ? ' selected' : ''}>${pn(rootName(L.root, SCALES[id].labels))} ${SCALES[id].name}</option>`).join('')}</optgroup>`).join('')}
       </select></div>`;
     if (L.type !== 'chromatic') {
@@ -1137,6 +1144,7 @@ function layerCard(L, i){
       <button type="button" class="btn" data-act="fall" data-i="${i}">All</button>
       <button type="button" class="btn" data-act="froot" data-i="${i}">Root only</button></div>`;
     let info = `<span class="notes-line">${lbls.map(l => pn(spell(rn, l))).join('  ')}</span>`;
+    if (L.kind === 'scale' && SCALES[L.type].arp) info += ` · the notes of <b>${pn(rootName(L.root, CHORDS[SCALES[L.type].chord].labels))}${CHORDS[SCALES[L.type].chord].sym}</b> played one at a time. Use Position for sweep and box shapes.`;
     if (L.kind === 'scale' && MODES.includes(L.type)) {
       const k = MODES.indexOf(L.type), ppc = mod(L.root - MODE_OFF[k]);
       info += ` · same notes as <b>${pn(rootName(ppc, SCALES.ionian.labels))} major</b>${k ? ` (mode ${k + 1})` : ''}`;
@@ -2129,7 +2137,7 @@ const itemLike = it => ({kind:it.kind, root:it.root, type:it.type, pos:it.pos, h
 function itemTitle(it){
   if (it.kind === 'text') return esc(it.text);
   if (it.kind === 'quiz') return (QUIZ_TYPES[it.quiz] || QUIZ_TYPES['find-note']).name;
-  if (it.kind === 'scale') { const S = SCALES[it.type]; return pn(rootName(it.root, S.labels)) + ' ' + (S.short || S.name.toLowerCase()); }
+  if (it.kind === 'scale') return scaleTitle(it.root, it.type);
   return chordName(it.root, it.type);
 }
 function itemSub(it){
@@ -2358,7 +2366,7 @@ function renderPractice(){
       </span></div>`;
   }).join('');
 
-  const scaleChoices = ['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian','majPent','minPent','blues','harmMin','melMin'];
+  const scaleChoices = ['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian','majPent','minPent','blues','harmMin','melMin'].concat(QUICK_ARPS.map(c => 'arp_' + c));
   const chordChoices = ['maj','min','7','maj7','m7','m7b5','dim7','sus4','6','9','m9','maj9','7s9','13'];
   const chipT = (on, act, v, label, k) => `<button type="button" class="chip tog${on ? ' sel' : ''}" data-act="${act}" data-v="${v}"${k ? ` data-k="${k}"` : ''} aria-pressed="${on}">${label}</button>`;
   const allNone = k => `<button type="button" class="btn" data-act="lpoolall" data-k="${k}" data-v="all">All</button><button type="button" class="btn" data-act="lpoolall" data-k="${k}" data-v="none">None</button>`;
@@ -2580,7 +2588,7 @@ function handlePractice(act, b){
       else if (quiz.type === 'name-interval') quiz.reveal = {ok:false, picked:-1};
       quizScored(); render(); return true;
     case 'lpoolall': {
-      const all = {scale:['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian','majPent','minPent','blues','harmMin','melMin'],
+      const all = {scale:['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian','majPent','minPent','blues','harmMin','melMin'].concat(QUICK_ARPS.map(c => 'arp_' + c)),
         chord:['maj','min','7','maj7','m7','m7b5','dim7','sus4','6','9','m9','maj9','7s9','13'], quiz:Object.keys(QUIZ_TYPES)}[b.dataset.k];
       const list = v === 'all' ? all.slice() : [];
       if (b.dataset.k === 'scale') cfg.scalePool = list; else if (b.dataset.k === 'chord') cfg.chordPool = list; else cfg.quizPool = list;
@@ -2588,7 +2596,7 @@ function handlePractice(act, b){
     }
     case 'lall':
       cfg.scales = cfg.chords = cfg.quizzes = true;
-      cfg.scalePool = ['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian','majPent','minPent','blues','harmMin','melMin'];
+      cfg.scalePool = ['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian','majPent','minPent','blues','harmMin','melMin'].concat(QUICK_ARPS.map(c => 'arp_' + c));
       cfg.chordPool = ['maj','min','7','maj7','m7','m7b5','dim7','sus4','6','9','m9','maj9','7s9','13'];
       cfg.quizPool = Object.keys(QUIZ_TYPES); cfg.keys = [0,1,2,3,4,5,6,7,8,9,10,11];
       toast('Everything selected: all scales, chord types, quizzes and keys'); render(); return true;
