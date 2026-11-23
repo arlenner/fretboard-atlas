@@ -15,6 +15,8 @@ A guitar neck reference that runs in the browser. It needs no build step or serv
 - Optional 9/11/13 (or always 2/4/6) names for extensions.
 - Up to four overlays, each with its own root and an on/off filter for every interval.
 - Chord finder: pick notes on the neck to get chord names, including slash chords and partial voicings.
+- Looper: drag chords into a lane (from your pins, a chord search that understands names like F♯m7♭5, Dmaj9♯11, Eø or C–7, or any circle progression), give each ½, 1 or 2 bars, and loop it with strums, pads and drums.
+- Saved setups: save what's on screen (layers, overlays, picks, circle key, pins, the Looper, tempo, tuning) under a name and load it later, or copy a link that opens the same setup on any device.
 - Pinboard: pin chord shapes and progressions in order, with mini chord diagrams. Play them through, step through them on the neck, or overlay up to four to compare.
 - Practice tab: a metronome (tap tempo, beats per bar, accent, subdivisions), a lesson builder that rolls random scales and chords from the keys, types and positions you choose, and a session timer that loads each item onto the neck and counts it down.
 - Fretboard quizzes: find the note, name the note, find the interval, name the interval; timed or counted, with personal bests. Quizzes can be lesson items.

@@ -85,6 +85,17 @@ h2,h3{margin:0; text-wrap:balance}
   .menu{position:static}
   .menu-pop{left:0; right:0; width:auto; max-width:420px; top:auto; margin-top:6px}
 }
+.saves-pop{width:min(360px, calc(100vw - 32px)); max-height:min(70vh, 560px); overflow-y:auto}
+.save-row{display:flex; gap:6px}
+.save-row input, #savesLink{flex:1; min-width:0; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); color:var(--ink); font-size:13px}
+.saves-list{display:grid; gap:6px; border-top:1px solid var(--line); padding-top:8px}
+.save-item{display:flex; gap:6px; align-items:center}
+.save-load{flex:1; min-width:0; display:grid; text-align:left; border:1px solid var(--line); background:var(--surface-2); color:var(--ink); border-radius:8px; padding:6px 8px}
+.save-load b{font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.save-load small{font-size:11px; color:var(--muted)}
+.save-load:hover{border-color:var(--muted)}
+.save-acts{display:flex; gap:4px}
+.save-acts .armed{background:var(--bad); color:#fff; border-color:var(--bad)}
 .menu-pop label{display:grid; gap:4px; font-size:12px; color:var(--muted)}
 .menu-pop select{padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); color:var(--ink)}
 .chk{display:flex !important; grid-template-columns:none; align-items:center; gap:8px; color:var(--ink) !important; font-size:13px !important}
@@ -330,6 +341,29 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
 .prog .pn{font-size:12px; color:var(--muted); width:100%}
 .roll{display:grid; gap:6px; margin-top:6px; padding-top:10px; border-top:2px solid var(--line)}
 .roll > .prog{border-top:0; background:var(--surface-2); border-radius:10px; padding:8px 10px}
+/* Looper */
+.looper{display:grid; gap:10px; margin-bottom:12px}
+.lane{display:flex; flex-wrap:wrap; gap:6px; padding:8px; min-height:76px; border:1.5px dashed var(--line); border-radius:12px; background:var(--surface-2); align-items:stretch}
+.lane.drop-over{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, var(--surface-2))}
+.slot{display:flex; flex-direction:column; justify-content:space-between; gap:4px; min-width:calc(var(--bars) * 92px); max-width:100%; flex:0 1 auto; padding:6px 6px 5px; border:1px solid var(--line); border-radius:10px; background:var(--surface); touch-action:none; cursor:grab; position:relative; user-select:none; -webkit-user-select:none}
+.slot.on{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent)}
+.slot.dragging{opacity:.35}
+.slot.drop-before::before, .lane.drop-end .lane-end::before{content:""; position:absolute; left:-5px; top:4px; bottom:4px; width:3px; border-radius:2px; background:var(--accent)}
+.slot-main{border:0; background:transparent; color:var(--ink); text-align:left; padding:0 2px; display:flex; flex-direction:column; cursor:inherit}
+.slot-main small{font-size:10px; color:var(--muted)}
+.slot-main b{font-size:16px; white-space:nowrap}
+.slot-acts{display:flex; gap:4px}
+.slot-acts .ib{height:24px; font-size:11px; padding:0 7px}
+.lane-end{position:relative; flex:1 0 110px; display:flex; align-items:center; justify-content:center; padding:0 8px; font-size:12px; color:var(--muted); text-align:center}
+.lane.empty .lane-end{flex-basis:100%}
+.looper .find{display:grid; gap:8px}
+.looper .find input{width:100%; max-width:420px; font-size:15px; padding:8px 10px}
+.found{display:flex; flex-wrap:wrap; gap:6px; min-height:30px; align-items:center}
+.found-c{touch-action:none; user-select:none; -webkit-user-select:none}
+.pin-drag[data-drag]{touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none}
+.pin-drag[data-drag]::before{content:"⠿"; margin-right:4px; color:var(--muted)}
+.drag-ghost{position:fixed; z-index:100; pointer-events:none; opacity:.92; box-shadow:0 10px 28px rgba(0,0,0,.3); margin:0}
+body.is-dragging, body.is-dragging *{cursor:grabbing !important}
 .scl{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:6px}
 .scl button{border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:6px 10px; text-align:left; display:grid}
 .scl button small{color:var(--muted); font-size:11px}
@@ -541,6 +575,10 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
   <button type="button" class="sound-btn" id="soundBtn" aria-label="Sound" title="Sound on or off">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16 9.5a3.5 3.5 0 0 1 0 5M18.5 7a7 7 0 0 1 0 10"/><path class="off" d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></svg>
   </button>
+  <details class="menu" id="savesMenu">
+    <summary>Saved</summary>
+    <div class="menu-pop saves-pop" id="savesPop"></div>
+  </details>
   <details class="menu" id="menu">
     <summary>Settings</summary>
     <div class="menu-pop">
@@ -781,6 +819,7 @@ const DEF = {
   drone:{root:2, fifth:true, vol:0.35},
   ttCfg:{step:4, need:3, slips:2, judge:'me', strict:'normal', bars:2}, ttLast:null, micCal:null,
   quizBest:{}, quizLast:null,
+  lane:[],          // the Looper: [{root, type, name, bars, shape?, tuning?}]
   lesson:{items:[], nextItem:1, auto:true, cfg:{
     scales:true, chords:true,
     scalePool:['ionian','dorian','mixolydian','aeolian','majPent','minPent','blues'],
@@ -815,6 +854,7 @@ state.quizBest = state.quizBest || {};
 if (state.backing && !state.backing.style && state.backing.sevenths) state.backing.style = 'sev';
 state.backing = Object.assign(clone(DEF.backing), state.backing || {});
 state.playCfg = Object.assign(clone(DEF.playCfg), state.playCfg || {});
+state.lane = (Array.isArray(state.lane) ? state.lane : []).filter(it => it && CHORDS[it.type]).slice(0, 32);
 state.circle = Object.assign(clone(DEF.circle), state.circle || {});
 state.drone = Object.assign(clone(DEF.drone), state.drone || {});
 state.ttCfg = Object.assign(clone(DEF.ttCfg), state.ttCfg || {});
@@ -832,6 +872,103 @@ if (state.session && !state.session.done) {
   else if (!state.session.paused) { state.session.paused = true; state.session.remaining = Math.max(0, state.session.endsAt - Date.now()); }
 }
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+/* ================= saved setups: named snapshots of what's on the neck, the pins and the Looper; also as a link ================= */
+const SAVEKEY = 'fretboard-atlas-saves';
+const SNAP_KEYS = ['layers', 'picks', 'readName', 'tuning', 'labelMode', 'colorBy', 'extNames', 'pref', 'flip', 'lefty', 'allNames', 'tab', 'circle', 'pins', 'nextPin', 'nextId', 'lane', 'backing', 'playCfg'];
+let saves = [];
+try { saves = JSON.parse(localStorage.getItem(SAVEKEY)) || []; if (!Array.isArray(saves)) saves = []; } catch (e) { saves = []; }
+const storeSaves = () => { try { localStorage.setItem(SAVEKEY, JSON.stringify(saves)); return true; } catch (e) { toast('Could not save: the browser storage is full.'); return false; } };
+function snapshot(){
+  const o = {v:1};
+  SNAP_KEYS.forEach(k => { if (state[k] !== undefined) o[k] = clone(state[k]); });
+  o.bpm = state.metro.bpm;
+  if (o.circle) delete o.circle.pin;
+  return o;
+}
+/* put a snapshot back, checking everything in it the way a saved session is checked at start-up */
+function applySnapshot(o){
+  if (!o || !Array.isArray(o.layers) || !o.layers.length) return false;
+  if (sp.on) scalePlayStop(true);
+  if (loop.on) loopStop();
+  if (quiz) quizEnd(true);
+  SNAP_KEYS.forEach(k => { if (o[k] !== undefined) state[k] = clone(o[k]); });
+  state.layers = state.layers.filter(L => L && ['intervals','chord','scale','notes'].includes(L.kind)).slice(0, 4);
+  if (!state.layers.length) state.layers = clone(DEF.layers);
+  state.layers.forEach(L => {
+    if (L.kind === 'chord' && !CHORDS[L.type]) L.type = 'maj';
+    if (L.kind === 'scale' && !SCALES[L.type]) L.type = 'ionian';
+    L.hidden = Array.isArray(L.hidden) ? L.hidden : []; L.notes = Array.isArray(L.notes) ? L.notes : []; L.root = mod(+L.root || 0);
+  });
+  if (!TUNINGS[state.tuning]) state.tuning = 'std';
+  state.pins = (Array.isArray(state.pins) ? state.pins : []).filter(p => p && (p.type == null || CHORDS[p.type]));
+  state.lane = (Array.isArray(state.lane) ? state.lane : []).filter(it => it && CHORDS[it.type]).slice(0, 32);
+  state.picks = Array.isArray(state.picks) ? state.picks.filter(p => p && p.s >= 0 && p.s < 6 && p.f >= 0 && p.f <= 24) : [];
+  if (!['layers','finder','circle','pins','practice'].includes(state.tab)) state.tab = 'layers';
+  state.circle = Object.assign(clone(DEF.circle), state.circle || {});
+  state.backing = Object.assign(clone(DEF.backing), state.backing || {});
+  state.playCfg = Object.assign(clone(DEF.playCfg), state.playCfg || {});
+  state.nextId = Math.max(+state.nextId || 1, ...state.layers.map(L => (+L.id || 0) + 1));
+  state.nextPin = Math.max(+state.nextPin || 1, ...state.pins.map(p => (+p.id || 0) + 1), 1);
+  if (o.bpm) state.metro.bpm = Math.max(30, Math.min(260, +o.bpm || state.metro.bpm));
+  state.pinView = null; state.compare = null; state.tap = null;
+  return true;
+}
+/* a name that says what's in it: "A Prometheus + A9 chord · Looper: Am7 D9 G7alt · 4 pins" */
+function autoSaveName(){
+  const ls = state.layers.filter(L => L.visible !== false).map(layerTitle), parts = [ls.join(' + ') || layerTitle(state.layers[0])];
+  if (state.lane.length) parts.push('Looper: ' + state.lane.slice(0, 4).map(it => it.name).join(' ') + (state.lane.length > 4 ? ' …' : ''));
+  if (state.pins.length) parts.push(state.pins.length + ' pin' + (state.pins.length > 1 ? 's' : ''));
+  return parts.join(' · ').replace(/<[^>]+>/g, '').slice(0, 90);
+}
+// links: the snapshot as URL-safe base64 in the #hash, so it never reaches a server
+const b64url = s => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64url = s => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
+const snapLink = snap => location.href.split('#')[0] + '#s=' + b64url(JSON.stringify(snap));
+function copyText(text, okMsg){
+  const fallback = () => { const box = $('#savesLink'); if (box) { box.hidden = false; box.value = text; box.focus(); box.select(); } toast('Copy the link from the box'); };
+  try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(() => toast(okMsg), fallback); return; } } catch (e) {}
+  fallback();
+}
+let saveDelArmed = null;
+function renderSaves(){
+  const box = $('#savesPop'); if (!box) return;
+  const when = ts => new Date(ts).toLocaleDateString(undefined, {month:'short', day:'numeric'}) + ' ' + new Date(ts).toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'});
+  box.innerHTML = `<label>Save what's on screen as
+      <span class="save-row"><input type="text" id="saveName" maxlength="90" value="${esc(autoSaveName())}" aria-label="Name for this setup"><button type="button" class="btn primary" data-sact="save">Save</button></span></label>
+    <button type="button" class="btn" data-sact="link">🔗 Copy a link to this setup</button>
+    <input type="text" id="savesLink" class="sel" readonly hidden aria-label="Link to this setup">
+    <span class="hint">Saves keep the layers and overlays, picked notes, circle key and rolled progression, pins, the Looper, tempo and tuning. A link opens the same setup on any device.</span>
+    ${saves.length ? `<div class="saves-list">${saves.slice().reverse().map(sv => `<div class="save-item">
+        <button type="button" class="save-load" data-sact="load" data-id="${sv.id}"><b>${esc(sv.name)}</b><small>${when(sv.ts)}</small></button>
+        <span class="save-acts"><button type="button" class="ib" data-sact="update" data-id="${sv.id}" title="Replace with what's on screen now" aria-label="Update ${esc(sv.name)} with what's on screen">⟳</button><button type="button" class="ib" data-sact="slink" data-id="${sv.id}" title="Copy a link" aria-label="Copy a link to ${esc(sv.name)}">🔗</button><button type="button" class="ib${saveDelArmed === sv.id ? ' armed' : ''}" data-sact="del" data-id="${sv.id}" aria-label="${saveDelArmed === sv.id ? 'Tap again to delete' : 'Delete'} ${esc(sv.name)}">${saveDelArmed === sv.id ? 'Delete?' : '✕'}</button></span></div>`).join('')}</div>`
+      : '<span class="hint">Nothing saved yet.</span>'}`;
+}
+function saveAction(act, id){
+  const sv = saves.find(x => x.id === id);
+  if (act === 'save') {
+    const name = (($('#saveName') || {}).value || '').trim() || autoSaveName();
+    saves.push({id:Date.now() + Math.floor(Math.random() * 1000), name, ts:Date.now(), snap:snapshot()});
+    if (saves.length > 60) saves = saves.slice(-60);
+    if (storeSaves()) toast(`Saved “${name}”`);
+  } else if (act === 'load' && sv) {
+    if (applySnapshot(sv.snap)) { $('#savesMenu').open = false; render(); revealNeck(); toast(`Loaded “${sv.name}”`); }
+  } else if (act === 'update' && sv) { sv.snap = snapshot(); sv.ts = Date.now(); if (storeSaves()) toast(`Updated “${sv.name}”`); }
+  else if (act === 'link') copyText(snapLink(snapshot()), 'Link copied');
+  else if (act === 'slink' && sv) copyText(snapLink(sv.snap), `Link to “${sv.name}” copied`);
+  else if (act === 'del' && sv) {
+    if (saveDelArmed !== id) { saveDelArmed = id; setTimeout(() => { if (saveDelArmed === id) { saveDelArmed = null; renderSaves(); } }, 3000); }
+    else { saves = saves.filter(x => x.id !== id); saveDelArmed = null; storeSaves(); }
+  }
+  if (act !== 'load') renderSaves();
+}
+/* opened from a link: load it (it's not saved until you save it) and tidy the address bar */
+function openLinkedSetup(){
+  const m = /#s=([A-Za-z0-9_-]+)/.exec(location.hash); if (!m) return;
+  try { if (applySnapshot(JSON.parse(unb64url(m[1])))) { render(); setTimeout(() => toast('Opened a shared setup. Save it (Saved menu) to keep it.'), 50); } else toast('That link has no setup in it.'); }
+  catch (e) { toast('That link could not be read.'); }
+  try { history.replaceState(null, '', location.href.split('#')[0]); } catch (e) {}
+}
 
 /* ================= layer helpers ================= */
 function layerLabels(L){
@@ -1678,14 +1815,14 @@ function renderCircle(){
       <div><div class="row"><span class="rl" style="width:auto;margin-right:8px">Common progressions</span>
         <div class="seg"><button type="button" data-act="ccolor" data-v="0" aria-pressed="${progStyle !== 'color'}" title="Every chord a ${sevenths ? '7th' : 'triad'}, as set above">Plain</button><button type="button" data-act="ccolor" data-v="1" aria-pressed="${progStyle === 'color'}" title="Mixed qualities, the way each progression is usually played">Colorful</button></div>
         <span class="info">${progStyle === 'color' ? 'Mixed chord colors: add9s and maj7s, a dominant 7 pulling home, 9ths and 13ths for jazz.' : `All ${sevenths ? '7th chords' : 'triads'}, following the Diatonic chords setting.`}</span></div>
-        ${PROGS.map(([name], p) => `<div class="prog"><span class="pn">${name}</span>${progCache[p].map(chordBtn).join('<span class="info">→</span>')}<button type="button" class="btn" data-act="prog" data-p="${p}" aria-label="Play ${name}">Play</button><button type="button" class="btn" data-act="pinprog" data-p="${p}" aria-label="Pin ${name}">Pin all</button></div>`).join('')}
+        ${PROGS.map(([name], p) => `<div class="prog"><span class="pn">${name}</span>${progCache[p].map(chordBtn).join('<span class="info">→</span>')}<button type="button" class="btn" data-act="prog" data-p="${p}" aria-label="Play ${name}">Play</button><button type="button" class="btn" data-act="pinprog" data-p="${p}" aria-label="Pin ${name}">Pin all</button><button type="button" class="btn" data-act="proglane" data-p="${p}" aria-label="Send ${name} to the Looper">→ Looper</button></div>`).join('')}
         <div class="roll">
           <div class="row"><span class="rl" style="width:auto;margin-right:8px">Roll your own</span>
             <div class="seg" aria-label="How adventurous">${[['plain', 'Plain'], ['color', 'Colorful'], ['wild', 'Adventurous']].map(([v, t]) => `<button type="button" data-act="cspice" data-v="${v}" aria-pressed="${spice === v}">${t}</button>`).join('')}</div>
             <button type="button" class="btn primary" data-act="croll">🎲 ${roll ? 'Roll again' : 'Roll a progression'}</button></div>
           <span class="info">${spice === 'plain' ? `Diatonic ${sevenths ? '7ths' : 'triads'} only.` : spice === 'color' ? 'Every chord fits the key, each with its own color.' : 'Adds chords borrowed from outside the key and altered dominants that pull home.'} Four chords: home, away, tension, back home.</span>
-          ${roll ? `<div class="prog"><span class="pn">Rolled · ${roll.spice === 'plain' ? 'plain' : roll.spice === 'wild' ? 'adventurous' : 'colorful'}</span>${progCache[rollIdx].map(chordBtn).join('<span class="info">→</span>')}<button type="button" class="btn" data-act="prog" data-p="${rollIdx}" aria-label="Play the rolled progression">Play</button><button type="button" class="btn" data-act="pinprog" data-p="${rollIdx}" aria-label="Pin the rolled progression">Pin all</button></div>
-            <span class="info">Like it? Pin all, then loop it from your Pinboard in Practice › Play along.</span>` : ''}
+          ${roll ? `<div class="prog"><span class="pn">Rolled · ${roll.spice === 'plain' ? 'plain' : roll.spice === 'wild' ? 'adventurous' : 'colorful'}</span>${progCache[rollIdx].map(chordBtn).join('<span class="info">→</span>')}<button type="button" class="btn" data-act="prog" data-p="${rollIdx}" aria-label="Play the rolled progression">Play</button><button type="button" class="btn" data-act="pinprog" data-p="${rollIdx}" aria-label="Pin the rolled progression">Pin all</button><button type="button" class="btn" data-act="proglane" data-p="${rollIdx}" aria-label="Send the rolled progression to the Looper">→ Looper</button></div>
+            <span class="info">Like it? Send it to the Looper (Pinboard tab) to loop it with drums, or Pin all.</span>` : ''}
         </div></div>
     </div></div>`;
 }
@@ -1948,10 +2085,65 @@ function diagram(p){
   }
   return `<svg class="diag" viewBox="0 0 ${W} ${H}" role="img" aria-label="Chord diagram">${g}</svg>`;
 }
+/* ================= Looper: drag chords into a lane and loop them ================= */
+/* chord search: "F#m7b5", "Dmaj9#11", "Bb13", "Eø", "C-7", "AΔ7"… → matching chords, exact first, then ones that start that way */
+const CHORD_ALIAS = {'M':'', 'maj':'', 'M7':'maj7', 'Δ':'maj7', 'Δ7':'maj7', '^7':'maj7', 'ma7':'maj7', 'M9':'maj9', 'M13':'maj13', 'min':'m', 'mi':'m', '-':'m',
+  'min7':'m7', 'ø':'m7b5', 'ø7':'m7b5', '°':'dim', 'o':'dim', '°7':'dim7', 'o7':'dim7', '+':'aug', '+7':'7#5', 'dom7':'7', 'mM7':'m(maj7)', 'mmaj7':'m(maj7)', 'mΔ7':'m(maj7)', 'alt':'7alt'};
+const normSym = s => s.replace(/♯/g, '#').replace(/♭/g, 'b').replace(/[()\s]/g, '').toLowerCase();
+const SYM_INDEX = () => CHORD_ORDER.map(t => ({t, k:normSym(CHORDS[t].sym)}));
+function findChords(q){
+  const s = String(q || '').trim().replace(/♯/g, '#').replace(/♭/g, 'b'), m = /^([A-Ga-g])(#|b)?(.*)$/.exec(s);
+  if (!m) return [];
+  const rname = m[1].toUpperCase() + (m[2] || ''), root = pcOf(rname);
+  let rest = m[3].split('/')[0].trim();
+  if (CHORD_ALIAS[rest] !== undefined) rest = CHORD_ALIAS[rest];
+  else { if (rest[0] === '-') rest = 'm' + rest.slice(1); if (/^M(?!aj)/.test(rest)) rest = 'maj' + rest.slice(1); rest = rest.replace(/^Δ/, 'maj').replace(/([0-9])\+([0-9])/g, '$1#$2').replace(/([0-9])-([0-9])/g, '$1b$2'); }
+  const key = normSym(rest), idx = SYM_INDEX();
+  const hits = idx.filter(x => x.k === key).concat(idx.filter(x => x.k !== key && x.k.startsWith(key)));
+  return hits.slice(0, 14).map(x => ({root, type:x.t, name:pn(rname) + CHORDS[x.t].sym}));
+}
+const LANE_MAX = 32;
+const barsLabel = b => b === 0.5 ? '½ bar' : b === 2 ? '2 bars' : '1 bar';
+function laneAdd(items, at){
+  const room = LANE_MAX - state.lane.length;
+  if (room <= 0) { toast(`The Looper holds ${LANE_MAX} chords.`); return 0; }
+  const add = items.slice(0, room).map(c => Object.assign({root:mod(c.root), type:c.type, name:c.name, bars:c.bars || 1}, c.shape ? {shape:c.shape.map(q => ({s:q.s, f:q.f})), tuning:c.tuning || 'std'} : {}));
+  state.lane.splice(at == null ? state.lane.length : at, 0, ...add);
+  refreshLoop();
+  return add.length;
+}
+const pinToLane = p => ({root:p.root, type:p.type, name:p.name, shape:p.shape, tuning:p.tuning});
+function foundHtml(q){
+  if (!String(q || '').trim()) return '<span class="info">Type a chord name: F♯m7♭5, Dmaj9♯11, B♭13, E7alt, Cø, A–7…</span>';
+  const hits = findChords(q);
+  if (!hits.length) return '<span class="info">Start with a note name, A to G (with ♯ or ♭), then the chord: “Gm9”, “C7♯9”.</span>';
+  return hits.map(c => `<button type="button" class="chip found-c" data-drag="chord:${c.root}:${c.type}" data-act="laneadd" data-r="${c.root}" data-t="${c.type}" title="${CHORDS[c.type].name}. Tap to add, or drag into the Looper">＋ ${c.name}</button>`).join('');
+}
+let laneClearArmed = false;
+function laneHtml(){
+  const L = state.lane, playing = loop.on && state.backing.source === 'lane';
+  const total = L.reduce((a, it) => a + (it.bars || 1), 0);
+  const slots = L.map((it, k) => `<div class="slot${playing && loop.idx === k ? ' on' : ''}" data-drag="lane:${k}" data-k="${k}" style="--bars:${it.bars || 1}">
+      <button type="button" class="slot-main" data-act="laneshow" data-k="${k}" aria-label="Show ${esc(it.name)} on the neck"><small>${k + 1}</small><b>${esc(it.name)}</b></button>
+      <span class="slot-acts"><button type="button" class="ib" data-act="lanebars" data-k="${k}" aria-label="Length ${barsLabel(it.bars || 1)}, tap to change">${barsLabel(it.bars || 1)}</button><button type="button" class="ib" data-act="lanedel" data-k="${k}" aria-label="Remove ${esc(it.name)}">✕</button></span></div>`).join('');
+  return `<div class="card looper">
+    <div class="row" style="justify-content:space-between"><b>Looper</b><span class="info">${L.length ? `${L.length} chord${L.length > 1 ? 's' : ''} · ${total % 1 ? total.toFixed(1) : total} bar${total === 1 ? '' : 's'} a loop` : 'Build a progression and loop it'}</span></div>
+    <div class="lane${L.length ? '' : ' empty'}" aria-label="Looper lane">${slots}<div class="lane-end">${L.length ? 'Drop here' : 'Drag chords here from the search or your pins, or tap ＋ on one'}</div></div>
+    <div class="row">
+      <button type="button" class="btn primary" data-act="laneplay"${L.length ? '' : ' disabled'}>${playing ? '■ Stop' : '▶ Loop it'}</button>
+      <span class="stepper"><button type="button" class="ib" data-act="mbpm" data-v="-5" aria-label="5 bpm slower">−5</button><span class="val">${state.metro.bpm} bpm</span><button type="button" class="ib" data-act="mbpm" data-v="5" aria-label="5 bpm faster">+5</button></span>
+      ${L.length ? `<button type="button" class="btn" data-act="laneclear">${laneClearArmed ? 'Tap again to clear' : 'Clear'}</button>` : ''}
+      <span class="info">Drag slots to reorder · tap a length to change it · sound and drums are set in Practice › Play along</span></div>
+    <div class="find">
+      <input type="search" id="laneFind" class="sel" placeholder="Find a chord: F♯m7♭5, Dmaj9♯11, B♭13…" autocomplete="off" spellcheck="false" value="${esc(state.laneQ || '')}" aria-label="Find a chord to add">
+      <div class="found" id="laneFound">${foundHtml(state.laneQ)}</div>
+    </div>
+  </div>`;
+}
 let clearArmed = false, clearTimer = null;
 function renderPins(){
   if (!state.pins.length) {
-    return `<div class="empty"><h3>Pin chords to build a progression</h3>
+    return laneHtml() + `<div class="empty"><h3>Pin chords to build a progression</h3>
       <p>Pinned chords stay here in order, so you can play them through, step through them on the neck, or overlay a few at once to compare.</p>
       <p>Pin a shape from the <b>Chord finder</b>, a chord or a whole progression from the <b>Circle of fifths</b>, or tap <b>Pin</b> on any chord layer.</p>
       <div class="row"><button type="button" class="btn primary" data-act="pinex">Pin an example: I–V–vi–IV in G</button></div></div>`;
@@ -1965,18 +2157,20 @@ function renderPins(){
       : `<span class="pin-notes">${CHORDS[p.type].labels.map(l => pn(spell(rootName(p.root, CHORDS[p.type].labels), l))).join(' ')}</span>`;
     const ck = Array.isArray(state.compare) ? state.compare.indexOf(p.id) : -1;
     return `<div class="pin${state.pinView === p.id ? ' active' : ''}${p.sel ? ' sel' : ''}">
-      <span class="pin-num">${ck >= 0 ? `<i style="--c:var(--l${ck})"></i>` : ''}${k + 1}</span>
+      <span class="pin-num pin-drag"${p.type ? ` data-drag="pin:${p.id}" title="Drag into the Looper"` : ''}>${ck >= 0 ? `<i style="--c:var(--l${ck})"></i>` : ''}${k + 1}</span>
       <button type="button" class="pin-main" data-act="pinshow" data-id="${p.id}" aria-label="Show ${p.name} on the neck"><b>${p.name}</b><small>${sub}</small>${p.alt && p.alt.length ? `<small>also ${p.alt.join(', ')}</small>` : ''}${body}</button>
       <div class="pin-acts">
         <button type="button" class="ib" data-act="pinplay" data-id="${p.id}" aria-label="Play ${p.name}">▶</button>
+        ${p.type ? `<button type="button" class="ib" data-act="pinlane1" data-id="${p.id}" aria-label="Add ${p.name} to the Looper" title="Add to the Looper">＋</button>` : ''}
         <button type="button" class="ib" data-act="pinmove" data-id="${p.id}" data-v="-1" aria-label="Move earlier"${k === 0 ? ' disabled' : ''}>←</button>
         <button type="button" class="ib" data-act="pinmove" data-id="${p.id}" data-v="1" aria-label="Move later"${k === state.pins.length - 1 ? ' disabled' : ''}>→</button>
         <button type="button" class="ib" data-act="pindel" data-id="${p.id}" aria-label="Remove ${p.name}">✕</button>
         ${p.type ? `<label class="chk"><input type="checkbox" id="pinsel-${p.id}" data-act="pinsel" data-id="${p.id}"${p.sel ? ' checked' : ''}> Compare</label>` : ''}
       </div></div>`;
   }).join('');
-  return `<div class="toolbar2">
+  return laneHtml() + `<div class="toolbar2">
       <button type="button" class="btn primary" data-act="pinplayall">▶ Play all</button>
+      <button type="button" class="btn" data-act="pinlane">All to the Looper</button>
       ${Array.isArray(state.compare) && state.compare.length
         ? `<button type="button" class="btn primary" data-act="pinuncompare">Stop comparing</button>`
         : `<button type="button" class="btn" data-act="pincompare"${nSel ? '' : ' disabled'}>Compare ${nSel > 1 ? nSel + ' chords' : nSel === 1 ? '1 chord' : 'chords'} on the neck</button>`}
@@ -2478,6 +2672,7 @@ function rollProgression(minor, spice, sevenths){
 function backingChords(){
   const b = state.backing;
   if (b.source === 'pins') return state.pins.filter(p => p.type).map(p => ({root:p.root, type:p.type, name:p.name, shape:p.shape && (p.tuning || 'std') === state.tuning ? p.shape : null}));
+  if (b.source === 'lane') return state.lane.map(it => ({root:it.root, type:it.type, name:it.name, bars:it.bars || 1, shape:it.shape && (it.tuning || 'std') === state.tuning ? it.shape : null}));
   return progressionChords(b.key, b.minor, b.prog, backingStyle());
 }
 /* loop chord style; older saves only had the triads/7ths switch */
@@ -2520,19 +2715,29 @@ function padChord(midis, when, dur){
     o.connect(g); o2.connect(g); g.connect(master); o.start(when); o2.start(when); o.stop(when + dur + 0.05); o2.stop(when + dur + 0.05);
   });
 }
+/* which loop chord a beat falls on: each chord lasts its own number of beats (the Looper sets ½, 1 or 2 bars per
+   chord; other loops use "bars each"). Returns the chord index, the beat within it, and its length in beats. */
+function loopSlot(barIn, beatNo, chords){
+  const m = state.metro, b = state.backing, list = chords || loop.chords;
+  const lens = list.map(ch => Math.max(1, Math.round((ch.bars || b.bpc) * m.beats))), total = lens.reduce((a, x) => a + x, 0);
+  let pos = (barIn * m.beats + beatNo) % total, k = 0;
+  while (pos >= lens[k]) { pos -= lens[k]; k++; }
+  return {k, pos, len:lens[k]};
+}
 /* called from the metronome scheduler for every tick while the loop runs */
 function loopTick(c, when){
   if (!loop.on || !loop.chords.length || !c.isBeat) return;
   const m = state.metro, b = state.backing, spb = 60 / m.bpm;
-  const barIn = c.bar - loop.bar0, k = Math.floor(barIn / b.bpc) % loop.chords.length, v = loop.voices[k];
-  const chordStart = c.barStart && barIn % b.bpc === 0;
+  if (c.bar < loop.bar0) return;
+  const {k, pos, len} = loopSlot(c.bar - loop.bar0, c.beatNo), lens = {[k]:len};
+  const v = loop.voices[k], chordStart = pos === 0;
   if (chordStart) {
     const delay = Math.max(0, (when - ac.currentTime) * 1000);
     setTimeout(() => { if (!loop.on) return; loop.idx = k; if (b.follow) loopShowChord(k); else render(); }, delay);
   }
   const vol = 0.3 * b.vol;
-  if (b.pattern === 'pad') { if (chordStart) padChord(v.midis, when, spb * m.beats * b.bpc); }
-  else if (b.pattern === 'quarters' || c.barStart) {
+  if (b.pattern === 'pad') { if (chordStart) padChord(v.midis, when, spb * lens[k]); }
+  else if (b.pattern === 'quarters' || c.barStart || chordStart) {
     const accent = c.beatNo === 0 ? 1 : 0.7;
     v.midis.slice().sort((x, y) => x - y).forEach((mm, j) => pluckAt(mm, when + j * 0.018, vol * accent));
   }
@@ -2550,7 +2755,7 @@ function loopShowChord(k){
 }
 function loopStart(){
   const chords = backingChords();
-  if (!chords.length) { toast(state.backing.source === 'pins' ? 'Pin some chords first: the loop plays your Pinboard in order.' : 'That progression has no chords.'); return; }
+  if (!chords.length) { toast(state.backing.source === 'pins' ? 'Pin some chords first: the loop plays your Pinboard in order.' : state.backing.source === 'lane' ? 'The Looper is empty. Add chords on the Pinboard tab.' : 'That progression has no chords.'); return; }
   loop.chords = chords; loop.voices = chords.map(voiceChord); loop.idx = -1; loop.on = true;
   if (!metro.on) { metroStart(); metro.loopOwned = true; loop.bar0 = 0; }
   else loop.bar0 = Math.ceil(metro.tick / (state.metro.sub * state.metro.beats));
@@ -3396,16 +3601,16 @@ function renderPractice(){
   const chordsNow = backingChords();
   const playCard = `<div class="card">
     <div class="row" style="justify-content:space-between"><b>Play along</b><span class="info">Uses the metronome tempo (${state.metro.bpm} bpm)</span></div>
-    <div class="row"><span class="rl">Loop</span><div class="seg"><button type="button" data-act="bsrc" data-v="prog" aria-pressed="${B.source === 'prog'}">Progression</button><button type="button" data-act="bsrc" data-v="pins" aria-pressed="${B.source === 'pins'}">My Pinboard</button></div></div>
+    <div class="row"><span class="rl">Loop</span><div class="seg"><button type="button" data-act="bsrc" data-v="prog" aria-pressed="${B.source === 'prog'}">Progression</button><button type="button" data-act="bsrc" data-v="pins" aria-pressed="${B.source === 'pins'}">My Pinboard</button><button type="button" data-act="bsrc" data-v="lane" aria-pressed="${B.source === 'lane'}">Looper</button></div></div>
     ${B.source === 'prog' ? `<div class="row">
       <select class="sel" id="bKey" data-act="bkey" aria-label="Key">${[0,1,2,3,4,5,6,7,8,9,10,11].map(pc => `<option value="${pc}"${B.key === pc ? ' selected' : ''}>${keyName(pc)}</option>`).join('')}</select>
       <div class="seg"><button type="button" data-act="bmode" data-v="0" aria-pressed="${!B.minor}">Major</button><button type="button" data-act="bmode" data-v="1" aria-pressed="${B.minor}">Minor</button></div>
       <select class="sel" id="bProg" data-act="bprog" aria-label="Progression">${PROG_LIST[B.minor ? 'minor' : 'major'].map(([n], k) => `<option value="${k}"${B.prog === k ? ' selected' : ''}>${n}</option>`).join('')}</select>
       <div class="seg">${[['tri', 'Triads'], ['sev', '7ths'], ['color', 'Colorful']].map(([v, t]) => `<button type="button" data-act="b7" data-v="${v}" aria-pressed="${backingStyle() === v}">${t}</button>`).join('')}</div></div>` : ''}
-    <div class="row loop-chords">${chordsNow.length ? chordsNow.map((c, k) => `<span class="lc${loop.on && loop.idx === k ? ' on' : ''}">${c.name}</span>`).join('<span class="info">→</span>') : '<span class="info">Your Pinboard is empty. Pin chords to loop them.</span>'}</div>
+    <div class="row loop-chords">${chordsNow.length ? chordsNow.map((c, k) => `<span class="lc${loop.on && loop.idx === k ? ' on' : ''}">${c.name}</span>`).join('<span class="info">→</span>') : `<span class="info">${B.source === 'lane' ? 'The Looper is empty. Build one on the Pinboard tab.' : 'Your Pinboard is empty. Pin chords to loop them.'}</span>`}</div>
     <div class="row"><span class="rl">Feel</span>
       <div class="seg">${[['strum1','Strum on 1'], ['quarters','Every beat'], ['pad','Sustained']].map(([v, t]) => `<button type="button" data-act="bpat" data-v="${v}" aria-pressed="${B.pattern === v}">${t}</button>`).join('')}</div>
-      <div class="seg">${[1, 2, 4].map(n => `<button type="button" data-act="bbpc" data-v="${n}" aria-pressed="${B.bpc === n}">${n} bar${n > 1 ? 's' : ''} each</button>`).join('')}</div></div>
+      ${B.source === 'lane' ? '<span class="info">Chord lengths come from the Looper.</span>' : ''}<div class="seg"${B.source === 'lane' ? ' hidden' : ''}>${[1, 2, 4].map(n => `<button type="button" data-act="bbpc" data-v="${n}" aria-pressed="${B.bpc === n}">${n} bar${n > 1 ? 's' : ''} each</button>`).join('')}</div></div>
     <div class="row"><label class="chk"><input type="checkbox" id="bDrums" data-act="bdrums"${B.drums ? ' checked' : ''}> Drums</label>
       <label class="chk"><input type="checkbox" id="bClick" data-act="bclick"${B.click ? ' checked' : ''}> Click too</label>
       <label class="chk"><input type="checkbox" id="bFollow" data-act="bfollow"${B.follow ? ' checked' : ''}> Show each chord on the neck</label></div>
@@ -3706,8 +3911,74 @@ panel.addEventListener('input', e => {
   else if (el.dataset.act === 'dvol') { state.drone.vol = +el.value; droneVolume(); save(); }
 });
 panel.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'newTask') { e.preventDefault(); handlePractice('iaddtask', e.target); } });
+/* Looper chord search: update the results only, so the box keeps focus while typing; Enter adds the top match */
+panel.addEventListener('input', e => { if (e.target.id !== 'laneFind') return; state.laneQ = e.target.value; const f = $('#laneFound'); if (f) f.innerHTML = foundHtml(state.laneQ); });
+panel.addEventListener('keydown', e => {
+  if (e.target.id !== 'laneFind' || e.key !== 'Enter') return;
+  e.preventDefault(); const hit = findChords(state.laneQ)[0];
+  if (hit && laneAdd([hit])) { strumMidis(chordMidis(hit.root, hit.type), .035, true); state.laneQ = ''; render(); const i = $('#laneFind'); if (i) i.focus(); }
+});
+/* drag and drop into the Looper, with pointer events so it works with a finger as well as a mouse.
+   Sources: [data-drag] = "lane:<index>" (reorder), "pin:<id>", "chord:<root>:<type>". The lane is the drop target. */
+let drag = null, eatClick = false;
+function dropAt(x, y){
+  document.querySelectorAll('.lane .drop-before, .lane.drop-end, .lane.drop-over').forEach(el => el.classList.remove('drop-before', 'drop-end', 'drop-over'));
+  const el = document.elementFromPoint(x, y), lane = el && el.closest('.lane');
+  if (!lane) return null;
+  lane.classList.add('drop-over');
+  const slots = [...lane.querySelectorAll('.slot')];
+  let idx = slots.findIndex(s => { const r = s.getBoundingClientRect(); return y < r.top || (y <= r.bottom && x < r.left + r.width / 2); });
+  if (idx < 0) { idx = slots.length; lane.classList.add('drop-end'); } else slots[idx].classList.add('drop-before');
+  return idx;
+}
+function dragCleanup(){
+  if (!drag) return;
+  if (drag.ghost) drag.ghost.remove();
+  if (drag.src) drag.src.classList.remove('dragging');
+  document.body.classList.remove('is-dragging');
+  dropAt(-1, -1);
+}
+panel.addEventListener('pointerdown', e => {
+  const src = e.target.closest('[data-drag]'); if (!src || e.button > 0) return;
+  if (e.target.closest('.slot-acts')) return;               // the length and ✕ buttons are just buttons
+  drag = {src, kind:src.dataset.drag, x:e.clientX, y:e.clientY, on:false, id:e.pointerId};
+});
+document.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  if (!drag.on) {
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return;
+    const r = drag.src.getBoundingClientRect(), g = drag.src.cloneNode(true);
+    g.classList.add('drag-ghost'); g.removeAttribute('data-drag'); Object.assign(g.style, {left:r.left + 'px', top:r.top + 'px', width:r.width + 'px'});
+    document.body.appendChild(g); drag.ghost = g; drag.on = true;
+    drag.src.classList.add('dragging'); document.body.classList.add('is-dragging');
+  }
+  e.preventDefault();
+  drag.ghost.style.transform = `translate(${e.clientX - drag.x}px, ${e.clientY - drag.y}px) rotate(-2deg)`;
+  drag.idx = dropAt(e.clientX, e.clientY);
+}, {passive:false});
+document.addEventListener('pointerup', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag; dragCleanup(); drag = null;
+  if (!d.on) return;
+  eatClick = true; setTimeout(() => { eatClick = false; }, 0);   // the browser's click for this pointerup comes before this timer
+  if (d.idx == null) return;                                // dropped outside the lane: nothing changes
+  const [kind, a, b] = d.kind.split(':');
+  if (kind === 'lane') {
+    const from = +a; let to = d.idx; if (from < to) to--;
+    if (from !== to) { const [it] = state.lane.splice(from, 1); state.lane.splice(to, 0, it); refreshLoop(); }
+  } else if (kind === 'pin') {
+    const p = state.pins.find(z => z.id === +a); if (p) laneAdd([pinToLane(p)], d.idx);
+  } else if (kind === 'chord') {
+    const r = +a, hit = findChords(state.laneQ).find(c => c.root === r && c.type === b);
+    if (laneAdd([hit || {root:r, type:b, name:chordName(r, b)}], d.idx)) strumMidis(chordMidis(r, b), .035, true);
+  }
+  render();
+});
+document.addEventListener('pointercancel', () => { dragCleanup(); drag = null; });
+// a drag ends with a click on whatever it started on; swallow that one
+document.addEventListener('click', e => { if (eatClick) { eatClick = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
@@ -3832,7 +4103,11 @@ function setSound(on){
 }
 $('#setSound').addEventListener('change', e => setSound(e.target.checked));
 $('#soundBtn').addEventListener('click', () => setSound(!state.sound));
-document.addEventListener('click', e => { const m = $('#menu'); if (m.open && !m.contains(e.target)) m.open = false; });
+document.addEventListener('click', e => { ['#menu', '#savesMenu'].forEach(id => { const m = $(id); if (m.open && !m.contains(e.target)) m.open = false; }); });
+$('#savesMenu').addEventListener('toggle', () => { if ($('#savesMenu').open) { $('#menu').open = false; saveDelArmed = null; renderSaves(); } });
+$('#menu').addEventListener('toggle', () => { if ($('#menu').open) $('#savesMenu').open = false; });
+$('#savesPop').addEventListener('click', e => { const b = e.target.closest('[data-sact]'); if (b) saveAction(b.dataset.sact, +b.dataset.id); });
+$('#savesPop').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'saveName') { e.preventDefault(); saveAction('save'); } });
 
 panel.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b || b.tagName === 'SELECT' || b.tagName === 'INPUT') return;
@@ -3965,6 +4240,20 @@ panel.addEventListener('click', e => {
     case 'pinlayer': if (pinFromChord(L.root, L.type)) toast(`Pinned ${chordName(L.root, L.type)}`); break;
     case 'pinshape': if (pinFromPicks()) toast(`Pinned ${state.pins[state.pins.length - 1].name}`); break;
     case 'pinex': [[7,'maj'],[2,'maj'],[4,'min'],[0,'maj']].forEach(([r, t]) => pinFromChord(r, t)); break;
+    case 'laneadd': { const r = +b.dataset.r, t = b.dataset.t, hit = findChords(state.laneQ).find(c => c.root === r && c.type === t); if (laneAdd([hit || {root:r, type:t, name:chordName(r, t)}])) strumMidis(chordMidis(r, t), .035, true); break; }
+    case 'lanedel': state.lane.splice(+b.dataset.k, 1); if (!state.lane.length && loop.on && state.backing.source === 'lane') loopStop(); else refreshLoop(); break;
+    case 'lanebars': { const it = state.lane[+b.dataset.k]; if (it) { it.bars = it.bars === 1 || it.bars == null ? 2 : it.bars === 2 ? 0.5 : 1; refreshLoop(); } break; }
+    case 'laneshow': { const it = state.lane[+b.dataset.k]; if (it) { strumMidis(it.shape && (it.tuning || 'std') === state.tuning ? it.shape.map(q => TUNINGS[state.tuning].midi[q.s] + q.f) : chordMidis(it.root, it.type), .035, true); loadMain('chord', it.root, it.type); } return; }
+    case 'laneplay':
+      if (loop.on && state.backing.source === 'lane') loopStop();
+      else { if (loop.on) loopStop(); state.backing.source = 'lane'; loopStart(); }
+      return;
+    case 'laneclear':
+      if (!laneClearArmed) { laneClearArmed = true; setTimeout(() => { laneClearArmed = false; if (state.tab === 'pins') render(); }, 3000); break; }
+      laneClearArmed = false; state.lane = []; if (loop.on && state.backing.source === 'lane') loopStop(); break;
+    case 'pinlane1': { const p = state.pins.find(z => z.id === +b.dataset.id); if (p && laneAdd([pinToLane(p)])) toast(`Added ${p.name} to the Looper`); break; }
+    case 'pinlane': { const n = laneAdd(state.pins.filter(p => p.type).map(pinToLane)); if (n) toast(`Added ${n} chord${n > 1 ? 's' : ''} to the Looper`); break; }
+    case 'proglane': { const ch = progCache[+b.dataset.p] || [], n = laneAdd(ch.map(c => ({root:c.root, type:c.type, name:pn(c.name) + CHORDS[c.type].sym}))); if (n) toast(`Added ${ch.slice(0, n).map(c => pn(c.name) + CHORDS[c.type].sym).join(' – ')} to the Looper (Pinboard tab)`); break; }
     case 'pinshow': { const p = state.pins.find(z => z.id === +b.dataset.id); if (p) { strumMidis(pinMidis(p)); showPin(p); } return; }
     case 'pinplay': { const p = state.pins.find(z => z.id === +b.dataset.id); if (p) strumMidis(pinMidis(p), .035, true); return; }
     case 'pinplayall': state.pins.forEach((p, k) => pinMidis(p).slice().sort((a, c) => a - c).forEach((m, j) => pluck(m, k * 0.9 + j * 0.03, true))); return;
@@ -4032,6 +4321,7 @@ panel.addEventListener('change', e => {
 });
 
 render();
+openLinkedSetup();
 refreshMicPerm();
 })();
 </script>
