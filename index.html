@@ -1101,19 +1101,23 @@ function warnIfBlocked(){
 function makeBuf(midi){
   let buf = bufCache[midi];
   if (buf) return buf;
-  const sr = ac.sampleRate, f = 440 * Math.pow(2, (midi - 69) / 12), N = Math.max(2, Math.round(sr / f)), len = Math.floor(sr * 1.8);
+  // the string loop is N samples plus half a sample from the averaging filter, so it rings at sr / (N + 0.5).
+  // N has to be whole, which leaves every note a little flat or sharp (up to ~40 cents up high, and octaves that beat);
+  // buf.rate is the playback rate that puts it exactly on pitch.
+  const sr = ac.sampleRate, f = 440 * Math.pow(2, (midi - 69) / 12), N = Math.max(2, Math.round(sr / f - 0.5)), len = Math.floor(sr * 1.8);
   buf = ac.createBuffer(1, len, sr); const d = buf.getChannelData(0);
   let prev = 0; for (let i = 0; i < N; i++) { const r = Math.random() * 2 - 1; d[i] = (r + prev) * .5; prev = r; }
   for (let i = N; i < len; i++) d[i] = 0.996 * 0.5 * (d[i - N] + (i - N - 1 >= 0 ? d[i - N - 1] : 0));
   // short fade-in removes the click at the start of each note
   for (let i = 0; i < 64 && i < len; i++) d[i] *= i / 64;
+  buf.rate = f * (N + 0.5) / sr;
   return (bufCache[midi] = buf);
 }
 /* a plucked note at an exact audio-clock time (used by the backing loop) */
 function pluckAt(midi, when, gain = 0.32){
   const a = getAudio(); if (!a) return;
   const src = a.createBufferSource(), g = a.createGain();
-  src.buffer = makeBuf(midi); g.gain.value = gain; src.connect(g); g.connect(master);
+  src.buffer = makeBuf(midi); src.playbackRate.value = src.buffer.rate; g.gain.value = gain; src.connect(g); g.connect(master);
   src.start(Math.max(when, a.currentTime));
 }
 function pluck(midi, delay = 0, force){
@@ -1122,7 +1126,7 @@ function pluck(midi, delay = 0, force){
     const a = getAudio(); if (!a) return;
     const play = () => {
       const src = a.createBufferSource(), g = a.createGain();
-      src.buffer = makeBuf(midi); g.gain.value = 0.32; src.connect(g); g.connect(master);
+      src.buffer = makeBuf(midi); src.playbackRate.value = src.buffer.rate; g.gain.value = 0.32; src.connect(g); g.connect(master);
       src.start(a.currentTime + delay + 0.005);
     };
     // never queue notes on a suspended context: they would all fire at once when it wakes up
@@ -1164,7 +1168,7 @@ function scalePlayStart(L){
     run.forEach((n, k) => {
       const when = t0 + k * dt, src = a.createBufferSource(), g = a.createGain();
       let stopAt = 0;
-      src.buffer = makeBuf(n.m); src.connect(g);
+      src.buffer = makeBuf(n.m); src.playbackRate.value = src.buffer.rate; src.connect(g);
       if (tone === 'ring') { g.gain.value = 0.32; g.connect(master); }
       else if (tone === 'stacc') {
         // staccato: full tone, cut off about three quarters of the way to the next note, with a soft release
@@ -2802,7 +2806,7 @@ function droneStart(){
   lp.connect(g); g.connect(a.destination);
   const base = 36 + mod(d.root - 0);                       // C2..B2
   const notes = [base, base + 12].concat(d.fifth ? [base + 7, base + 19] : []);
-  notes.forEach((m, k) => [-4, 4].forEach(cents => {
+  notes.forEach((m, k) => [-2, 2].forEach(cents => {      // a gentle chorus, centred on the exact pitch
     const o = a.createOscillator(), og = a.createGain();
     o.type = k % 2 ? 'triangle' : 'sawtooth'; o.frequency.value = 440 * Math.pow(2, (m - 69 + cents / 100) / 12);
     og.gain.value = (m >= base + 12 ? 0.12 : 0.2) / notes.length; o.connect(og); og.connect(lp); o.start();
@@ -4022,7 +4026,7 @@ document.addEventListener('pointercancel', () => { dragCleanup(); drag = null; }
 // a drag ends with a click on whatever it started on; swallow that one
 document.addEventListener('click', e => { if (eatClick) { eatClick = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
