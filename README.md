@@ -6,7 +6,7 @@ A guitar neck reference that runs in the browser. It needs no build step or serv
 
 - Full 24-fret neck. It's laid out for a phone held sideways and can be added to your home screen. Sideways on a phone, the neck fills the screen and the menus open as a sidebar over part of it, or full screen.
 - Tap a note to set the root and light up every note with the same name.
-- Layers for intervals, 35 chord types, the seven modes, pentatonic and blues scales, Japanese/Egyptian/Balinese pentatonics, the modes of melodic and harmonic minor, harmonic major and other exotic scales (double harmonic, Hungarian, Neapolitan, Persian, enigmatic), bebop, augmented and other symmetric scales, or any notes you pick.
+- Layers for intervals, 66 chord types (including altered dominants, ♯11 and sus♭9 chords and other colors for exotic scales), the seven modes, pentatonic and blues scales, Japanese/Egyptian/Balinese pentatonics, the modes of melodic and harmonic minor, harmonic major and other exotic scales (double harmonic, Hungarian, Neapolitan, Persian, enigmatic), bebop, augmented and other symmetric scales, or any notes you pick.
 - Dots are colored by interval: root red, 3rds yellow/orange, 5th blue, 7ths violet. Each scale degree also has its own shape (root square, 2nd triangle, 3rd circle, 4th pentagon, 5th diamond, 6th down-triangle, 7th hexagon). A toggle switches to coloring by layer.
 - Chord positions: pick where the root sits (e.g. 5th string, fret 3) and the neck focuses on a playable voicing there, with a chord diagram, its frets written out, playback and pinning.
 - Arpeggios on scale layers (maj, m, 7, maj7, m7, m7b5, dim7 and more) in the five CAGED shapes, as the full chord-tone shape or a six-string sweep, with playback.

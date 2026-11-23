@@ -716,10 +716,29 @@ const CHORD_LIST = [
     ['add11','add11','Added 11th',['1','3','5','11']], ['11','11','Dominant 11th',['1','3','5','b7','9','11']],
     ['m11','m11','Minor 11th',['1','b3','5','b7','9','11']], ['7s11','7♯11','Dominant 7th sharp 11',['1','3','5','b7','#11']],
     ['M7s11','maj7♯11','Major 7th sharp 11',['1','3','5','7','#11']], ['13','13','Dominant 13th',['1','3','5','b7','9','13']],
-    ['maj13','maj13','Major 13th',['1','3','5','7','9','13']], ['m13','m13','Minor 13th',['1','b3','5','b7','9','13']]]]
+    ['maj13','maj13','Major 13th',['1','3','5','7','9','13']], ['m13','m13','Minor 13th',['1','b3','5','b7','9','13']]]],
+  // for the melodic-minor modes, harmonic major and the exotic scales
+  ['Altered & exotic', [
+    ['9s11','9♯11','Dominant 9th sharp 11',['1','3','5','b7','9','#11']], ['13s11','13♯11','Dominant 13th sharp 11',['1','3','5','b7','9','#11','13']],
+    ['9b5','9♭5','Dominant 9th flat 5',['1','3','b5','b7','9']], ['9s5','9♯5','Augmented 9th',['1','3','#5','b7','9']],
+    ['7b13','7♭13','Dominant 7th flat 13',['1','3','5','b7','b13']], ['13b9','13♭9','Dominant 13th flat 9',['1','3','5','b7','b9','13']],
+    ['7b9b13','7♭9♭13','Dominant 7th flat 9 flat 13',['1','3','5','b7','b9','b13']], ['7s9b13','7♯9♭13','Dominant 7th sharp 9 flat 13',['1','3','5','b7','#9','b13']],
+    ['7b9s11','7♭9♯11','Dominant 7th flat 9 sharp 11',['1','3','5','b7','b9','#11']], ['7b5b9','7♭5♭9','Dominant 7th flat 5 flat 9',['1','3','b5','b7','b9']],
+    ['7s5b9','7♯5♭9','Dominant 7th sharp 5 flat 9',['1','3','#5','b7','b9']], ['7s5s9','7♯5♯9','Dominant 7th sharp 5 sharp 9',['1','3','#5','b7','#9']],
+    ['7alt','7alt','Altered dominant (3 ♭7 ♯9 ♭13)',['1','3','b7','#9','b13']],
+    ['9sus4','9sus4','Dominant 9th sus4',['1','4','5','b7','9']], ['13sus4','13sus4','Dominant 13th sus4',['1','4','5','b7','9','13']],
+    ['7sus4b9','7sus4♭9','Phrygian sus (7sus4 flat 9)',['1','4','5','b7','b9']],
+    ['maj9s11','maj9♯11','Major 9th sharp 11 (Lydian)',['1','3','5','7','9','#11']], ['maj13s11','maj13♯11','Major 13th sharp 11',['1','3','5','7','9','#11','13']],
+    ['6s11','6♯11','Major 6th sharp 11',['1','3','5','6','#11']], ['maj9s5','maj9♯5','Augmented major 9th',['1','3','#5','7','9']],
+    ['maj7b5','maj7♭5','Major 7th flat 5',['1','3','b5','7']], ['maj7b9','maj7♭9','Major 7th flat 9',['1','3','5','7','b9']],
+    ['m69','m6/9','Minor six-nine',['1','b3','5','6','9']], ['mM9','m(maj9)','Minor-major 9th',['1','b3','5','7','9']],
+    ['m7b9','m7♭9','Minor 7th flat 9 (Phrygian)',['1','b3','5','b7','b9']], ['mb6','m(♭6)','Minor added flat 6th',['1','b3','5','b6']],
+    ['m9b5','m9♭5','Half-diminished 9th',['1','b3','b5','b7','9']], ['m11b5','m11♭5','Half-diminished 11th',['1','b3','b5','b7','11']],
+    ['dimM7','dim(maj7)','Diminished major 7th',['1','b3','b5','7']],
+    ['susb2','sus♭2','Suspended flat 2nd',['1','b2','5']], ['suss4','sus♯4','Suspended sharp 4th (Lydian)',['1','#4','5']]]]
 ];
 const CHORDS = {}; const CHORD_ORDER = [];
-CHORD_LIST.forEach(([, list]) => list.forEach(([id, sym, name, labels]) => { CHORDS[id] = {id, sym, name, labels}; CHORD_ORDER.push(id); }));
+CHORD_LIST.forEach(([g, list]) => list.forEach(([id, sym, name, labels]) => { CHORDS[id] = {id, sym, name, labels, rare:g === 'Altered & exotic'}; CHORD_ORDER.push(id); }));
 const QUICK_CHORDS = ['maj','min','7','maj7','m7','dim','sus4','m7b5'];
 /* arpeggios: a chord's tones laid out like a scale, so they get positions, patterns and playback */
 const ARP_TYPES = ['maj','min','7','maj7','m7','m7b5','dim7','dim','aug','mM7','6','m6','9','maj9','m9'];
@@ -1062,10 +1081,10 @@ function identify(pcs, bass){
         if (t.length === rel.size && t.every(x => rel.has(x))) found = omit;
       }
       if (found) {
-        out.push(makeCand(r, id, bass, found, 100 - 6 * found.length - c.labels.length + (r === bass ? 12 : 0)));
+        out.push(makeCand(r, id, bass, found, 100 - 6 * found.length - c.labels.length + (r === bass ? 12 : 0) - (c.rare ? 16 : 0)));   // rare names never headline over a common one
       } else if (rel.size >= 2 && c.labels.length >= 3 && tset.size - rel.size === 1 && [...rel].every(x => tset.has(x))) {
         const missing = c.labels.find(l => !rel.has(semi(l)));
-        near.push(Object.assign(makeCand(r, id, bass, [], 50 - c.labels.length + (r === bass ? 8 : 0)), {missing}));
+        near.push(Object.assign(makeCand(r, id, bass, [], 50 - c.labels.length + (r === bass ? 8 : 0) - (c.rare ? 16 : 0)), {missing}));
       }
     }
   }
