@@ -143,6 +143,13 @@ h2,h3{margin:0; text-wrap:balance}
 .voicing{display:flex; gap:14px; align-items:center; flex-wrap:wrap; background:var(--surface-2); border-radius:12px; padding:10px 12px}
 .voicing .diag{width:84px}
 .vinfo{display:grid; gap:6px; min-width:0}
+.splay{display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px}
+.splay .sp-tempo{display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--muted)}
+.splay .sp-tempo b{color:var(--ink); font-size:16px; font-variant-numeric:tabular-nums; min-width:2.2em; text-align:center}
+.splay .seg button{padding:5px 9px}
+.splay .hint{flex-basis:100%; font-size:12px; color:var(--muted)}
+/* the note being played lights up */
+.cell.playing .dot{transform:scale(1.3); filter:drop-shadow(0 0 5px #fff) drop-shadow(0 0 2px #fff); transition:transform .05s}
 .tabtxt{font-variant-numeric:tabular-nums; letter-spacing:.12em; font-weight:750; font-size:16px}
 .chip:disabled{opacity:.35; cursor:default}
 .dot.ring2 .shp .o{stroke:var(--c2); stroke-width:22; stroke-linejoin:round}
@@ -722,6 +729,7 @@ const DEF = {
   layers:[{id:1, kind:'scale', root:9, type:'dorian', hidden:[], notes:[], visible:true, color:0}],
   picks:[], tap:null, circle:{i:0, minor:false, sevenths:false, pin:false}, nextId:2,
   pins:[], nextPin:1, pinView:null,
+  playCfg:{bpm:90, per:4, dir:'up', loop:false},     // playing a scale or arpeggio: tempo, notes per beat, direction
   metro:{bpm:80, beats:4, sub:1, accent:true, vol:0.8, clickMode:'all',
     gap:{on:false, play:2, rest:2}, ladder:{on:false, step:5, bars:4, max:140}},
   quizCfg:{type:'find-note', range:'0-12', pool:'core', length:'q10'},
@@ -912,6 +920,76 @@ function pluck(midi, delay = 0, force){
     if (a.state === 'running') play();
     else { a.resume().then(() => { if (a.state === 'running') play(); }).catch(() => {}); warnIfBlocked(); }
   } catch (e) {}
+}
+/* ---- playing a scale or arpeggio position: at a set tempo, up or up-and-down, once or looped, lighting each note ---- */
+const sp = {on:false, layerId:null, srcs:[], events:[], timer:0, raf:0, lit:null};
+const PER_NAMES = {1:'quarter notes', 2:'8ths', 3:'triplets', 4:'16ths'};
+function scaleRun(L){
+  const fp = scalePosFor(L); if (!fp) return [];
+  const tun = TUNINGS[state.tuning].midi, seen = new Set(), up = [];
+  fp.shape.map(q => ({s:q.s, f:q.f, m:tun[q.s] + q.f})).sort((a, b) => a.m - b.m || a.s - b.s)
+    .forEach(n => { if (!seen.has(n.m)) { seen.add(n.m); up.push(n); } });
+  if (state.playCfg.dir !== 'updown' || up.length < 2) return up;
+  const down = up.slice().reverse().slice(1);                // back down from the top
+  return up.concat(state.playCfg.loop ? down.slice(0, -1) : down);   // looping: the next pass starts on the bottom note
+}
+function scalePlayStop(quiet){
+  clearTimeout(sp.timer); cancelAnimationFrame(sp.raf);
+  sp.srcs.forEach(s => { try { s.stop(); } catch (e) {} });
+  Object.assign(sp, {on:false, layerId:null, srcs:[], events:[]});
+  if (sp.lit) { sp.lit.classList.remove('playing'); sp.lit = null; }
+  if (!quiet) render();
+}
+function scalePlayStart(L){
+  scalePlayStop(true);
+  const a = getAudio(); if (!a) return;
+  if (a.state !== 'running') a.resume().catch(() => {});
+  Object.assign(sp, {on:true, layerId:L.id});
+  const cycle = t0 => {
+    const lay = state.layers.find(x => x.id === sp.layerId);
+    const run = lay && lay.pos ? scaleRun(lay) : [];
+    if (!sp.on || !run.length) { scalePlayStop(); return; }
+    const dt = 60 / state.playCfg.bpm / state.playCfg.per;
+    run.forEach((n, k) => {
+      const when = t0 + k * dt, src = a.createBufferSource(), g = a.createGain();
+      src.buffer = makeBuf(n.m); g.gain.value = 0.32; src.connect(g); g.connect(master); src.start(when);
+      sp.srcs.push(src); sp.events.push({t:when, s:n.s, f:n.f});
+    });
+    const end = t0 + run.length * dt;
+    sp.srcs = sp.srcs.slice(-200); sp.events = sp.events.filter(e => e.t > a.currentTime - 1);
+    // queue the next pass shortly before this one ends, or finish
+    sp.timer = setTimeout(() => { if (!sp.on) return; if (state.playCfg.loop) cycle(end); else sp.timer = setTimeout(() => scalePlayStop(), 400); }, Math.max(0, (end - a.currentTime - 0.25) * 1000));
+  };
+  cycle(a.currentTime + 0.06);
+  // light up the note being played
+  const paint = () => {
+    if (!sp.on) return;
+    const now = a.currentTime; let cur = null;
+    for (const e of sp.events) if (e.t <= now + 0.01) cur = e;
+    const el = cur ? document.querySelector(`.cell[data-s="${cur.s}"][data-f="${cur.f}"]`) : null;
+    if (el !== sp.lit) { if (sp.lit) sp.lit.classList.remove('playing'); if (el) el.classList.add('playing'); sp.lit = el; }
+    else if (el && !el.classList.contains('playing')) el.classList.add('playing');   // the neck was redrawn
+    sp.raf = requestAnimationFrame(paint);
+  };
+  sp.raf = requestAnimationFrame(paint);
+  render();
+}
+/* changing speed, note value or direction while playing: start again from the bottom with the new settings */
+function scalePlayRestart(){ if (!sp.on) return; const L = state.layers.find(x => x.id === sp.layerId); if (L) scalePlayStart(L); }
+function scalePlayHtml(i, L, arp){
+  const c = state.playCfg, on = sp.on && sp.layerId === L.id;
+  const nps = (c.bpm * c.per / 60).toFixed(1).replace(/\.0$/, '');
+  return `<div class="splay">
+    <button type="button" class="btn${on ? ' primary' : ''}" data-act="splay" data-i="${i}" aria-pressed="${on}">${on ? '■ Stop' : `▶ Play the ${arp ? 'arpeggio' : 'scale'}`}</button>
+    <span class="sp-tempo"><button type="button" class="ib" data-act="spbpm" data-i="${i}" data-v="-5" aria-label="5 bpm slower">−5</button>
+      <b>${c.bpm}</b> bpm
+      <button type="button" class="ib" data-act="spbpm" data-i="${i}" data-v="5" aria-label="5 bpm faster">+5</button></span>
+    <div class="seg" aria-label="Note value">${[1, 2, 3, 4].map(p => `<button type="button" data-act="spper" data-i="${i}" data-v="${p}" aria-pressed="${c.per === p}" title="${PER_NAMES[p]}">${['♩', '♪', '3', '16'][p - 1]}</button>`).join('')}</div>
+    <div class="seg" aria-label="Direction"><button type="button" data-act="spdir" data-i="${i}" data-v="up" aria-pressed="${c.dir !== 'updown'}">Up</button><button type="button" data-act="spdir" data-i="${i}" data-v="updown" aria-pressed="${c.dir === 'updown'}">Up &amp; down</button></div>
+    <button type="button" class="chip${c.loop ? ' sel' : ''}" data-act="sploop" data-i="${i}" aria-pressed="${c.loop}">↻ Loop</button>
+    <button type="button" class="chip" data-act="spmetro" data-i="${i}" title="Use the metronome's tempo">= metronome (${state.metro.bpm})</button>
+    <span class="hint">${PER_NAMES[c.per]} at ${c.bpm} bpm · ${nps} notes a second</span>
+  </div>`;
 }
 function strumMidis(midis, gap = .035, force){ midis.slice().sort((a, b) => a - b).forEach((m, k) => pluck(m, k * gap, force)); }
 function chordMidis(rootPc, type){ const base = 48 + mod(rootPc); return CHORDS[type].labels.map(l => base + lab(l).semi); }
@@ -1273,7 +1351,8 @@ function layerCard(L, i){
             <div class="row"><div class="seg">
               <button type="button" data-act="sstyle" data-i="${i}" data-v="box" aria-pressed="${L.pos.style !== 'nps'}">${arp ? 'Shape (all chord tones)' : 'Box'}</button>
               <button type="button" data-act="sstyle" data-i="${i}" data-v="nps" aria-pressed="${L.pos.style === 'nps'}">${arp ? 'Sweep' : per + ' notes per string'}</button></div>
-              <button type="button" class="btn" data-act="splay" data-i="${i}">▶ Play up the ${arp ? 'arpeggio' : 'scale'}</button></div>
+              </div>
+            ${scalePlayHtml(i, L, arp)}
             <span class="info">${where} · frets ${fp.lo}–${fp.hi} · ${fp.shape.length} notes. ${arp ? 'Tap a root on the 6th, 5th or 4th string to move the shape there.' :'Tap a scale note on the low E string to move here.'}</span>
           </div></div>`;
       }
@@ -3603,12 +3682,12 @@ panel.addEventListener('click', e => {
       L.pos = Object.assign({s:ps[k].s || 0, f:ps[k].f, style:(L.pos && L.pos.style) || 'box'}, ps[k].d ? {d:ps[k].d} : {}); setAnchor(L); state.tap = null; break;
     }
     case 'sstyle': if (L.pos) { L.pos = Object.assign({}, L.pos, {style:v}); setAnchor(L); } break;
-    case 'splay': {
-      const fp = scalePosFor(L); if (!fp) return;
-      const tun = TUNINGS[state.tuning].midi;
-      [...new Set(fp.shape.map(q => tun[q.s] + q.f))].sort((a, c) => a - c).forEach((m, k) => pluck(m, k * 0.16));
-      return;
-    }
+    case 'splay': if (sp.on && sp.layerId === L.id) scalePlayStop(); else if (L.pos) scalePlayStart(L); return;
+    case 'spbpm': state.playCfg.bpm = Math.max(30, Math.min(300, state.playCfg.bpm + +v)); scalePlayRestart(); break;
+    case 'spper': state.playCfg.per = +v; scalePlayRestart(); break;
+    case 'spdir': state.playCfg.dir = v; scalePlayRestart(); break;
+    case 'sploop': state.playCfg.loop = !state.playCfg.loop; if (sp.on && !state.playCfg.loop) { /* finishes this pass */ } break;
+    case 'spmetro': state.playCfg.bpm = state.metro.bpm; scalePlayRestart(); break;
     case 'vplay': { const vv = voicingFor(L); if (vv && vv.shape) strumMidis(vv.shape.map(q => TUNINGS[state.tuning].midi[q.s] + q.f)); return; }
     case 'vpin': {
       const vv = voicingFor(L); if (!vv || !vv.shape) return;
