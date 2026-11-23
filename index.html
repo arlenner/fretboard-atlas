@@ -281,6 +281,8 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
 .tview.ok .tmeter i{background:var(--ok)}
 .tview.ok .tnote{color:var(--ok)}
 .tview.idle .tnote{opacity:.35}
+.tlevel{width:100%; max-width:360px; height:6px; border-radius:3px; background:var(--line); overflow:hidden; margin-top:4px}
+.tlevel i{display:block; height:100%; background:var(--ok); transition:width .08s linear}
 .passrep{display:grid; gap:6px; font-size:13px}
 .tline{position:relative; height:34px; border-radius:6px; background:color-mix(in srgb, var(--sel-ink) 10%, transparent)}
 .tline::before{content:""; position:absolute; left:0; right:0; top:50%; height:1px; background:color-mix(in srgb, var(--sel-ink) 45%, transparent)}
@@ -2301,6 +2303,25 @@ async function openMic(){
   return {err:micHelp(lastErr && lastErr.name)};
 }
 function closeMic(stream){ if (stream) { stream.getTracks().forEach(tr => tr.stop()); micSessionEnd(); } }
+/* the mic's own sample rate, where the browser reports it */
+function trackRate(stream){ try { const s = stream.getAudioTracks()[0].getSettings(); return s && s.sampleRate || 0; } catch (e) { return 0; } }
+/* start a fresh audio engine (iOS can hand silence to an engine created before recording began,
+   especially when the sample rate changed). Stops anything playing on the old one. */
+function rebuildAudio(){
+  if (metro.on) metroStop();
+  if (drone.on) droneStop(true);
+  try { if (ac) ac.close(); } catch (e) {}
+  ac = null; master = null; unlocked = false;
+  return getAudio();
+}
+/* get an engine that matches the mic, running */
+async function audioForMic(stream){
+  let a = getAudio();
+  const sr = trackRate(stream);
+  if (sr && a && Math.abs(sr - a.sampleRate) > 1) a = rebuildAudio();
+  if (a && a.state !== 'running') await a.resume().catch(() => {});
+  return a;
+}
 /* current permission, where the browser can tell us (Chrome, Safari 16+) */
 async function refreshMicPerm(){
   try { if (navigator.permissions && navigator.permissions.query) { const st = await navigator.permissions.query({name:'microphone'}); micPerm = st.state; st.onchange = () => { micPerm = st.state; renderToolbar(); }; } } catch (e) {}
@@ -2320,7 +2341,7 @@ function detectPitch(buf, sr){
   const n = buf.length;
   let rms = 0; for (let i = 0; i < n; i++) rms += buf[i] * buf[i];
   rms = Math.sqrt(rms / n);
-  if (rms < 0.008) return null;                                   // too quiet: no reading rather than a guess
+  if (rms < 0.003) return null;                                   // too quiet: no reading rather than a guess
   const minTau = Math.floor(sr / 1400), maxTau = Math.min(Math.floor(sr / 60), Math.floor(n / 2));
   const W = n - maxTau, d = new Float32Array(maxTau + 1);
   for (let tau = 1; tau <= maxTau; tau++) {
@@ -2350,28 +2371,47 @@ function detectPitch(buf, sr){
 const tuner = {on:false, stream:null, src:null, an:null, buf:null, raf:0, hist:[], reading:null, inTuneSince:0, err:''};
 async function tunerStart(){
   tuner.err = '';
-  const a = getAudio(); if (!a) return; if (a.state !== 'running') a.resume().catch(() => {});
+  const a0 = getAudio(); if (!a0) return; if (a0.state !== 'running') a0.resume().catch(() => {});
   const r = await openMic();
   if (!r.stream) { tuner.err = r.err; render(); return; }
   tuner.stream = r.stream;
-  if (a.state !== 'running') a.resume().catch(() => {});        // iOS can suspend audio while switching to recording
-  tuner.src = a.createMediaStreamSource(tuner.stream);
-  tuner.an = a.createAnalyser(); tuner.an.fftSize = 4096; tuner.buf = new Float32Array(tuner.an.fftSize);
-  tuner.src.connect(tuner.an);
-  tuner.on = true; tuner.hist = []; tuner.reading = null; requestWake();
+  tunerConnect(await audioForMic(r.stream));
+  tuner.on = true; tuner.hist = []; tuner.reading = null; tuner.rebuilt = false; tuner.level = 0; requestWake();
   let last = 0;
   const loopFn = t => {
     if (!tuner.on) return;
     tuner.raf = requestAnimationFrame(loopFn);
-    if (t - last < 45) return; last = t;                          // ~20 readings a second
+    if (t - last < 45 || !tuner.an) return; last = t;             // ~20 readings a second
     tuner.an.getFloatTimeDomainData(tuner.buf);
+    let sq = 0, mx = 0; for (let i = 0; i < tuner.buf.length; i++) { const x = tuner.buf[i]; sq += x * x; const ab = x < 0 ? -x : x; if (ab > mx) mx = ab; }
+    tuner.level = Math.sqrt(sq / tuner.buf.length); tuner.maxAbs = Math.max(tuner.maxAbs, mx);
     // halve the sample rate (averaging pairs) — plenty for guitar, and ~4x less work per reading
     const half = tuner.half || (tuner.half = new Float32Array(tuner.buf.length / 2));
     for (let i = 0; i < half.length; i++) half[i] = (tuner.buf[2 * i] + tuner.buf[2 * i + 1]) * 0.5;
-    tunerFeed(detectPitch(half, a.sampleRate / 2));
+    tunerFeed(detectPitch(half, ac.sampleRate / 2));
   };
   tuner.raf = requestAnimationFrame(loopFn);
+  // watchdog: total digital silence means the engine isn't getting the mic; rebuild it once, then explain
+  const check = () => {
+    if (!tuner.on) return;
+    if (tuner.maxAbs > 1e-7) return;
+    if (!tuner.rebuilt) {
+      tuner.rebuilt = true;
+      try { tuner.src.disconnect(); } catch (e) {}
+      const a2 = rebuildAudio(); a2.resume().catch(() => {});
+      tunerConnect(a2); setTimeout(check, 1800);
+    } else { tuner.err = 'The microphone is on, but no sound is reaching the app. Close the tab or app completely and reopen it, then try again. If you use Bluetooth headphones, try without them.'; render(); }
+  };
+  setTimeout(check, 1500);
   render();
+}
+/* mic → analyser → silent output (Safari only processes nodes that lead to the speakers) */
+function tunerConnect(a){
+  tuner.src = a.createMediaStreamSource(tuner.stream);
+  tuner.an = a.createAnalyser(); tuner.an.fftSize = 4096; tuner.buf = new Float32Array(tuner.an.fftSize); tuner.half = null;
+  const sink = a.createGain(); sink.gain.value = 0;
+  tuner.src.connect(tuner.an); tuner.an.connect(sink); sink.connect(a.destination);
+  tuner.maxAbs = 0;
 }
 function tunerStop(){
   tuner.on = false; cancelAnimationFrame(tuner.raf);
@@ -2382,7 +2422,7 @@ function tunerStop(){
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && tuner.on) tunerStop(); });
 /* turn raw detections into a steady reading: median of recent notes, nearest string of the current tuning */
 function tunerFeed(p){
-  if (!p || p.clarity < 0.75) { tuner.hist = tuner.hist.slice(-3); if (!tuner.hist.length) { tuner.reading = null; tuner.inTuneSince = 0; } tunerPaint(); return; }
+  if (!p || p.clarity < 0.6) { tuner.hist = tuner.hist.slice(-3); if (!tuner.hist.length) { tuner.reading = null; tuner.inTuneSince = 0; } tunerPaint(); return; }
   const m = 69 + 12 * Math.log2(p.freq / 440);
   // a sudden jump to a different note starts fresh instead of averaging across notes
   if (tuner.hist.length && Math.abs(m - tuner.hist[tuner.hist.length - 1]) > 0.7) tuner.hist = [];
@@ -2396,10 +2436,16 @@ function tunerFeed(p){
   tunerPaint();
 }
 /* update just the tuner display, not the whole page, ~20 times a second */
+function tunerLevelHtml(){
+  if (!tuner.on) return '';
+  const lv = tuner.level || 0, db = lv > 0 ? 20 * Math.log10(lv) : -100, pct = Math.max(0, Math.min(100, (db + 66) / 60 * 100));
+  const msg = tuner.maxAbs <= 1e-7 ? 'No sound reaching the app yet…' : lv < 0.002 ? 'Very quiet: play louder or move the phone closer' : 'Hearing you';
+  return `<span class="tlevel" aria-label="Input level"><i style="width:${pct.toFixed(0)}%"></i></span><span class="tsub">Input: ${msg}</span>`;
+}
 function tunerPaint(){
   const el = $('#tunerView'); if (!el) return;
   const r = tuner.reading;
-  if (!r) { el.className = 'tview idle'; el.innerHTML = `<span class="tnote">–</span><span class="tsub">${tuner.on ? 'Play one string and let it ring' : 'Tap Start tuner and allow the microphone'}</span><span class="tmeter"><i style="left:50%"></i></span>`; return; }
+  if (!r) { el.className = 'tview idle'; el.innerHTML = `<span class="tnote">–</span><span class="tsub">${tuner.on ? 'Play one string and let it ring' : 'Tap Start tuner and allow the microphone'}</span><span class="tmeter"><i style="left:50%"></i></span>${tunerLevelHtml()}`; return; }
   const ok = tuner.inTuneSince && Date.now() - tuner.inTuneSince > 400;
   const pos = 50 + Math.max(-50, Math.min(50, r.cents));
   const sNote = TUNINGS[state.tuning].midi[r.s];
@@ -2409,7 +2455,7 @@ function tunerPaint(){
   el.className = 'tview' + (ok ? ' ok' : Math.abs(r.cents) <= 10 ? ' near' : '');
   el.innerHTML = `<span class="tnote">${pn(noteName(mod(r.midi)))}<small>${Math.floor(r.midi / 12) - 1}</small></span>
     <span class="tsub">${r.cents > 0 ? '+' : ''}${r.cents} cents · ${r.freq.toFixed(1)} Hz</span>
-    <span class="tmeter"><b></b><i style="left:${pos}%"></i></span><span class="tsub">${hint}</span>`;
+    <span class="tmeter"><b></b><i style="left:${pos}%"></i></span><span class="tsub">${hint}</span>${tunerLevelHtml()}`;
 }
 
 /* ================= tempo test: you judge each pass, the app climbs the tempo ================= */
@@ -2551,12 +2597,12 @@ const micT = {stream:null, src:null, proc:null, detect:null, onsets:[], on:false
 async function micTimingStart(){
   if (micT.on) return true;
   if (loop.on) { loopStop(); toast('The play-along loop is paused while the mic judges your timing.'); }
-  const a = getAudio(); if (!a) return false; if (a.state !== 'running') a.resume().catch(() => {});
+  const a0 = getAudio(); if (!a0) return false; if (a0.state !== 'running') a0.resume().catch(() => {});
   micT.err = '';
   const r = await openMic();
   if (!r.stream) { micT.err = r.err; render(); return false; }
   micT.stream = r.stream;
-  if (a.state !== 'running') a.resume().catch(() => {});
+  const a = await audioForMic(r.stream);                // fresh engine if the mic runs at a different sample rate
   micT.src = a.createMediaStreamSource(micT.stream);
   micT.proc = a.createScriptProcessor(1024, 1, 1);
   micT.detect = makeOnsetDetector(a.sampleRate); micT.onsets = [];
