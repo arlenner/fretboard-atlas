@@ -943,6 +943,7 @@ function scaleRun(L){
   const tun = TUNINGS[state.tuning].midi, seen = new Set(), up = [];
   fp.shape.map(q => ({s:q.s, f:q.f, m:tun[q.s] + q.f})).sort((a, b) => a.m - b.m || a.s - b.s)
     .forEach(n => { if (!seen.has(n.m)) { seen.add(n.m); up.push(n); } });
+  if (state.playCfg.dir === 'down') return up.reverse();      // from the top note down
   if (state.playCfg.dir !== 'updown' || up.length < 2) return up;
   const down = up.slice().reverse().slice(1);                // back down from the top
   return up.concat(state.playCfg.loop ? down.slice(0, -1) : down);   // looping: the next pass starts on the bottom note
@@ -1016,7 +1017,7 @@ function scalePlayHtml(i, L, arp){
       <b>${c.bpm}</b> bpm
       <button type="button" class="ib" data-act="spbpm" data-i="${i}" data-v="5" aria-label="5 bpm faster">+5</button></span>
     <div class="seg" aria-label="Note value">${[1, 2, 3, 4].map(p => `<button type="button" data-act="spper" data-i="${i}" data-v="${p}" aria-pressed="${c.per === p}" title="${PER_NAMES[p]}">${['♩', '♪', '3', '16'][p - 1]}</button>`).join('')}</div>
-    <div class="seg" aria-label="Direction"><button type="button" data-act="spdir" data-i="${i}" data-v="up" aria-pressed="${c.dir !== 'updown'}">Up</button><button type="button" data-act="spdir" data-i="${i}" data-v="updown" aria-pressed="${c.dir === 'updown'}">Up &amp; down</button></div>
+    <div class="seg" aria-label="Direction"><button type="button" data-act="spdir" data-i="${i}" data-v="up" aria-pressed="${c.dir !== 'updown' && c.dir !== 'down'}">Up</button><button type="button" data-act="spdir" data-i="${i}" data-v="down" aria-pressed="${c.dir === 'down'}">Down</button><button type="button" data-act="spdir" data-i="${i}" data-v="updown" aria-pressed="${c.dir === 'updown'}">Up &amp; down</button></div>
     <div class="seg" aria-label="Sound">${[['ring', 'Ring', 'Let each note ring'], ['stacc', 'Staccato', 'Short, separated notes'], ['mute', 'Muted', 'Palm-muted: dull and short']].map(([v, t, h]) => `<button type="button" data-act="sptone" data-i="${i}" data-v="${v}" aria-pressed="${(c.tone || 'ring') === v}" title="${h}">${t}</button>`).join('')}</div>
     <button type="button" class="chip${c.loop ? ' sel' : ''}" data-act="sploop" data-i="${i}" aria-pressed="${c.loop}">↻ Loop</button>
     <button type="button" class="chip" data-act="spmetro" data-i="${i}" title="Use the metronome's tempo">= metronome (${state.metro.bpm})</button>
@@ -3558,7 +3559,7 @@ panel.addEventListener('input', e => {
 });
 panel.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'newTask') { e.preventDefault(); handlePractice('iaddtask', e.target); } });
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
