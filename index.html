@@ -183,7 +183,11 @@ body{display:flex; flex-direction:column}
 /* sideways phone: the neck fills the screen; the menus slide over part of it as a sidebar, or take the whole screen */
 @media (orientation: landscape) and (max-height: 520px){
   html, body{height:100%; overflow:hidden}
-  :root{padding:0; --row:48px}
+  :root{padding:0; --row:48px; --side-w:min(440px, 56vw)}
+  /* with the sidebar open, the neck keeps its size and gets room to scroll out from under it */
+  body.side-open .board-scroll{padding-right:calc(var(--side-w) + 10px)}
+  body.side-open.side-lefty .board-scroll{padding-right:10px; padding-left:calc(var(--side-w) + 10px)}
+  body.side-open .board, body.side-open .fretnums{min-width:max(740px, calc(100vw - 38px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)))}
   body{padding:0}
   body::before{display:none}
   .rotate-hint, .neck-bar, #neckHide{display:none !important}
@@ -196,7 +200,7 @@ body{display:flex; flex-direction:column}
   .legend::-webkit-scrollbar{display:none}
   .menus-open{display:block}
   .menus{display:block; position:fixed; z-index:40; top:0; bottom:0; right:0; width:min(440px, 56vw); overflow-y:auto; overscroll-behavior:contain;
-    background:var(--bg); border-left:1px solid var(--line); box-shadow:-12px 0 32px rgba(0,0,0,.25);
+    width:var(--side-w); background:var(--bg); border-left:1px solid var(--line); box-shadow:-12px 0 32px rgba(0,0,0,.25);
     padding:0 max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) 12px;
     transform:translateX(105%); visibility:hidden; transition:transform .22s ease-out, visibility 0s linear .22s, width .22s ease-out}
   .menus.lefty{right:auto; left:0; border-left:0; border-right:1px solid var(--line); box-shadow:12px 0 32px rgba(0,0,0,.25); transform:translateX(-105%);
@@ -3460,6 +3464,13 @@ function applySide(){
   const fb = $('#menusFull'); fb.setAttribute('aria-pressed', String(side === 'full')); fb.textContent = side === 'full' ? '⤡ Show the neck' : '⤢ Full screen';
   $('#menusOpen').setAttribute('aria-expanded', String(side !== 'closed'));
   if (landQ.matches) { m.inert = side === 'closed'; neck.inert = side === 'full'; } else { m.inert = false; neck.inert = false; }
+  // open sidebar: room to scroll the neck out from under it. A left-handed neck's spare room is on the left,
+  // so shift the scroll by the same amount to keep the neck where it was.
+  const open = landQ.matches && side === 'open', lefty = !!state.lefty, bs = $('#boardScroll');
+  const was = document.body.classList.contains('side-open') && document.body.classList.contains('side-lefty');
+  document.body.classList.toggle('side-open', open); document.body.classList.toggle('side-lefty', lefty);
+  const now = open && lefty;
+  if (now !== was && bs) { const w = Math.min(440, innerWidth * 0.56); bs.scrollLeft = Math.max(0, bs.scrollLeft + (now ? w : -w)); }
 }
 function setSide(v){ side = v; applySide(); if (v !== 'closed') { const t = $('.menus .tabs [aria-selected="true"]'); if (t && landQ.matches) t.focus({preventScroll:true}); } else if (landQ.matches) $('#menusOpen').focus({preventScroll:true}); }
 function revealNeck(){
