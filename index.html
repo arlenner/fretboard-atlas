@@ -170,10 +170,10 @@ h2,h3{margin:0; text-wrap:balance}
 .legend b{color:var(--ink); font-weight:650}
 .rotate-hint{display:none; margin:0 0 8px; font-size:12px; color:var(--muted)}
 @media (orientation: portrait) and (max-width: 700px){ .rotate-hint{display:block} }
-@media (min-height: 640px){
-  .neck-wrap{position:sticky; top:env(safe-area-inset-top, 0px); z-index:20; background:var(--bg); padding-bottom:6px}
-  body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:10; background:var(--bg)}
-}
+/* the neck stays pinned to the top while it's shown; hidden, its "Show neck" bar scrolls away with the page */
+.neck-wrap{position:sticky; top:env(safe-area-inset-top, 0px); z-index:20; background:var(--bg); padding-bottom:6px}
+.neck-wrap.collapsed{position:static; padding-bottom:0}
+body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:10; background:var(--bg)}
 
 /* ---------- tabs + panel ---------- */
 .tabs{display:flex; gap:4px; margin-top:10px; border-bottom:1px solid var(--line); overflow-x:auto}
@@ -930,7 +930,7 @@ function renderToolbar(){
   $('#soundBtn').setAttribute('aria-pressed', String(!!state.sound));
   // collapsible neck
   const hid = !!state.neckHidden;
-  neck.hidden = hid; $('#neckBar').hidden = !hid;
+  neck.hidden = hid; $('#neckBar').hidden = !hid; $('.neck-wrap').classList.toggle('collapsed', hid);
   $('#neckBar').setAttribute('aria-expanded', 'false'); $('#neckHide').setAttribute('aria-expanded', 'true');
   if (hid) { const L = state.layers[0]; $('#neckBarInfo').textContent = quiz ? 'Quiz running' : L && L.visible ? layerTitle(L).replace(/<[^>]+>/g, '') : ''; }
   $('#micText').textContent = 'Microphone: ' + ({granted:'allowed ✓', denied:'blocked', prompt:'will ask when needed'}[micPerm] || 'not used yet');
