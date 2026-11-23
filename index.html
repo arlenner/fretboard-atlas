@@ -97,6 +97,7 @@ h2,h3{margin:0; text-wrap:balance}
   box-shadow:inset 0 1px 0 rgba(255,255,255,.06), inset 0 -1px 0 rgba(0,0,0,.4)}
 .lefty .wood{left:0; right:var(--open); border-radius:5px 0 0 5px}
 .lefty .board, .lefty .fretnums{direction:rtl}
+.lefty .dot{direction:ltr; unicode-bidi:isolate}      /* mirrored neck, but labels still read ♭3, not 3♭ */
 .inl{position:relative}
 .inl i{position:absolute; left:50%; width:11px; height:11px; border-radius:50%; background:var(--inlay); opacity:.5; transform:translate(-50%,-50%)}
 .cell{position:relative; z-index:1; border:0; margin:0; padding:0; background:transparent; display:grid; place-items:center;
@@ -174,6 +175,42 @@ h2,h3{margin:0; text-wrap:balance}
 .neck-wrap{position:sticky; top:env(safe-area-inset-top, 0px); z-index:20; background:var(--bg); padding-bottom:6px}
 .neck-wrap.collapsed{position:static; padding-bottom:0}
 body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:10; background:var(--bg)}
+/* page order everywhere but a sideways phone: toolbar, neck, tabs, panel (the menus wrapper is see-through) */
+body{display:flex; flex-direction:column}
+.menus{display:contents}
+.menus > .bar{order:-1}
+.side-head, .menus-open{display:none}
+/* sideways phone: the neck fills the screen; the menus slide over part of it as a sidebar, or take the whole screen */
+@media (orientation: landscape) and (max-height: 520px){
+  html, body{height:100%; overflow:hidden}
+  :root{padding:0; --row:48px}
+  body{padding:0}
+  body::before{display:none}
+  .rotate-hint, .neck-bar, #neckHide{display:none !important}
+  .neck-wrap, .neck-wrap.collapsed{position:fixed; inset:0; z-index:1; display:flex; flex-direction:column; gap:4px; padding:max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))}
+  .neck-wrap .strip{margin:0}
+  .neck, .neck[hidden]{display:flex !important; flex-direction:column; flex:1; min-height:0; padding:6px 0 4px}
+  .board-scroll{flex:1; min-height:0; display:flex; flex-direction:column}
+  .board{flex:1; min-height:150px; grid-template-rows:repeat(6, minmax(0, 1fr))}
+  .legend{flex-wrap:nowrap; overflow-x:auto; white-space:nowrap; scrollbar-width:none; padding-right:104px; min-height:24px}
+  .legend::-webkit-scrollbar{display:none}
+  .menus-open{display:block}
+  .menus{display:block; position:fixed; z-index:40; top:0; bottom:0; right:0; width:min(440px, 56vw); overflow-y:auto; overscroll-behavior:contain;
+    background:var(--bg); border-left:1px solid var(--line); box-shadow:-12px 0 32px rgba(0,0,0,.25);
+    padding:0 max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) 12px;
+    transform:translateX(105%); visibility:hidden; transition:transform .22s ease-out, visibility 0s linear .22s, width .22s ease-out}
+  .menus.lefty{right:auto; left:0; border-left:0; border-right:1px solid var(--line); box-shadow:12px 0 32px rgba(0,0,0,.25); transform:translateX(-105%);
+    padding-left:max(12px, env(safe-area-inset-left)); padding-right:12px}
+  .menus.open{transform:none; visibility:visible; transition:transform .22s ease-out, visibility 0s, width .22s ease-out}
+  .menus.full{width:100vw; border:0; box-shadow:none; padding-inline:max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right))}
+  .side-head{display:flex; align-items:center; gap:8px; position:sticky; top:0; z-index:6; background:var(--bg); padding:max(8px, env(safe-area-inset-top)) 0 8px; margin-bottom:4px; border-bottom:1px solid var(--line)}
+  .side-head b{margin-right:auto; font-size:15px}
+  .menus .bar{padding-top:4px}
+  .menus .brand{display:none}
+  .menus .tabs{margin-top:4px}
+  .menus:not(.full) .tabs button{padding:8px 7px; font-size:13px}
+}
+@media (orientation: landscape) and (max-height: 520px) and (prefers-reduced-motion: reduce){ .menus{transition:none !important} }
 
 /* ---------- tabs + panel ---------- */
 .tabs{display:flex; gap:4px; margin-top:10px; border-bottom:1px solid var(--line); overflow-x:auto}
@@ -426,6 +463,28 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 </head>
 <body>
 
+<p class="rotate-hint">Turn your phone sideways to see the whole neck. You can also swipe the neck left and right.</p>
+
+<div class="neck-wrap">
+  <div class="strip" id="strip" hidden></div>
+  <button type="button" class="neck-bar" id="neckBar" hidden aria-expanded="false" aria-controls="neck"><span aria-hidden="true">▾</span> <span>Show neck</span> <small id="neckBarInfo"></small></button>
+  <div class="neck" id="neck">
+    <button type="button" class="neck-hide" id="neckHide" aria-expanded="true" aria-controls="neck" title="Hide the neck to make room for menus">▴ Hide neck</button>
+    <button type="button" class="neck-hide menus-open" id="menusOpen" aria-controls="menus" aria-expanded="false" title="Open the menus">☰ Menus</button>
+    <div class="board-scroll" id="boardScroll">
+      <div class="board" id="board"></div>
+      <div class="fretnums" id="fretnums"></div>
+    </div>
+    <div class="legend" id="legend"></div>
+  </div>
+</div>
+
+<aside class="menus" id="menus" aria-label="Menus">
+  <div class="side-head">
+    <b>Menus</b>
+    <button type="button" class="btn" id="menusFull" aria-pressed="false" title="Use the whole screen for the menus">⤢ Full screen</button>
+    <button type="button" class="ib" id="menusClose" aria-label="Close menus" title="Close menus">✕</button>
+  </div>
 <div class="bar">
   <div class="brand">Fretboard Atlas <small>24 frets · 6 strings</small></div>
   <div class="ctl"><span class="seg-label">Tap</span>
@@ -471,21 +530,6 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
   </details>
 </div>
 
-<p class="rotate-hint">Turn your phone sideways to see the whole neck. You can also swipe the neck left and right.</p>
-
-<div class="neck-wrap">
-  <div class="strip" id="strip" hidden></div>
-  <button type="button" class="neck-bar" id="neckBar" hidden aria-expanded="false" aria-controls="neck"><span aria-hidden="true">▾</span> <span>Show neck</span> <small id="neckBarInfo"></small></button>
-  <div class="neck" id="neck">
-    <button type="button" class="neck-hide" id="neckHide" aria-expanded="true" aria-controls="neck" title="Hide the neck to make room for menus">▴ Hide neck</button>
-    <div class="board-scroll" id="boardScroll">
-      <div class="board" id="board"></div>
-      <div class="fretnums" id="fretnums"></div>
-    </div>
-    <div class="legend" id="legend"></div>
-  </div>
-</div>
-
 <div class="tabs" role="tablist">
   <button type="button" role="tab" data-tab="layers">Layers</button>
   <button type="button" role="tab" data-tab="finder">Chord finder</button>
@@ -494,11 +538,15 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
   <button type="button" role="tab" data-tab="practice">Practice</button>
 </div>
 <div class="panel" id="panel"></div>
+</aside>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script>
 (function(){
 "use strict";
+/* a phone held sideways gets its own layout: the neck fills the screen and the menus are a sidebar */
+const landQ = matchMedia('(orientation: landscape) and (max-height: 520px)');
+let side = 'closed';          // that sidebar: 'closed', 'open' (over part of the neck) or 'full' (whole screen)
 /* ================= music theory ================= */
 const mod = (n, m = 12) => ((n % m) + m) % m;
 const LETTERS = 'CDEFGAB';
@@ -967,7 +1015,8 @@ function renderToolbar(){
   $('#setSound').checked = state.sound;
   $('#soundBtn').setAttribute('aria-pressed', String(!!state.sound));
   // collapsible neck
-  const hid = !!state.neckHidden;
+  const hid = !!state.neckHidden && !landQ.matches;       // a sideways phone always shows the neck (the menus slide over it)
+  applySide();
   neck.hidden = hid; $('#neckBar').hidden = !hid; $('.neck-wrap').classList.toggle('collapsed', hid);
   $('#neckBar').setAttribute('aria-expanded', 'false'); $('#neckHide').setAttribute('aria-expanded', 'true');
   if (hid) { const L = state.layers[0]; $('#neckBarInfo').textContent = quiz ? 'Quiz running' : L && L.visible ? layerTitle(L).replace(/<[^>]+>/g, '') : ''; }
@@ -3366,6 +3415,11 @@ function handlePractice(act, b){
 }
 $('#strip').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) handlePractice(b.dataset.act, b); });
 $('#neckHide').addEventListener('click', () => { setNeckHidden(true); toast('Neck hidden. Tap “Show neck” to bring it back.'); });
+$('#menusOpen').addEventListener('click', () => setSide('open'));
+$('#menusClose').addEventListener('click', () => setSide('closed'));
+$('#menusFull').addEventListener('click', () => setSide(side === 'full' ? 'open' : 'full'));
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && landQ.matches && side !== 'closed' && !e.defaultPrevented) setSide('closed'); });
+landQ.addEventListener('change', () => render());
 $('#neckBar').addEventListener('click', () => { setNeckHidden(false); neck.scrollIntoView({block:'nearest'}); });
 $('#menu').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) { e.preventDefault(); handlePractice(b.dataset.act, b); } });
 // sliders update live without redrawing the panel, so dragging stays smooth
@@ -3378,7 +3432,7 @@ panel.addEventListener('input', e => {
 });
 panel.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'newTask') { e.preventDefault(); handlePractice('iaddtask', e.target); } });
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
@@ -3399,7 +3453,17 @@ function render(){
   save();
 }
 function setNeckHidden(h){ state.neckHidden = h; renderToolbar(); save(); if (!h) renderBoard(); }
+/* sideways phone: the menus are a sidebar over the neck — closed, open (part of the neck still showing) or full screen */
+function applySide(){
+  const m = $('#menus'); if (!m) return;
+  m.classList.toggle('open', side !== 'closed'); m.classList.toggle('full', side === 'full'); m.classList.toggle('lefty', !!state.lefty);
+  const fb = $('#menusFull'); fb.setAttribute('aria-pressed', String(side === 'full')); fb.textContent = side === 'full' ? '⤡ Show the neck' : '⤢ Full screen';
+  $('#menusOpen').setAttribute('aria-expanded', String(side !== 'closed'));
+  if (landQ.matches) { m.inert = side === 'closed'; neck.inert = side === 'full'; } else { m.inert = false; neck.inert = false; }
+}
+function setSide(v){ side = v; applySide(); if (v !== 'closed') { const t = $('.menus .tabs [aria-selected="true"]'); if (t && landQ.matches) t.focus({preventScroll:true}); } else if (landQ.matches) $('#menusOpen').focus({preventScroll:true}); }
 function revealNeck(){
+  if (landQ.matches) { if (side === 'full') setSide('open'); neck.classList.remove('flash'); void neck.offsetWidth; neck.classList.add('flash'); return; }
   if (state.neckHidden) setNeckHidden(false);       // something was put on the neck: bring it back
   const r = neck.getBoundingClientRect();
   if (r.top < 0 || r.bottom > window.innerHeight) neck.scrollIntoView({block:'start', behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
