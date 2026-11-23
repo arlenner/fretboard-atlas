@@ -2376,7 +2376,7 @@ async function tunerStart(){
   if (!r.stream) { tuner.err = r.err; render(); return; }
   tuner.stream = r.stream;
   tunerConnect(await audioForMic(r.stream));
-  tuner.on = true; tuner.hist = []; tuner.reading = null; tuner.rebuilt = false; tuner.level = 0; requestWake();
+  tuner.on = true; tuner.hist = []; tuner.cand = []; tuner.disp = null; tuner.reading = null; tuner.rebuilt = false; tuner.level = 0; requestWake();
   let last = 0;
   const loopFn = t => {
     if (!tuner.on) return;
@@ -2421,18 +2421,38 @@ function tunerStop(){
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && tuner.on) tunerStop(); });
 /* turn raw detections into a steady reading: median of recent notes, nearest string of the current tuning */
-function tunerFeed(p){
-  if (!p || p.clarity < 0.6) { tuner.hist = tuner.hist.slice(-3); if (!tuner.hist.length) { tuner.reading = null; tuner.inTuneSince = 0; } tunerPaint(); return; }
-  const m = 69 + 12 * Math.log2(p.freq / 440);
-  // a sudden jump to a different note starts fresh instead of averaging across notes
-  if (tuner.hist.length && Math.abs(m - tuner.hist[tuner.hist.length - 1]) > 0.7) tuner.hist = [];
-  tuner.hist.push(m); if (tuner.hist.length > 7) tuner.hist.shift();
-  const mm = median(tuner.hist), near = Math.round(mm), cents = Math.round((mm - near) * 100);
+/* calm by design: a new note must show up 3 readings in a row before it takes over (one stray octave
+   or harmonic is ignored), the last reading is held briefly as a note fades, and the needle eases */
+function tunerFeed(p, now){
+  now = now == null ? Date.now() : now;
+  const hist = tuner.hist, cur = hist.length ? median(hist) : null;
+  const m = p ? 69 + 12 * Math.log2(p.freq / 440) : null;
+  const sameNote = m != null && cur != null && Math.abs(m - cur) <= 0.7;
+  const usable = m != null && p.clarity >= (sameNote ? 0.55 : 0.7);   // easier to keep a note than to start one
+  if (!usable) {
+    tuner.cand = [];
+    if (tuner.reading && now - (tuner.lastGood || 0) > 1200) { tuner.hist = []; tuner.reading = null; tuner.inTuneSince = 0; }
+    tunerPaint(); return;
+  }
+  tuner.lastGood = now;
+  if (cur == null || sameNote) { tuner.cand = []; hist.push(m); if (hist.length > 9) hist.shift(); }
+  else {
+    const c = tuner.cand || (tuner.cand = []);
+    if (c.length && Math.abs(m - median(c)) > 0.5) c.length = 0;
+    c.push(m);
+    if (c.length < 3) { tunerPaint(); return; }                     // not convinced yet: keep showing the current note
+    tuner.hist = c.slice(); tuner.cand = []; tuner.disp = null; tuner.inTuneSince = 0;
+  }
+  const mm = median(tuner.hist);
+  tuner.disp = tuner.disp == null ? mm : tuner.disp + 0.35 * (mm - tuner.disp);      // ease the needle
+  const v = tuner.disp, near = Math.round(v), cents = Math.round((v - near) * 100);
   const tun = TUNINGS[state.tuning].midi;
-  let sIdx = 0; tun.forEach((t, k) => { if (Math.abs(t - mm) < Math.abs(tun[sIdx] - mm)) sIdx = k; });
-  const strCents = Math.round((mm - tun[sIdx]) * 100);
-  tuner.reading = {freq:440 * Math.pow(2, (mm - 69) / 12), midi:near, cents, s:sIdx, strCents, steady:tuner.hist.length >= 3};
-  if (Math.abs(cents) <= 4 && tuner.reading.steady) { if (!tuner.inTuneSince) tuner.inTuneSince = Date.now(); } else tuner.inTuneSince = 0;
+  let sIdx = 0; tun.forEach((t, k) => { if (Math.abs(t - v) < Math.abs(tun[sIdx] - v)) sIdx = k; });
+  const strCents = Math.round((v - tun[sIdx]) * 100);
+  tuner.reading = {freq:440 * Math.pow(2, (v - 69) / 12), midi:near, cents, s:sIdx, strCents, steady:tuner.hist.length >= 3};
+  // in tune within ±5 cents; it takes drifting past ±8 to lose it (no flicker at the edge)
+  const lim = tuner.inTuneSince ? 8 : 5;
+  if (Math.abs(cents) <= lim && tuner.reading.steady) { if (!tuner.inTuneSince) tuner.inTuneSince = now; } else tuner.inTuneSince = 0;
   tunerPaint();
 }
 /* update just the tuner display, not the whole page, ~20 times a second */
@@ -2450,7 +2470,7 @@ function tunerPaint(){
   const pos = 50 + Math.max(-50, Math.min(50, r.cents));
   const sNote = TUNINGS[state.tuning].midi[r.s];
   const hint = Math.abs(r.strCents) <= 300
-    ? `${STRING_ORD[r.s]} string ${pn(noteName(mod(sNote)))} · ${Math.abs(r.strCents) <= 4 ? 'in tune' : Math.abs(r.strCents) + ' cents ' + (r.strCents < 0 ? 'flat, tune up' : 'sharp, tune down')}`
+    ? `${STRING_ORD[r.s]} string ${pn(noteName(mod(sNote)))} · ${Math.abs(r.strCents) <= 5 ? 'in tune' : Math.abs(r.strCents) + ' cents ' + (r.strCents < 0 ? 'flat, tune up' : 'sharp, tune down')}`
     : 'Not near an open string of this tuning';
   el.className = 'tview' + (ok ? ' ok' : Math.abs(r.cents) <= 10 ? ' near' : '');
   el.innerHTML = `<span class="tnote">${pn(noteName(mod(r.midi)))}<small>${Math.floor(r.midi / 12) - 1}</small></span>
