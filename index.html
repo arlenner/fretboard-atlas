@@ -566,6 +566,40 @@ const SCALES = {
   phrygDom:  {name:'Phrygian dominant', labels:['1','b2','3','4','5','b6','b7']},
   lydDom:    {name:'Lydian dominant', labels:['1','2','3','#4','5','6','b7']},
   altered:   {name:'Altered', labels:['1','b2','#2','3','#4','b6','b7']},
+  domPent:   {name:'Dominant pentatonic', labels:['1','2','3','5','b7']},
+  m6Pent:    {name:'Minor 6 pentatonic', labels:['1','b3','4','5','6']},
+  // pentatonics from Japan, Egypt and Bali
+  hirajoshi: {name:'Hirajōshi', labels:['1','2','b3','5','b6']},
+  inSen:     {name:'In-sen', labels:['1','b2','4','5','b7']},
+  iwato:     {name:'Iwato', labels:['1','b2','4','b5','b7']},
+  kumoi:     {name:'Kumoi', labels:['1','2','b3','5','6']},
+  yo:        {name:'Yo (ritsu)', labels:['1','2','4','5','6']},
+  egyptian:  {name:'Egyptian (suspended)', labels:['1','2','4','5','b7']},
+  pelog:     {name:'Pelog (Balinese)', labels:['1','b2','b3','5','b6']},
+  // modes of melodic minor
+  dorianb2:  {name:'Dorian ♭2', labels:['1','b2','b3','4','5','6','b7']},
+  lydAug:    {name:'Lydian augmented', labels:['1','2','3','#4','#5','6','7']},
+  mixob6:    {name:'Mixolydian ♭6', labels:['1','2','3','4','5','b6','b7']},
+  locNat2:   {name:'Locrian ♮2', labels:['1','2','b3','4','b5','b6','b7']},
+  // modes of harmonic minor
+  locNat6:   {name:'Locrian ♮6', labels:['1','b2','b3','4','b5','6','b7']},
+  ionAug:    {name:'Ionian ♯5', labels:['1','2','3','4','#5','6','7']},
+  ukrDorian: {name:'Ukrainian dorian (dorian ♯4)', labels:['1','2','b3','#4','5','6','b7']},
+  lydS2:     {name:'Lydian ♯2', labels:['1','#2','3','#4','5','6','7']},
+  ultraLoc:  {name:'Ultralocrian', labels:['1','b2','b3','b4','b5','b6','bb7']},
+  // harmonic major and other seven-note colors
+  harmMaj:   {name:'Harmonic major', labels:['1','2','3','4','5','b6','7']},
+  doubleHarm:{name:'Double harmonic (Byzantine)', labels:['1','b2','3','4','5','b6','7']},
+  hungMin:   {name:'Hungarian minor', labels:['1','2','b3','#4','5','b6','7']},
+  hungMaj:   {name:'Hungarian major', labels:['1','#2','3','#4','5','6','b7']},
+  neaMin:    {name:'Neapolitan minor', labels:['1','b2','b3','4','5','b6','7']},
+  neaMaj:    {name:'Neapolitan major', labels:['1','b2','b3','4','5','6','7']},
+  persian:   {name:'Persian', labels:['1','b2','3','4','b5','b6','7']},
+  enigmatic: {name:'Enigmatic', labels:['1','b2','3','#4','#5','#6','7']},
+  prometheus:{name:'Prometheus', labels:['1','2','3','#4','6','b7']},
+  bebopDom:  {name:'Bebop dominant', labels:['1','2','3','4','5','6','b7','7']},
+  bebopMaj:  {name:'Bebop major', labels:['1','2','3','4','5','#5','6','7']},
+  augmented: {name:'Augmented (hexatonic)', labels:['1','#2','3','5','#5','7']},
   wholeTone: {name:'Whole tone', labels:['1','2','3','#4','#5','b7']},
   dimHW:     {name:'Diminished (half-whole)', labels:['1','b2','#2','3','#4','5','6','b7']},
   dimWH:     {name:'Diminished (whole-half)', labels:['1','2','b3','4','b5','b6','6','7']},
@@ -574,9 +608,13 @@ const SCALES = {
 const MODES = ['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian'];
 const MODE_OFF = [0, 2, 4, 5, 7, 9, 11];
 const OTHER_SCALES = [
-  ['Pentatonic & blues', ['majPent','minPent','blues','majBlues']],
-  ['Minor family', ['harmMin','melMin','phrygDom','lydDom','altered']],
-  ['Symmetric', ['wholeTone','dimHW','dimWH','chromatic']]
+  ['Pentatonic & blues', ['majPent','minPent','blues','majBlues','domPent','m6Pent']],
+  ['World pentatonics', ['hirajoshi','inSen','iwato','kumoi','yo','egyptian','pelog']],
+  ['Melodic minor & its modes', ['melMin','dorianb2','lydAug','lydDom','mixob6','locNat2','altered']],
+  ['Harmonic minor & its modes', ['harmMin','locNat6','ionAug','ukrDorian','phrygDom','lydS2','ultraLoc']],
+  ['Harmonic major & exotic', ['harmMaj','doubleHarm','hungMin','hungMaj','neaMin','neaMaj','persian','enigmatic','prometheus']],
+  ['Bebop', ['bebopDom','bebopMaj']],
+  ['Symmetric', ['augmented','wholeTone','dimHW','dimWH','chromatic']]
 ];
 
 const CHORD_LIST = [
