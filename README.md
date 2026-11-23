@@ -10,6 +10,7 @@ A guitar neck reference that runs in the browser. It needs no build step or serv
 - Dots are colored by interval: root red, 3rds yellow/orange, 5th blue, 7ths violet. Each scale degree also has its own shape (root square, 2nd triangle, 3rd circle, 4th pentagon, 5th diamond, 6th down-triangle, 7th hexagon). A toggle switches to coloring by layer.
 - Chord positions: pick where the root sits (e.g. 5th string, fret 3) and the neck focuses on a playable voicing there, with a chord diagram, its frets written out, playback and pinning.
 - Arpeggios on scale layers (maj, m, 7, maj7, m7, m7b5, dim7 and more) in the five CAGED shapes, as the full chord-tone shape or a six-string sweep, with playback.
+- Chords to play under a scale: for any scale (including the exotic ones), the chords whose notes all belong to it, on the root and on every scale note, with the scale's own chord in thirds outlined. Tap one to hear it and see it on the neck over the scale.
 - Scale positions: focus a scale on one area of the neck, as a box (5-fret hand position) or 3 notes per string (2 for pentatonics), numbered from the root.
 - Optional 9/11/13 (or always 2/4/6) names for extensions.
 - Up to four overlays, each with its own root and an on/off filter for every interval.

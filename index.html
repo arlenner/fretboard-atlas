@@ -154,6 +154,17 @@ h2,h3{margin:0; text-wrap:balance}
 .splay .sp-tempo b{color:var(--ink); font-size:16px; font-variant-numeric:tabular-nums; min-width:2.2em; text-align:center}
 .splay .seg button{padding:5px 9px}
 .splay .hint{flex-basis:100%; font-size:12px; color:var(--muted)}
+/* chords that fit the scale */
+.fit{display:grid; gap:8px; justify-items:start; margin-top:10px; padding-top:10px; border-top:1px solid var(--line)}
+.fit > .row{justify-self:stretch}
+.fit .hint{font-size:12px; color:var(--muted)}
+.fit-chips{display:flex; flex-wrap:wrap; gap:6px}
+.chip.fitc small{font-size:10px; font-weight:600; opacity:.7; margin-left:3px}
+.chip.fitc.stk{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+.fit-all{display:grid; gap:8px; justify-self:stretch}
+.fit-row{display:grid; grid-template-columns:64px 1fr; gap:8px; align-items:start}
+.fit-deg{font-size:13px; padding-top:5px; color:var(--muted); white-space:nowrap}
+.fit-deg b{color:var(--ink); display:inline-block; min-width:22px}
 /* the note being played lights up */
 .cell.playing .dot{transform:scale(1.3); filter:drop-shadow(0 0 5px #fff) drop-shadow(0 0 2px #fff); transition:transform .05s}
 .tabtxt{font-variant-numeric:tabular-nums; letter-spacing:.12em; font-weight:750; font-size:16px}
@@ -715,7 +726,10 @@ const ARP_TYPES = ['maj','min','7','maj7','m7','m7b5','dim7','dim','aug','mM7','
 const QUICK_ARPS = ['maj','min','7','maj7','m7','m7b5','dim7'];
 ARP_TYPES.forEach(cid => { SCALES['arp_' + cid] = {name:CHORDS[cid].name + ' arpeggio', labels:CHORDS[cid].labels.slice(), arp:true, chord:cid}; });
 OTHER_SCALES.push(['Arpeggios', ARP_TYPES.map(c => 'arp_' + c)]);
-const scaleTitle = (rootPc, type) => { const S = SCALES[type], rn = pn(rootName(rootPc, S.labels)); return S.arp ? `${rn}${CHORDS[S.chord].sym} arpeggio` : `${rn} ${S.short || S.name.toLowerCase()}`; };
+/* scale names in running text: generic words lowercase (harmonic minor), mode and proper names keep their capital (Lydian dominant, Hungarian minor) */
+const PROPER_WORD = /^\(?(Ionian|Dorian|Phrygian|Lydian|Mixolydian|Aeolian|Locrian|Ultralocrian|Hirajōshi|In-sen|Iwato|Kumoi|Yo|Egyptian|Pelog|Balinese|Ukrainian|Byzantine|Hungarian|Neapolitan|Persian|Prometheus)/;
+const scaleNameLc = nm => nm.split(' ').map(w => PROPER_WORD.test(w) ? w : w.toLowerCase()).join(' ');
+const scaleTitle = (rootPc, type) => { const S = SCALES[type], rn = pn(rootName(rootPc, S.labels)); return S.arp ? `${rn}${CHORDS[S.chord].sym} arpeggio` : `${rn} ${S.short || scaleNameLc(S.name)}`; };
 
 const TUNINGS = {
   std:{name:'Standard  E A D G B E', midi:[40,45,50,55,59,64]},
@@ -1318,6 +1332,55 @@ function rootChips(L, i){
   for (let pc = 0; pc < 12; pc++) h += `<button type="button" class="chip${L.root === pc ? ' sel' : ''}" data-act="root" data-i="${i}" data-v="${pc}">${pn(rootName(pc, lbls))}</button>`;
   return h;
 }
+/* ---- chords that fit a scale: every chord tone is a scale note (or all but the 5th, for 4+ note chords, marked "no 5") ---- */
+function chordsInScale(L){
+  const lbls = layerLabels(L), rn = layerRoot(L);
+  const pcs = new Set(lbls.map(l => mod(L.root + semi(l))));
+  return lbls.map((l, k) => {
+    const r = mod(L.root + semi(l)), full = [], no5 = [];
+    const pcKey = (t, drop5) => CHORDS[t].labels.filter(x => !(drop5 && x === '5')).map(x => mod(r + semi(x))).sort((a, b) => a - b).join(',');
+    // "no 5" chords only where the scale has no altered 5th of its own on that note (there the b5 / #5 chords say it better),
+    // except on the root, where the vamp chord matters most (Prometheus is a 9♯11 chord without its 5th)
+    const altered5 = pcs.has(mod(r + 6)) || pcs.has(mod(r + 8));
+    for (const t of CHORD_ORDER) {
+      if (t === '5') continue;                         // a power chord fits almost anything and says nothing
+      const cl = CHORDS[t].labels, miss = cl.filter(x => !pcs.has(mod(r + semi(x))));
+      if (!miss.length) full.push({t, no5:false});
+      else if (miss.length === 1 && miss[0] === '5' && cl.length >= 4 && (k === 0 || !altered5)) no5.push({t, no5:true});
+    }
+    // drop a "no 5" chord that is just another listed chord's notes (7♯11 no 5 = 7♭5)
+    const have = new Set(full.map(f => pcKey(f.t, false)));
+    const fits = full.concat(no5.filter(f => { const key = pcKey(f.t, true); if (have.has(key)) return false; have.add(key); return true; }));
+    fits.sort((a, b) => CHORD_ORDER.indexOf(a.t) - CHORD_ORDER.indexOf(b.t));
+    // seven-note scales: the chord built in thirds on this degree (the scale's own "diatonic" 7th chord)
+    let stack = null;
+    if (lbls.length === 7) {
+      const s = [0, 2, 4, 6].map(j => mod(semi(lbls[(k + j) % 7]) - semi(l)));
+      stack = CHORD_ORDER.find(t => { const c = CHORDS[t].labels.map(semi); return c.length === 4 && s.every(v => c.includes(v)); })
+        || CHORD_ORDER.find(t => { const c = CHORDS[t].labels.map(semi); return c.length === 3 && s.slice(0, 3).every(v => c.includes(v)); }) || null;
+    }
+    return {l, r, name:pn(spell(rn, l)), fits, stack};
+  });
+}
+function fitHtml(L, i){
+  if (L.kind !== 'scale' || !SCALES[L.type] || SCALES[L.type].arp || L.type === 'chromatic') return '';
+  const D = chordsInScale(L), ov = state.layers.find(x => x.fit === L.id);
+  const chip = (d, f) => {
+    const on = ov && ov.root === d.r && ov.type === f.t && (ov.hidden || []).includes('5') === f.no5;
+    return `<button type="button" class="chip fitc${on ? ' sel' : ''}${d.stack === f.t && !f.no5 ? ' stk' : ''}" data-act="fitchord" data-i="${i}" data-r="${d.r}" data-t="${f.t}" data-no5="${f.no5 ? 1 : ''}" aria-pressed="${!!on}" title="${CHORDS[f.t].name}${f.no5 ? ', without the 5th' : ''}">${d.name}${CHORDS[f.t].sym}${f.no5 ? '<small>no 5</small>' : ''}</button>`;
+  };
+  const home = D[0], rn = layerRoot(L), sname = `${pn(rn)} ${SCALES[L.type].name}`;
+  const row = d => `<div class="fit-row"><span class="fit-deg"><b>${pl(d.l)}</b> ${d.name}</span><span class="fit-chips">${d.fits.length ? d.fits.map(f => chip(d, f)).join('') : '<small class="hint">no chord fits on this note</small>'}</span></div>`;
+  return `<div class="fit">
+    <div class="row" style="justify-content:space-between"><b>Chords to play under it</b>${ov ? `<button type="button" class="btn" data-act="fitclear" data-i="${i}">Clear from the neck</button>` : ''}</div>
+    <span class="info">Every note of these chords is in ${sname}, so the whole scale sounds right over them. Tap one to hear it and see its tones on the neck over the scale.</span>
+    <span class="rl">On the root · vamp one of these</span>
+    <div class="fit-chips">${home.fits.length ? home.fits.map(f => chip(home, f)).join('') : '<small class="hint">No chord fits on the root.</small>'}</div>
+    <button type="button" class="btn" data-act="fitall" data-i="${i}" aria-expanded="${!!state.fitAll}">${state.fitAll ? 'Hide the other notes' : `Chords on every note of the scale (${D.slice(1).reduce((a, d) => a + d.fits.length, 0)} more)`}</button>
+    ${state.fitAll ? `<div class="fit-all">${D.slice(1).map(row).join('')}</div>` : ''}
+    ${D.some(d => d.stack) ? '<small class="hint">Outlined: the chord the scale builds in thirds on that note.</small>' : ''}
+  </div>`;
+}
 function layerCard(L, i){
   const c = colOf(i);
   const rn = layerRoot(L);
@@ -1412,6 +1475,7 @@ function layerCard(L, i){
     if (L.kind === 'chord') info += ` · ${CHORDS[L.type].name}, ${lbls.map(pl).join(' ')}`;
     if (L.kind === 'intervals') info = 'Every interval from the root. Turn on the ones you want to see.';
     h += `<div class="info">${info}</div>`;
+    if (L.kind === 'scale') h += fitHtml(L, i);
   }
   return h + '</div>';
 }
@@ -1568,7 +1632,7 @@ function renderCircle(){
   }
   const scaleHtml = scaleRows.map(s => {
     const S = SCALES[s.t];
-    return `<button type="button" data-act="cscale" data-r="${s.pc}" data-t="${s.t}"><b>${pn(rootName(s.pc, S.labels))} ${S.short || S.name.toLowerCase()}</b><small>${s.sub}</small></button>`;
+    return `<button type="button" data-act="cscale" data-r="${s.pc}" data-t="${s.t}"><b>${pn(rootName(s.pc, S.labels))} ${S.short || scaleNameLc(S.name)}</b><small>${s.sub}</small></button>`;
   }).join('');
   return `<div class="circle-wrap">
     <svg class="cof" viewBox="0 0 320 320" role="group" aria-label="Circle of fifths">${svg}</svg>
@@ -3742,6 +3806,18 @@ panel.addEventListener('click', e => {
         toast(`Pinned ${chordName(L.root, L.type)} (${tabText(vv.shape)})`);
       break;
     }
+    case 'fitchord': {
+      const r = +b.dataset.r, t = b.dataset.t, no5 = !!b.dataset.no5, base = 48 + mod(r);
+      strumMidis(CHORDS[t].labels.filter(l => !(no5 && l === '5')).map(l => base + lab(l).semi), .035, true);
+      const ov = state.layers.find(x => x.fit === L.id), hidden = no5 ? ['5'] : [];
+      if (ov && ov.root === r && ov.type === t && (ov.hidden || []).includes('5') === no5) { state.layers.splice(state.layers.indexOf(ov), 1); break; }   // tapped again: take it off
+      if (ov) Object.assign(ov, {kind:'chord', root:r, type:t, hidden, visible:true, pos:null});
+      else if (state.layers.length < 4) state.layers.push({id:state.nextId++, kind:'chord', root:r, type:t, hidden, notes:[], visible:true, color:nextColor(), fit:L.id});
+      else { toast('Four layers already. Remove an overlay to see chords on the neck.'); return; }
+      render(); revealNeck(); return;
+    }
+    case 'fitclear': { const ov = state.layers.find(x => x.fit === L.id); if (ov) state.layers.splice(state.layers.indexOf(ov), 1); break; }
+    case 'fitall': state.fitAll = !state.fitAll; break;
     case 'ctype': L.type = v; L.hidden = []; break;
     case 'stype': L.type = v; L.hidden = []; adjustPos(L); break;
     case 'note': { const pc = +v, k = L.notes.indexOf(pc); if (k >= 0) L.notes.splice(k, 1); else L.notes.push(pc); break; }
