@@ -2560,7 +2560,7 @@ function makeOnsetDetector(sr){
       for (let k = lo; k < hi; k++) { const m = Math.log(1 + 100 * Math.hypot(re[k], im[k]) / (N / 4)); const dd = m - prev[k]; if (dd > 0) flux += dd; prev[k] = m; }
       const base = st.hist.length ? median(st.hist) : 0;
       const tEnd = t0 + (i + 1) / sr;                                  // the newest sample in the window
-      const on = rms > 0.003 && flux > base * 2.2 + 2;
+      const on = rms > 0.0015 && flux > base * 2.2 + 2;
       if (on && !st.above && tEnd - st.last > 0.06) { const t = tEnd - hop / (2 * sr); out.push(t); st.last = t; }
       st.above = on;
       st.hist.push(flux); if (st.hist.length > 30) st.hist.shift();
@@ -2583,10 +2583,26 @@ function gradePass(grid, onsets, latencyS, tolS){
   return {hits, total:grid.length, extras, mean, sd, errs, clean:hits === grid.length && extras <= 1};
 }
 /* calibration: median click-to-note gap, and how consistent it was */
-function calcLatency(grid, onsets){
+/* phones can add a lot of round-trip delay (speaker -> mic -> browser buffers), so first find the
+   delay that lines up the most notes with clicks (searching -150..+500 ms), then measure around it */
+function calcLatency(grid, onsets, diag){
+  diag = diag || {};
+  const near = (t, w) => { let bd = Infinity; onsets.forEach(o => { const dd = o - t; if (Math.abs(dd) < Math.abs(bd)) bd = dd; }); return Math.abs(bd) <= w ? bd : null; };
+  let best = 0, bestN = -1;
+  for (let c = -0.15; c <= 0.5001; c += 0.005) {
+    const n = grid.filter(g => near(g + c, 0.04) != null).length;
+    if (n > bestN || (n === bestN && Math.abs(c) < Math.abs(best))) { bestN = n; best = c; }
+  }
   const offs = [];
-  grid.forEach(g => { let bd = Infinity, bo = null; onsets.forEach(o => { const dd = o - g; if (Math.abs(dd) < Math.abs(bd) && Math.abs(dd) <= 0.25) { bd = dd; bo = dd; } }); if (bo != null) offs.push(bo); });
-  if (offs.length < Math.ceil(grid.length * 0.6)) return {ok:false, n:offs.length, why:'Too few notes were heard. Play a little louder, close to the phone.'};
+  grid.forEach(g => { const d = near(g + best, 0.08); if (d != null) offs.push(best + d); });
+  if (offs.length < Math.ceil(grid.length * 0.6)) {
+    const heard = onsets.filter(o => o >= grid[0] - 0.3 && o <= grid[grid.length - 1] + 0.8).length;
+    let why;
+    if (diag.peak != null && diag.peak < 1e-4) why = 'No sound reached the app from the microphone. Check the mic permission, then close and reopen the app.';
+    else if (heard < Math.ceil(grid.length * 0.6)) why = `Only ${heard} note${heard === 1 ? ' was' : 's were'} picked up (of ${grid.length}). Play louder and sharper, close to the phone, and let each note stop before the next.`;
+    else why = `Heard ${heard} notes, but only ${offs.length} lined up with the clicks. Make sure you can hear the click clearly (turn the volume up), and play one note exactly on each click.`;
+    return {ok:false, n:offs.length, heard, why};
+  }
   const med = median(offs), mad = median(offs.map(x => Math.abs(x - med))) * 1.4826;
   if (mad > 0.03) return {ok:false, n:offs.length, why:'Your notes were spread out too much to measure. Try again, matching each click as closely as you can.'};
   return {ok:true, n:offs.length, ms:Math.round(med * 1000), sd:Math.round(mad * 1000)};
@@ -2605,10 +2621,12 @@ async function micTimingStart(){
   const a = await audioForMic(r.stream);                // fresh engine if the mic runs at a different sample rate
   micT.src = a.createMediaStreamSource(micT.stream);
   micT.proc = a.createScriptProcessor(1024, 1, 1);
-  micT.detect = makeOnsetDetector(a.sampleRate); micT.onsets = [];
+  micT.detect = makeOnsetDetector(a.sampleRate); micT.onsets = []; micT.peak = 0;
   micT.proc.onaudioprocess = e => {
     const d = e.inputBuffer.getChannelData(0);
     const t0 = (e.playbackTime || a.currentTime) - d.length / a.sampleRate;     // when this block was captured, on the audio clock
+    let pk = 0; for (let i = 0; i < d.length; i++) { const v = Math.abs(d[i]); if (v > pk) pk = v; }
+    if (pk > micT.peak) micT.peak = pk;
     const found = micT.detect(d, t0);
     if (found.length) { micT.onsets.push(...found); if (micT.onsets.length > 600) micT.onsets.splice(0, 200); }
   };
@@ -2629,7 +2647,7 @@ async function calStart(){
   if (metro.on) metroStop();
   cal = {saved:clone(state.metro), t0:0, until:0, done:false, msg:''};
   Object.assign(state.metro, {bpm:90, beats:4, sub:1, accent:true, clickMode:'all', gap:{on:false, play:2, rest:2}, ladder:Object.assign({}, state.metro.ladder, {on:false})});
-  metro.grid = []; micT.onsets = [];
+  metro.grid = []; micT.onsets = []; micT.peak = 0;
   metroStart();
   cal.until = ac.currentTime + 0.06 + 16 * (60 / 90) + 0.4;
   render();
@@ -2637,10 +2655,11 @@ async function calStart(){
 function calTick(){
   if (!cal || cal.done || !ac) return;
   const beatsDone = (metro.grid || []).filter(g => g.isBeat && g.bar >= 1 && g.t < ac.currentTime - 0.15).length;
-  const el = $('#calProg'); if (el) el.textContent = `${Math.min(12, beatsDone)} of 12 clicks`;
-  if (ac.currentTime < cal.until) return;
+  const g0 = (metro.grid || []).find(g => g.isBeat && g.bar >= 1), heardNow = g0 ? micT.onsets.filter(o => o >= g0.t - 0.3).length : 0;
+  const el = $('#calProg'); if (el) el.textContent = `${Math.min(12, beatsDone)} of 12 clicks · ${heardNow} note${heardNow === 1 ? '' : 's'} heard${micT.peak < 1e-4 ? ' · no mic sound yet' : ''}`;
+  if (ac.currentTime < cal.until + 0.3) return;                // a little extra so late-arriving notes still count
   const grid = metro.grid.filter(g => g.isBeat && g.bar >= 1 && g.bar <= 3).map(g => g.t);
-  const r = calcLatency(grid, micT.onsets.slice());
+  const r = calcLatency(grid, micT.onsets.slice(), {peak:micT.peak});
   metroStop(); Object.assign(state.metro, cal.saved); setBpm(cal.saved.bpm);
   micTimingStop();
   if (r.ok) { state.micCal = {ms:r.ms, sd:r.sd, at:Date.now()}; toast(`Calibrated: your notes land ${Math.abs(r.ms)} ms ${r.ms >= 0 ? 'after' : 'before'} the click (±${r.sd} ms).`); cal = null; }
