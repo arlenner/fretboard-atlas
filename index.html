@@ -158,7 +158,12 @@ h2,h3{margin:0; text-wrap:balance}
 @keyframes ping{0%{opacity:.9; transform:scale(.85)}100%{opacity:0; transform:scale(1.35)}}
 .fretnums{display:grid; min-width:740px; font-size:11px; color:var(--muted); text-align:center; padding-top:4px; font-variant-numeric:tabular-nums}
 .fretnums .mk{color:var(--ink); font-weight:700}
-.legend{display:flex; flex-wrap:wrap; gap:4px 14px; padding:6px 12px 0; font-size:12px; color:var(--muted)}
+.neck-hide{position:absolute; right:10px; bottom:6px; z-index:5; border:1px solid var(--line); background:var(--surface-2); color:var(--muted); border-radius:8px; padding:3px 9px; font-size:12px; font-weight:650}
+.neck-hide:hover{color:var(--ink); border-color:var(--muted)}
+.neck-bar{display:flex; align-items:center; gap:8px; width:100%; border:1px solid var(--line); background:var(--surface); color:var(--ink); border-radius:12px; padding:9px 14px; font-weight:700; font-size:14px; text-align:left}
+.neck-bar small{color:var(--muted); font-weight:500; margin-left:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0}
+.neck-bar:hover{border-color:var(--muted)}
+.legend{display:flex; flex-wrap:wrap; gap:4px 14px; padding:6px 112px 0 12px; font-size:12px; color:var(--muted); min-height:26px}
 .legend span{display:inline-flex; align-items:center; gap:6px}
 .legend i{width:10px; height:10px; border-radius:50%; background:var(--c); display:inline-block}
 .legend b{color:var(--ink); font-weight:650}
@@ -465,7 +470,9 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 
 <div class="neck-wrap">
   <div class="strip" id="strip" hidden></div>
+  <button type="button" class="neck-bar" id="neckBar" hidden aria-expanded="false" aria-controls="neck"><span aria-hidden="true">▾</span> <span>Show neck</span> <small id="neckBarInfo"></small></button>
   <div class="neck" id="neck">
+    <button type="button" class="neck-hide" id="neckHide" aria-expanded="true" aria-controls="neck" title="Hide the neck to make room for menus">▴ Hide neck</button>
     <div class="board-scroll" id="boardScroll">
       <div class="board" id="board"></div>
       <div class="fretnums" id="fretnums"></div>
@@ -916,6 +923,11 @@ function renderToolbar(){
   $('#setNames').checked = state.allNames;
   $('#setSound').checked = state.sound;
   $('#soundBtn').setAttribute('aria-pressed', String(!!state.sound));
+  // collapsible neck
+  const hid = !!state.neckHidden;
+  neck.hidden = hid; $('#neckBar').hidden = !hid;
+  $('#neckBar').setAttribute('aria-expanded', 'false'); $('#neckHide').setAttribute('aria-expanded', 'true');
+  if (hid) { const L = state.layers[0]; $('#neckBarInfo').textContent = quiz ? 'Quiz running' : L && L.visible ? layerTitle(L).replace(/<[^>]+>/g, '') : ''; }
   $('#calText').textContent = state.micCal ? `Mic timing: ${Math.abs(state.micCal.ms)} ms ${state.micCal.ms >= 0 ? 'late' : 'early'} (±${state.micCal.sd})` : 'Mic timing: not calibrated';
   neck.classList.toggle('lefty', state.lefty);
 }
@@ -3125,6 +3137,8 @@ function handlePractice(act, b){
   return false;
 }
 $('#strip').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) handlePractice(b.dataset.act, b); });
+$('#neckHide').addEventListener('click', () => { setNeckHidden(true); toast('Neck hidden. Tap “Show neck” to bring it back.'); });
+$('#neckBar').addEventListener('click', () => { setNeckHidden(false); neck.scrollIntoView({block:'nearest'}); });
 $('#menu').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) { e.preventDefault(); handlePractice(b.dataset.act, b); } });
 // sliders update live without redrawing the panel, so dragging stays smooth
 panel.addEventListener('input', e => {
@@ -3155,7 +3169,9 @@ function render(){
   tickUI();
   save();
 }
+function setNeckHidden(h){ state.neckHidden = h; renderToolbar(); save(); if (!h) renderBoard(); }
 function revealNeck(){
+  if (state.neckHidden) setNeckHidden(false);       // something was put on the neck: bring it back
   const r = neck.getBoundingClientRect();
   if (r.top < 0 || r.bottom > window.innerHeight) neck.scrollIntoView({block:'start', behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
   neck.classList.remove('flash'); void neck.offsetWidth; neck.classList.add('flash');
