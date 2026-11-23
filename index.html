@@ -261,6 +261,26 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
 .practice{display:grid; grid-template-columns:minmax(0, 1fr); gap:12px; align-items:start}
 @media (min-width: 900px){ .practice{grid-template-columns:minmax(300px, 380px) minmax(0, 1fr)} }
 .pcol{display:grid; gap:12px; align-content:start; min-width:0}
+.tview{display:grid; justify-items:center; gap:4px; padding:14px 12px; border-radius:12px; background:var(--surface-2); transition:background .2s}
+.tview .tnote{font-size:56px; font-weight:800; line-height:1; font-variation-settings:'wdth' 80}
+.tview .tnote small{font-size:20px; opacity:.55; margin-left:2px}
+.tview .tsub{font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums; text-align:center}
+.tview .tmeter{position:relative; width:100%; max-width:360px; height:26px; border-radius:13px;
+  background:linear-gradient(90deg, color-mix(in srgb, var(--bad) 30%, transparent), color-mix(in srgb, var(--ok) 40%, transparent) 45% 55%, color-mix(in srgb, var(--bad) 30%, transparent))}
+.tview .tmeter::after{content:""; position:absolute; left:50%; top:3px; bottom:3px; width:2px; background:var(--ink); opacity:.5; transform:translateX(-1px)}
+.tview .tmeter i{position:absolute; top:-3px; width:6px; height:32px; border-radius:3px; background:var(--ink); transform:translateX(-3px); transition:left .08s linear}
+.tview.near .tmeter i{background:#f59f00}
+.tview.ok{background:color-mix(in srgb, var(--ok) 22%, var(--surface-2))}
+.tview.ok .tmeter i{background:var(--ok)}
+.tview.ok .tnote{color:var(--ok)}
+.tview.idle .tnote{opacity:.35}
+.ttdots{display:inline-flex; gap:5px}
+.ttdots i{width:12px; height:12px; border-radius:50%; box-shadow:inset 0 0 0 2px currentColor; opacity:.6}
+.ttdots i.on{background:var(--ok); box-shadow:none; opacity:1}
+.sess .tt-ok{background:var(--ok); border-color:var(--ok); color:#fff}
+.sess .tt-bad{background:transparent; border-color:var(--bad); color:var(--sel-ink)}
+.strip .tt-ok{background:var(--ok); border-color:var(--ok); color:#fff}
+.strip .tt-bad{border-color:var(--bad)}
 .loop-chords{gap:6px}
 .lc{font-weight:750; font-size:15px; padding:4px 10px; border-radius:8px; background:var(--surface-2); border:1px solid var(--line)}
 .lc.on{background:var(--accent); border-color:var(--accent); color:var(--on-accent)}
@@ -598,6 +618,7 @@ const DEF = {
   quizCfg:{type:'find-note', range:'0-12', pool:'core', length:'q10'},
   backing:{source:'prog', key:0, minor:false, prog:0, sevenths:false, bpc:1, pattern:'strum1', drums:true, click:false, follow:true, vol:0.8},
   drone:{root:2, fifth:true, vol:0.35},
+  ttCfg:{step:4, need:3, slips:2}, ttLast:null,
   quizBest:{}, quizLast:null,
   lesson:{items:[], nextItem:1, auto:true, cfg:{
     scales:true, chords:true,
@@ -631,6 +652,7 @@ state.quizCfg = Object.assign(clone(DEF.quizCfg), state.quizCfg || {});
 state.quizBest = state.quizBest || {};
 state.backing = Object.assign(clone(DEF.backing), state.backing || {});
 state.drone = Object.assign(clone(DEF.drone), state.drone || {});
+state.ttCfg = Object.assign(clone(DEF.ttCfg), state.ttCfg || {});
 state.lesson = Object.assign(clone(DEF.lesson), state.lesson || {});
 state.lesson.cfg = Object.assign(clone(DEF.lesson.cfg), state.lesson.cfg || {});
 // quizzes became a regular ingredient (on by default); older saved settings had them off
@@ -2178,6 +2200,162 @@ function logStats(){
 const fmtMin = ms => { const m = Math.round(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; };
 const ago = ts => { const d = Math.floor((Date.now() - ts) / 86400000); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`; };
 
+/* ================= tuner: YIN pitch detection on the microphone ================= */
+/* returns {freq, clarity} for one block of samples, or null when there is no clear pitch */
+function detectPitch(buf, sr){
+  const n = buf.length;
+  let rms = 0; for (let i = 0; i < n; i++) rms += buf[i] * buf[i];
+  rms = Math.sqrt(rms / n);
+  if (rms < 0.008) return null;                                   // too quiet: no reading rather than a guess
+  const minTau = Math.floor(sr / 1400), maxTau = Math.min(Math.floor(sr / 60), Math.floor(n / 2));
+  const W = n - maxTau, d = new Float32Array(maxTau + 1);
+  for (let tau = 1; tau <= maxTau; tau++) {
+    let sum = 0; for (let i = 0; i < W; i++) { const x = buf[i] - buf[i + tau]; sum += x * x; }
+    d[tau] = sum;
+  }
+  // cumulative mean normalised difference
+  const cmnd = new Float32Array(maxTau + 1); cmnd[0] = 1; let run = 0;
+  for (let tau = 1; tau <= maxTau; tau++) { run += d[tau]; cmnd[tau] = run ? d[tau] * tau / run : 1; }
+  // first dip under the threshold (YIN's guard against octave errors), then its local minimum
+  let tau = -1;
+  for (let t = Math.max(2, minTau); t <= maxTau; t++) {
+    if (cmnd[t] < 0.12) { while (t + 1 <= maxTau && cmnd[t + 1] < cmnd[t]) t++; tau = t; break; }
+  }
+  if (tau < 0) {                                                   // no dip under threshold: take the global minimum if it's decent
+    let best = 1, bt = -1; for (let t = Math.max(2, minTau); t <= maxTau; t++) if (cmnd[t] < best) { best = cmnd[t]; bt = t; }
+    if (best > 0.3) return null; tau = bt;
+  }
+  // parabolic interpolation for sub-sample accuracy
+  let better = tau;
+  if (tau > 1 && tau < maxTau) {
+    const a = cmnd[tau - 1], b = cmnd[tau], c = cmnd[tau + 1], den = a + c - 2 * b;
+    if (den) better = tau + (a - c) / (2 * den);
+  }
+  return {freq:sr / better, clarity:1 - cmnd[tau]};
+}
+const tuner = {on:false, stream:null, src:null, an:null, buf:null, raf:0, hist:[], reading:null, inTuneSince:0, err:''};
+async function tunerStart(){
+  tuner.err = '';
+  if (!window.isSecureContext) { tuner.err = 'The tuner needs a secure (https) page to use the microphone.'; render(); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { tuner.err = 'This browser does not let pages use the microphone.'; render(); return; }
+  const a = getAudio(); if (!a) return; if (a.state !== 'running') a.resume().catch(() => {});
+  try {
+    // the phone's voice processing bends pitch and gates quiet notes, so turn it off
+    tuner.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}});
+  } catch (e) {
+    tuner.err = e && e.name === 'NotAllowedError' ? 'Microphone access was blocked. Allow it for this site in your browser settings, then tap Start tuner again.' : 'No microphone could be opened (' + (e && e.name || 'error') + ').';
+    render(); return;
+  }
+  tuner.src = a.createMediaStreamSource(tuner.stream);
+  tuner.an = a.createAnalyser(); tuner.an.fftSize = 4096; tuner.buf = new Float32Array(tuner.an.fftSize);
+  tuner.src.connect(tuner.an);
+  tuner.on = true; tuner.hist = []; tuner.reading = null; requestWake();
+  let last = 0;
+  const loopFn = t => {
+    if (!tuner.on) return;
+    tuner.raf = requestAnimationFrame(loopFn);
+    if (t - last < 45) return; last = t;                          // ~20 readings a second
+    tuner.an.getFloatTimeDomainData(tuner.buf);
+    // halve the sample rate (averaging pairs) — plenty for guitar, and ~4x less work per reading
+    const half = tuner.half || (tuner.half = new Float32Array(tuner.buf.length / 2));
+    for (let i = 0; i < half.length; i++) half[i] = (tuner.buf[2 * i] + tuner.buf[2 * i + 1]) * 0.5;
+    tunerFeed(detectPitch(half, a.sampleRate / 2));
+  };
+  tuner.raf = requestAnimationFrame(loopFn);
+  render();
+}
+function tunerStop(){
+  tuner.on = false; cancelAnimationFrame(tuner.raf);
+  try { if (tuner.src) tuner.src.disconnect(); } catch (e) {}
+  if (tuner.stream) tuner.stream.getTracks().forEach(tr => tr.stop());
+  tuner.stream = tuner.src = tuner.an = null; tuner.reading = null; releaseWake(); render();
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && tuner.on) tunerStop(); });
+/* turn raw detections into a steady reading: median of recent notes, nearest string of the current tuning */
+function tunerFeed(p){
+  if (!p || p.clarity < 0.75) { tuner.hist = tuner.hist.slice(-3); if (!tuner.hist.length) { tuner.reading = null; tuner.inTuneSince = 0; } tunerPaint(); return; }
+  const m = 69 + 12 * Math.log2(p.freq / 440);
+  // a sudden jump to a different note starts fresh instead of averaging across notes
+  if (tuner.hist.length && Math.abs(m - tuner.hist[tuner.hist.length - 1]) > 0.7) tuner.hist = [];
+  tuner.hist.push(m); if (tuner.hist.length > 7) tuner.hist.shift();
+  const mm = median(tuner.hist), near = Math.round(mm), cents = Math.round((mm - near) * 100);
+  const tun = TUNINGS[state.tuning].midi;
+  let sIdx = 0; tun.forEach((t, k) => { if (Math.abs(t - mm) < Math.abs(tun[sIdx] - mm)) sIdx = k; });
+  const strCents = Math.round((mm - tun[sIdx]) * 100);
+  tuner.reading = {freq:440 * Math.pow(2, (mm - 69) / 12), midi:near, cents, s:sIdx, strCents, steady:tuner.hist.length >= 3};
+  if (Math.abs(cents) <= 4 && tuner.reading.steady) { if (!tuner.inTuneSince) tuner.inTuneSince = Date.now(); } else tuner.inTuneSince = 0;
+  tunerPaint();
+}
+/* update just the tuner display, not the whole page, ~20 times a second */
+function tunerPaint(){
+  const el = $('#tunerView'); if (!el) return;
+  const r = tuner.reading;
+  if (!r) { el.className = 'tview idle'; el.innerHTML = `<span class="tnote">–</span><span class="tsub">${tuner.on ? 'Play one string and let it ring' : 'Tap Start tuner and allow the microphone'}</span><span class="tmeter"><i style="left:50%"></i></span>`; return; }
+  const ok = tuner.inTuneSince && Date.now() - tuner.inTuneSince > 400;
+  const pos = 50 + Math.max(-50, Math.min(50, r.cents));
+  const sNote = TUNINGS[state.tuning].midi[r.s];
+  const hint = Math.abs(r.strCents) <= 300
+    ? `${STRING_ORD[r.s]} string ${pn(noteName(mod(sNote)))} · ${Math.abs(r.strCents) <= 4 ? 'in tune' : Math.abs(r.strCents) + ' cents ' + (r.strCents < 0 ? 'flat, tune up' : 'sharp, tune down')}`
+    : 'Not near an open string of this tuning';
+  el.className = 'tview' + (ok ? ' ok' : Math.abs(r.cents) <= 10 ? ' near' : '');
+  el.innerHTML = `<span class="tnote">${pn(noteName(mod(r.midi)))}<small>${Math.floor(r.midi / 12) - 1}</small></span>
+    <span class="tsub">${r.cents > 0 ? '+' : ''}${r.cents} cents · ${r.freq.toFixed(1)} Hz</span>
+    <span class="tmeter"><b></b><i style="left:${pos}%"></i></span><span class="tsub">${hint}</span>`;
+}
+
+/* ================= tempo test: you judge each pass, the app climbs the tempo ================= */
+let tt = null;
+function ttTarget(){
+  const s = state.session, items = state.lesson.items;
+  if (s && !s.done && items[s.idx] && items[s.idx].kind !== 'quiz') { const it = items[s.idx]; return {key:itemKey(it), title:logTitleFor(it), fromLesson:true}; }
+  const x = itemFromNeck();
+  if (x) { state.lesson.nextItem--; return {key:itemKey(x), title:logTitleFor(x)}; }
+  return {key:'free', title:'Free exercise'};
+}
+function lastClean(key){ let best = null; practiceLog.forEach(e => { if (e.key === key && e.clean) best = e.clean; }); return best; }
+function ttStart(){
+  const cfg = state.ttCfg, tg = ttTarget();
+  const custom = ($('#ttName') && $('#ttName').value.trim()) || '';
+  if (custom) { tg.key = 'text|' + custom.toLowerCase(); tg.title = custom; tg.fromLesson = false; }
+  const prev = lastClean(tg.key);
+  const start = prev ? Math.max(30, prev - cfg.step * 2) : state.metro.bpm;
+  tt = Object.assign(tg, {bpm:start, start, streak:0, slips:0, best:null, passes:[], t0:Date.now(), prev});
+  setBpm(start);
+  if (!metro.on) metroStart();
+  render(); revealNeck();
+}
+function ttMark(ok){
+  if (!tt) return;
+  const cfg = state.ttCfg;
+  tt.passes.push({bpm:tt.bpm, ok});
+  if (ok) {
+    tt.streak++;
+    if (tt.streak >= cfg.need) {
+      tt.best = tt.bpm; tt.streak = 0; tt.slips = 0;
+      if (tt.bpm + cfg.step > 260) { ttEnd(); return; }
+      tt.bpm += cfg.step; setBpm(tt.bpm);
+      toast(`Clean at ${tt.best} bpm. Now try ${tt.bpm}.`);
+    }
+  } else {
+    tt.streak = 0; tt.slips++;
+    if (tt.slips >= cfg.slips) { ttEnd(); return; }
+    toast(`Slipped at ${tt.bpm} bpm. ${cfg.slips - tt.slips} more slip${cfg.slips - tt.slips > 1 ? 's' : ''} here ends the test.`);
+  }
+  render();
+}
+function ttEnd(cancel){
+  if (!tt) return;
+  const r = tt; tt = null;
+  if (!cancel && r.passes.length) {
+    logEntry({kind:'tempo', key:r.key, title:r.title, ms:Date.now() - r.t0, bpm:Math.max(...r.passes.map(p => p.bpm)), clean:r.best || null, test:{start:r.start, passes:r.passes.length}});
+    if (r.fromLesson && r.best && state.session && !state.session.done) state.session.clean = Math.max(state.session.clean || 0, r.best);
+    state.ttLast = {title:r.title, best:r.best, prev:r.prev, start:r.start, passes:r.passes.length};
+    if (r.best) setBpm(r.best);
+    toast(r.best ? `Tempo test: clean at ${r.best} bpm${r.prev ? (r.best > r.prev ? `, up from ${r.prev}` : r.best === r.prev ? ', same as last time' : `, last time ${r.prev}`) : ''}.` : `No clean tempo yet. Try starting slower than ${r.start} bpm.`);
+  }
+  render();
+}
+
 /* ================= practice: lesson & session ================= */
 const rnd = a => a[Math.floor(Math.random() * a.length)];
 const itemLike = it => ({kind:it.kind, root:it.root, type:it.type, pos:it.pos, hidden:[], notes:[]});
@@ -2320,9 +2498,12 @@ setInterval(tickUI, 250);
 function renderStrip(){
   const el = $('#strip'), s = state.session, items = state.lesson.items;
   const live = s && !s.done && items[s.idx];
-  el.hidden = !(live || metro.on || quiz || drone.on || heatOn);
+  el.hidden = !(live || metro.on || quiz || drone.on || heatOn || tt || tuner.on);
   if (el.hidden) { el.innerHTML = ''; return; }
   let h = '';
+  if (tt) h += `<div class="qrow"><span class="st-item"><small>Tempo test</small><b>${tt.bpm} bpm</b><small>${tt.streak}/${state.ttCfg.need} clean</small></span>
+    <button type="button" class="ib tt-ok" data-act="ttclean">✓ Clean</button><button type="button" class="ib tt-bad" data-act="ttslip">✕ Slipped</button><button type="button" class="ib" data-act="ttend">Finish</button></div>`;
+  if (tuner.on) h += `<span class="st-item"><b>Tuner on</b><small>${tuner.reading ? pn(noteName(mod(tuner.reading.midi))) + ' ' + (tuner.reading.cents > 0 ? '+' : '') + tuner.reading.cents + '¢' : 'listening'}</small></span><button type="button" class="ib" data-act="tunstop">■ Mic off</button>`;
   if (heatOn && !quiz) h += `<span class="st-item"><b>Weak-spot heatmap</b><small>${FAMILIES[state.heatFam || 'all'].label}</small></span><button type="button" class="ib" data-act="heatoff">Close heatmap</button>`;
   if (loop.on && loop.chords.length) {
     const k = Math.max(0, loop.idx), nx = (k + 1) % loop.chords.length;
@@ -2393,7 +2574,7 @@ function renderPractice(){
         <button type="button" class="btn" data-act="sessnext">${s.idx === items.length - 1 ? 'Finish' : 'Next'}</button>
         <button type="button" class="btn" data-act="sessplus">+1 min</button>
         <button type="button" class="btn" data-act="sessstop">Stop</button></div>
-      ${it.kind !== 'quiz' ? `<div class="row"><button type="button" class="btn" data-act="sessclean">${s.clean ? `✓ Clean at ${s.clean} bpm · update to ${state.metro.bpm}` : `Mark clean at ${state.metro.bpm} bpm`}</button><small style="opacity:.7">Logs the tempo you can play this cleanly.</small></div>` : ''}</div>`;
+      ${it.kind !== 'quiz' ? `<div class="row"><button type="button" class="btn" data-act="ttstart">Tempo test this item</button><button type="button" class="btn" data-act="sessclean">${s.clean ? `✓ Clean at ${s.clean} bpm · update to ${state.metro.bpm}` : `Mark clean at ${state.metro.bpm} bpm`}</button><small style="opacity:.7">Logs the tempo you can play this cleanly.</small></div>` : ''}</div>`;
   }
 
   const itemRows = items.map((it, k) => {
@@ -2549,7 +2730,36 @@ function renderPractice(){
       ${ag.n ? `<button type="button" class="btn primary" data-act="wdrill" data-v="${drillType}">Drill my weak spots</button>` : ''}
       ${answers.length ? `<button type="button" class="btn" data-act="wclear">${heatArmed ? 'Tap again to reset quiz stats' : 'Reset quiz stats'}</button>` : ''}</div>
   </div>`;
-  return `<div class="practice"><div class="pcol">${metroCard}${playCard}${quizCard}</div><div class="pcol">${lessonCard}${weakCard}${logCard}</div></div>`;
+  // tuner
+  const tunStr = TUNINGS[state.tuning].midi.map((m, s) => `<button type="button" class="chip" data-act="tunref" data-s="${s}" title="Play the ${STRING_ORD[s]} string reference">${pn(noteName(mod(m)))}<small style="opacity:.6">${Math.floor(m / 12) - 1}</small></button>`).join('');
+  const tunerCard = `<div class="card">
+    <div class="row" style="justify-content:space-between"><b>Tuner</b><span class="info">${TUNINGS[state.tuning].name.split('  ')[0]} · A = 440 Hz</span></div>
+    <div class="tview idle" id="tunerView"></div>
+    ${tuner.err ? `<p class="mix-note warn" style="margin:0">${esc(tuner.err)}</p>` : ''}
+    <div class="row"><button type="button" class="btn primary big-btn" data-act="${tuner.on ? 'tunstop' : 'tunstart'}">${tuner.on ? '■ Stop tuner' : '🎤 Start tuner'}</button>
+      <span class="opt-note">Tune one string at a time in a quiet room. The mic turns off when you stop.</span></div>
+    <div class="row"><span class="rl">Reference tones · low to high</span>${tunStr}</div>
+  </div>`;
+  // tempo test
+  const tc = state.ttCfg, tgt = tt || ttTarget(), prevClean = tt ? tt.prev : lastClean(tgt.key);
+  const ttCard = `<div class="card">
+    <div class="row" style="justify-content:space-between"><b>Tempo test</b><span class="info">You judge each pass. The app climbs the tempo.</span></div>
+    ${tt ? `<div class="sess">
+        <span class="rl" style="color:inherit;opacity:.7">Testing · ${esc(tt.title)}</span>
+        <div class="row" style="align-items:baseline"><span class="time">${tt.bpm}</span><span>bpm</span>
+          <span class="ttdots">${Array.from({length:tc.need}, (_, k) => `<i class="${k < tt.streak ? 'on' : ''}"></i>`).join('')}</span>
+          <small style="opacity:.75">${tt.streak} of ${tc.need} clean${tt.slips ? ` · ${tt.slips} slip${tt.slips > 1 ? 's' : ''}` : ''}${tt.best ? ` · best so far ${tt.best}` : ''}</small></div>
+        <div class="row"><button type="button" class="btn primary big-btn tt-ok" data-act="ttclean">✓ Clean</button><button type="button" class="btn big-btn tt-bad" data-act="ttslip">✕ Slipped</button>
+          <button type="button" class="btn" data-act="ttend">Finish test</button><button type="button" class="btn" data-act="ttcancel">Cancel</button></div>
+        <small style="opacity:.75">Play the exercise once through, then tap how it went. ${tc.need} clean in a row raises the tempo by ${tc.step}; ${tc.slips} slips at one tempo end the test.</small></div>`
+      : `<div class="row"><span>Exercise: <b>${esc(tgt.title)}</b>${tgt.fromLesson ? ' <small class="opt-note">(current lesson item)</small>' : ''}</span></div>
+        <div class="row"><input type="text" class="task-in" id="ttName" maxlength="60" placeholder="Or name your own, e.g. Spider exercise" aria-label="Exercise name"></div>
+        <div class="row"><span>Step</span>${stepper('ttstep', tc.step, 'bpm per step')}<span>bpm · clean passes</span>${stepper('ttneed', tc.need, 'clean passes per step')}<span>· slips allowed</span>${stepper('ttslips', tc.slips, 'slips that end the test')}</div>
+        <div class="row"><button type="button" class="btn primary big-btn" data-act="ttstart">▶ Start tempo test</button>
+          <span class="opt-note">${prevClean ? `Last clean: <b>${prevClean} bpm</b>. Starts at ${Math.max(30, prevClean - tc.step * 2)}.` : `Starts at the metronome tempo (${state.metro.bpm} bpm).`}</span></div>
+        ${state.ttLast ? `<div class="info qres">Last test: <b>${esc(state.ttLast.title)}</b> · ${state.ttLast.best ? `clean at <b>${state.ttLast.best} bpm</b>` : 'no clean tempo'} · ${state.ttLast.passes} passes</div>` : ''}`}
+  </div>`;
+  return `<div class="practice"><div class="pcol">${metroCard}${ttCard}${tunerCard}${playCard}${quizCard}</div><div class="pcol">${lessonCard}${weakCard}${logCard}</div></div>`;
 }
 function handlePractice(act, b){
   const v = b.dataset.v, cfg = state.lesson.cfg, items = state.lesson.items;
@@ -2569,6 +2779,19 @@ function handlePractice(act, b){
     case 'qstop': quizEnd(); return true;
     case 'qans': quizAnswer(+v); return true;
     case 'qreplay': quizPlay(); return true;
+    // tuner
+    case 'tunstart': tunerStart(); return true;
+    case 'tunstop': tunerStop(); return true;
+    case 'tunref': { const m = TUNINGS[state.tuning].midi[+b.dataset.s]; pluck(m, 0, true); setTimeout(() => pluck(m, 0, true), 1600); return true; }
+    // tempo test
+    case 'ttstart': ttStart(); return true;
+    case 'ttclean': ttMark(true); return true;
+    case 'ttslip': ttMark(false); return true;
+    case 'ttend': ttEnd(); return true;
+    case 'ttcancel': ttEnd(true); toast('Tempo test cancelled, nothing logged'); return true;
+    case 'ttstep': state.ttCfg.step = Math.max(1, Math.min(20, state.ttCfg.step + +v)); render(); return true;
+    case 'ttneed': state.ttCfg.need = Math.max(1, Math.min(10, state.ttCfg.need + +v)); render(); return true;
+    case 'ttslips': state.ttCfg.slips = Math.max(1, Math.min(5, state.ttCfg.slips + +v)); render(); return true;
     case 'qfocus': state.quizCfg.focus = v; render(); return true;
     case 'wfam': state.heatFam = v; render(); return true;
     case 'heat': heatOn = !heatOn; if (heatOn) { if (quiz) quizEnd(); revealNeck(); } render(); return true;
@@ -2715,7 +2938,8 @@ panel.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id ==
 window.fretboardAtlas = {get state(){ return state; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick,
-  get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext()};
+  get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
+  detectPitch, tunerFeed, get tuner(){ return tuner; }, get tt(){ return tt; }};
 
 /* ================= main render ================= */
 function render(){
@@ -2723,6 +2947,7 @@ function render(){
   renderBoard();
   renderStrip();
   panel.innerHTML = state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'practice' ? renderPractice() : renderLayers();
+  tunerPaint();
   tickUI();
   save();
 }

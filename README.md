@@ -21,6 +21,8 @@ A guitar neck reference that runs in the browser. It needs no build step or serv
 - Practice log (stored in the browser): minutes, streak, 14-day chart, per-exercise tempo history with a 'clean at N bpm' marker, quiz scores, and copy/restore backup.
 - Play along: progression loops (any key, or your Pinboard) with strum/pad patterns and drums on the metronome clock, plus a root or root+5th drone.
 - Weak spots: every quiz answer is tracked by fret, note, string, interval and chord type; a heatmap on the neck shows % right per fret (green / amber for slow / red), and 'weak spots first' quizzes drill what you miss.
+- Tuner (microphone, YIN pitch detection) with nearest-string guidance and reference tones.
+- Tempo test: a guided climb that finds your clean tempo for an exercise and logs it.
 - Ear training: hear the interval, hear the chord, hear it and find it on the neck.
 - Interactive circle of fifths with diatonic chords, suggested scales and common progressions.
 - Alternate tunings, a left-handed neck, sharp/flat spelling, and a plucked-string sound when you tap.
