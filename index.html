@@ -270,19 +270,19 @@ body{display:flex; flex-direction:column}
 .ptabs button[aria-selected="true"]{background:var(--sel-bg); color:var(--sel-ink); border-color:var(--sel-bg)}
 .ptabs .live{width:7px; height:7px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 2px color-mix(in srgb, var(--ok) 30%, transparent)}
 .practice.one{display:block; max-width:860px}
-.practice.one > .pcol{display:grid; gap:12px}
+.practice.one > .pcol{display:grid; grid-template-columns:minmax(0, 1fr); gap:12px}
 /* lesson ingredient groups */
-.ing-grps{display:grid; gap:6px; margin:-2px 0 6px}
+.ing-grps{display:grid; grid-template-columns:minmax(0, 1fr); gap:6px; margin:-2px 0 6px}
 .ing-grp{border:1px solid var(--line); border-radius:10px; background:var(--surface)}
 .ing-grp.some{border-color:color-mix(in srgb, var(--accent) 45%, var(--line))}
 .ing-h{width:100%; display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; border:0; background:transparent; color:var(--ink); text-align:left; padding:8px 10px; font-size:13px}
 .ing-h .car{color:var(--muted); width:10px}
 .ing-h small{color:var(--muted)}
-.ing-pre{flex-basis:100%; padding-left:18px; font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ing-pre{flex:1 1 100%; min-width:0; padding-left:18px; font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .ing-chips{display:flex; flex-wrap:wrap; gap:6px; padding:0 10px 10px}
 .panel{padding-top:12px}
 .cards{display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap:12px; align-items:start}
-.card{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px; display:grid; gap:10px; min-width:0}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px; display:grid; grid-template-columns:minmax(0, 1fr); gap:10px; min-width:0}
 .card.off{opacity:.6}
 .card-h{display:flex; align-items:center; gap:10px}
 .sw{width:18px; height:18px; border-radius:50%; background:var(--c); flex:none; box-shadow:inset 0 0 0 2px rgba(0,0,0,.15)}
@@ -393,7 +393,7 @@ body.is-dragging, body.is-dragging *{cursor:grabbing !important}
 /* practice: metronome, lesson, session */
 .practice{display:grid; grid-template-columns:minmax(0, 1fr); gap:12px; align-items:start}
 @media (min-width: 900px){ .practice{grid-template-columns:minmax(300px, 380px) minmax(0, 1fr)} }
-.pcol{display:grid; gap:12px; align-content:start; min-width:0}
+.pcol{display:grid; grid-template-columns:minmax(0, 1fr); gap:12px; align-content:start; min-width:0}
 .tview{display:grid; justify-items:center; gap:4px; padding:14px 12px; border-radius:12px; background:var(--surface-2); transition:background .2s}
 .tview .tnote{font-size:56px; font-weight:800; line-height:1; font-variation-settings:'wdth' 80}
 .tview .tnote small{font-size:20px; opacity:.55; margin-left:2px}
@@ -458,7 +458,7 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 .task-add{display:flex; gap:6px; align-items:center; flex:1 1 260px; min-width:0}
 .task-add .task-in{flex:1 1 0; min-width:0}
 .task-add .btn{flex:none}
-.items{display:grid; gap:6px; container-type:inline-size}
+.items{display:grid; grid-template-columns:minmax(0, 1fr); gap:6px; container-type:inline-size}
 .item{display:grid; grid-template-columns:28px minmax(0, 1fr) auto auto; gap:8px; align-items:center; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:var(--surface-2)}
 .item.cur{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:var(--surface)}
 .item.past{opacity:.55}
@@ -491,7 +491,7 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 .mix-note.warn{color:var(--accent); font-weight:600}
 .ingredients summary{cursor:pointer; font-weight:700; padding:4px 0}
 .ingredients[open] summary{margin-bottom:8px}
-.ing{display:grid; gap:10px}
+.ing{display:grid; grid-template-columns:minmax(0, 1fr); gap:10px}
 .task-in{flex:1 1 180px; min-width:0; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink)}
 .strip{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; background:var(--sel-bg); color:var(--sel-ink); border-radius:10px; padding:6px 10px; margin-bottom:6px; font-size:13px}
 .strip .ib{background:transparent; color:inherit; border-color:color-mix(in srgb, var(--sel-ink) 35%, transparent); height:28px}
