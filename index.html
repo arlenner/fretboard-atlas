@@ -156,6 +156,7 @@ h2,h3{margin:0; text-wrap:balance}
 .cell.open.dim::after{background:color-mix(in srgb, var(--surface) 70%, transparent)}
 .dot.vc .shp .o{stroke:#fff; stroke-width:18; stroke-linejoin:round}
 .dot.alt{transform:scale(.7); opacity:.85}
+.toolbar2.add-end{margin-top:14px}
 .dot.ctx{transform:scale(.66); opacity:.6}
 .dot.mute{background:transparent; box-shadow:none; color:var(--muted); font-size:calc(var(--dot) * .62); font-weight:500}
 .voicing{display:flex; gap:14px; align-items:center; flex-wrap:wrap; background:var(--surface-2); border-radius:12px; padding:10px 12px}
@@ -1562,16 +1563,19 @@ function chordsInScale(L){
 }
 function fitHtml(L, i){
   if (L.kind !== 'scale' || !SCALES[L.type] || SCALES[L.type].arp || L.type === 'chromatic') return '';
-  const D = chordsInScale(L), ov = state.layers.find(x => x.fit === L.id);
+  const D = chordsInScale(L), ovs = state.layers.filter(x => x.fit === L.id);
   const chip = (d, f) => {
-    const on = ov && ov.root === d.r && ov.type === f.t && (ov.hidden || []).includes('5') === f.no5;
+    const on = ovs.some(x => x.kind === 'chord' && x.root === d.r && x.type === f.t && (x.hidden || []).includes('5') === f.no5);
     return `<button type="button" class="chip fitc${on ? ' sel' : ''}${d.stack === f.t && !f.no5 ? ' stk' : ''}" data-act="fitchord" data-i="${i}" data-r="${d.r}" data-t="${f.t}" data-no5="${f.no5 ? 1 : ''}" aria-pressed="${!!on}" title="${CHORDS[f.t].name}${f.no5 ? ', without the 5th' : ''}">${d.name}${CHORDS[f.t].sym}${f.no5 ? '<small>no 5</small>' : ''}</button>`;
   };
   const home = D[0], rn = layerRoot(L), sname = `${pn(rn)} ${SCALES[L.type].name}`;
   const row = d => `<div class="fit-row"><span class="fit-deg"><b>${pl(d.l)}</b> ${d.name}</span><span class="fit-chips">${d.fits.length ? d.fits.map(f => chip(d, f)).join('') : '<small class="hint">no chord fits on this note</small>'}</span></div>`;
   return `<div class="fit">
-    <div class="row" style="justify-content:space-between"><b>Chords to play under it</b>${ov ? `<button type="button" class="btn" data-act="fitclear" data-i="${i}">Clear from the neck</button>` : ''}</div>
+    <div class="row" style="justify-content:space-between"><b>Chords to play under it</b>${ovs.length ? `<button type="button" class="btn" data-act="fitclear" data-i="${i}">Clear from the neck</button>` : ''}</div>
     <span class="info">Every note of these chords is in ${sname}, so the whole scale sounds right over them. Tap one to hear it and see its tones on the neck over the scale.</span>
+    <div class="row"><span class="rl">Tapping another chord</span><div class="seg">
+      <button type="button" data-act="fitmulti" data-i="${i}" data-v="" aria-pressed="${!state.fitMulti}">Replaces it</button>
+      <button type="button" data-act="fitmulti" data-i="${i}" data-v="1" aria-pressed="${!!state.fitMulti}">Adds to it</button></div></div>
     <span class="rl">On the root · vamp one of these</span>
     <div class="fit-chips">${home.fits.length ? home.fits.map(f => chip(home, f)).join('') : '<small class="hint">No chord fits on the root.</small>'}</div>
     <button type="button" class="btn" data-act="fitall" data-i="${i}" aria-expanded="${!!state.fitAll}">${state.fitAll ? 'Hide the other notes' : `Chords on every note of the scale (${D.slice(1).reduce((a, d) => a + d.fits.length, 0)} more)`}</button>
@@ -1679,13 +1683,26 @@ function layerCard(L, i){
 }
 function renderLayers(){
   return `<div class="toolbar2">
-      <button type="button" class="btn primary" data-act="add"${state.layers.length >= 4 ? ' disabled' : ''}>+ Add overlay</button>
+      ${addBtns()}
       <button type="button" class="btn" data-act="example">Example: G major 3rds &amp; 5ths + A roots &amp; ♭7s</button>
       <span class="info">${state.layers.length >= 4 ? 'Four layers is the limit.' : byIv()
-        ? 'Main layer dots are filled, overlay dots are hollow, and a white outline means more than one layer has that note.'
+        ? (state.layers.some(L => L.visible && L.kind === 'chord' && L.pos) ? 'A white outline marks the notes of a chosen chord position. Other layers are smaller.' : 'Main layer dots are filled, overlay dots are hollow, and a white outline means more than one layer has that note.')
         : 'Where layers overlap, the first fills the dot and the second draws the ring.'}</span>
     </div>
-    <div class="cards">${state.layers.map(layerCard).join('')}</div>`;
+    <div class="cards">${state.layers.map(layerCard).join('')}</div>
+    <div class="toolbar2 add-end">${addBtns()}</div>`;
+}
+function addBtns(){
+  const off = state.layers.length >= 4 ? ' disabled' : '';
+  return `<button type="button" class="btn primary" data-act="addchord"${off}>+ Add chord</button><button type="button" class="btn primary" data-act="add"${off}>+ Add scale</button>`;
+}
+/* bring a just-added overlay's card into view, clear of the neck when that sticks to the top */
+function showNewCard(){
+  const c = $('.cards').lastElementChild; if (!c) return;
+  // whichever is stuck to the top: the side menu's header, or the neck
+  const top = $(landQ.matches ? '.side-head' : '.neck-wrap');
+  c.style.scrollMarginTop = (getComputedStyle(top).position === 'sticky' ? top.offsetHeight + 8 : 8) + 'px';
+  c.scrollIntoView({block:'start', behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
 }
 
 /* ================= rendering: finder tab ================= */
@@ -4230,14 +4247,18 @@ panel.addEventListener('click', e => {
     case 'fitchord': {
       const r = +b.dataset.r, t = b.dataset.t, no5 = !!b.dataset.no5, base = 48 + mod(r);
       strumMidis(CHORDS[t].labels.filter(l => !(no5 && l === '5')).map(l => base + lab(l).semi), .035, true);
-      const ov = state.layers.find(x => x.fit === L.id), hidden = no5 ? ['5'] : [];
-      if (ov && ov.root === r && ov.type === t && (ov.hidden || []).includes('5') === no5) { state.layers.splice(state.layers.indexOf(ov), 1); break; }   // tapped again: take it off
+      const ovs = state.layers.filter(x => x.fit === L.id), hidden = no5 ? ['5'] : [];
+      const same = ovs.find(x => x.kind === 'chord' && x.root === r && x.type === t && (x.hidden || []).includes('5') === no5);
+      if (same) { state.layers.splice(state.layers.indexOf(same), 1); break; }   // tapped again: take it off
+      const ov = state.fitMulti ? null : ovs[0];
+      if (ov && ovs.length > 1) state.layers = state.layers.filter(x => x.fit !== L.id || x === ov);
       if (ov) Object.assign(ov, {kind:'chord', root:r, type:t, hidden, visible:true, pos:null});
       else if (state.layers.length < 4) state.layers.push({id:state.nextId++, kind:'chord', root:r, type:t, hidden, notes:[], visible:true, color:nextColor(), fit:L.id});
       else { toast('Four layers already. Remove an overlay to see chords on the neck.'); return; }
       render(); revealNeck(); return;
     }
-    case 'fitclear': { const ov = state.layers.find(x => x.fit === L.id); if (ov) state.layers.splice(state.layers.indexOf(ov), 1); break; }
+    case 'fitclear': state.layers = state.layers.filter(x => x.fit !== L.id); break;
+    case 'fitmulti': state.fitMulti = !!v; break;
     case 'fitall': state.fitAll = !state.fitAll; break;
     case 'ctype': L.type = v; L.hidden = []; break;
     case 'stype': L.type = v; L.hidden = []; adjustPos(L); break;
@@ -4248,7 +4269,16 @@ panel.addEventListener('click', e => {
     case 'add':
       if (state.layers.length >= 4) return;
       state.layers.push({id:state.nextId++, kind:'scale', root:state.layers[0].root, type:'ionian', hidden:[], notes:[], visible:true, color:nextColor()});
-      break;
+      render(); showNewCard(); return;
+    case 'addchord': {
+      if (state.layers.length >= 4) return;
+      // starts a 4th above the last chord, so it doesn't land on top of it; a chord with a position brings its neighbor close by
+      const last = [...state.layers].reverse().find(x => x.kind === 'chord' && x.visible);
+      const N = {id:state.nextId++, kind:'chord', root:mod((last || state.layers[0]).root + (last ? 5 : 0)), type:last ? last.type : 'maj', hidden:[], notes:[], visible:true, color:nextColor()};
+      if (last && last.pos) { N.pos = Object.assign({}, last.pos); N.anchor = last.anchor; adjustPos(N); }
+      state.layers.push(N);
+      render(); showNewCard(); toast(`Added ${chordName(N.root, N.type)}. Pick its root and type here.`); return;
+    }
     case 'example':
       state.layers = [
         {id:state.nextId++, kind:'scale', root:7, type:'ionian', hidden:['1','2','4','6','7'], notes:[], visible:true, color:0},
