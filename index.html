@@ -1055,7 +1055,7 @@ function renderBoard(){
     ? `<span><i style="--c:var(--pick)"></i><b>Pinned shape: ${viewPin.name}</b>${pickNote} · tap the neck to go back to your layers</span>`
     : pickMode
     ? `<span><i style="--c:var(--pick)"></i><b>Picked notes</b> · tap frets to add or remove${pickNote}</span>`
-    : (lg ? lg + key + (focus && focus.scale ? `<span>Position ${scalePositions(state.layers[fi]).find(p => p.f === state.layers[fi].pos.f)?.n || ''} · frets ${focus.lo}–${focus.hi} · ${state.layers[fi].pos.style === 'nps' ? (layerLabels(state.layers[fi]).length >= 7 ? '3' : '2') + ' notes per string' : 'box'}</span>` : focus ? `<span>Position: root on the ${STRING_ORD[state.layers[fi].pos.s]} string, fret ${state.layers[fi].pos.f}${focus.shape ? ' · <b>' + tabText(focus.shape) + '</b>' : ' · no playable shape here, showing chord tones'}</span>` : '') : '<span>All layers are hidden</span>');
+    : (lg ? lg + key + (focus && focus.scale && isArp(state.layers[fi]) ? `<span>Arpeggio: root on the ${STRING_ORD[state.layers[fi].pos.s || 0]} string, fret ${state.layers[fi].pos.f} · frets ${focus.lo}–${focus.hi} · ${state.layers[fi].pos.style === 'nps' ? 'sweep' : 'chord shape'}</span>` : focus && focus.scale ? `<span>Position ${scalePositions(state.layers[fi]).find(p => p.f === state.layers[fi].pos.f)?.n || ''} · frets ${focus.lo}–${focus.hi} · ${state.layers[fi].pos.style === 'nps' ? (layerLabels(state.layers[fi]).length >= 7 ? '3' : '2') + ' notes per string' : 'box'}</span>` : focus ? `<span>Position: root on the ${STRING_ORD[state.layers[fi].pos.s]} string, fret ${state.layers[fi].pos.f}${focus.shape ? ' · <b>' + tabText(focus.shape) + '</b>' : ' · no playable shape here, showing chord tones'}</span>` : '') : '<span>All layers are hidden</span>');
 }
 
 /* ================= rendering: layers tab ================= */
@@ -1111,22 +1111,28 @@ function layerCard(L, i){
         ${OTHER_SCALES.map(([g, ids]) => `<optgroup label="${g}">${ids.map(id => `<option value="${id}"${L.type === id ? ' selected' : ''}>${pn(rootName(L.root, SCALES[id].labels))} ${SCALES[id].name}</option>`).join('')}</optgroup>`).join('')}
       </select></div>`;
     if (L.type !== 'chromatic') {
-      const ps = scalePositions(L);
-      const at = L.pos ? ps.findIndex(p => p.f === L.pos.f) : -1;
+      const ps = scalePositions(L), arp = isArp(L);
+      const same = p => L.pos && p.f === L.pos.f && (!arp || p.s === (L.pos.s || 0));
+      const at = L.pos ? ps.findIndex(same) : -1;
       const rn = layerRoot(L), per = layerLabels(L).length >= 7 ? 3 : 2;
       h += `<div class="row"><span class="rl">Position · focus on one area of the neck</span>
         <button type="button" class="chip${L.pos ? '' : ' sel'}" data-act="spos" data-i="${i}" data-v="none">Whole neck</button>
         <button type="button" class="ib" data-act="sposstep" data-i="${i}" data-v="-1" aria-label="Previous position"${at <= 0 ? ' disabled' : ''}>◀</button>
         <button type="button" class="ib" data-act="sposstep" data-i="${i}" data-v="1" aria-label="Next position"${at >= ps.length - 1 ? ' disabled' : ''}>▶</button>
-        ${ps.map(p => `<button type="button" class="chip${L.pos && L.pos.f === p.f ? ' sel' : ''}" data-act="spos" data-i="${i}" data-f="${p.f}" aria-label="Position ${p.n}, starting on the ${pl(p.label)} at fret ${p.f}" title="Starts on ${pl(p.label)} (${pn(spell(rn, p.label))})">P${p.n} · ${p.f}</button>`).join('')}</div>`;
+        ${ps.map(p => arp
+          ? `<button type="button" class="chip${same(p) ? ' sel' : ''}" data-act="spos" data-i="${i}" data-s="${p.s}" data-f="${p.f}" aria-label="Root on the ${STRING_ORD[p.s]} string, fret ${p.f}">${STRING_ORD[p.s]} · ${p.f}</button>`
+          : `<button type="button" class="chip${same(p) ? ' sel' : ''}" data-act="spos" data-i="${i}" data-s="0" data-f="${p.f}" aria-label="Position ${p.n}, starting on the ${pl(p.label)} at fret ${p.f}" title="Starts on ${pl(p.label)} (${pn(spell(rn, p.label))})">P${p.n} · ${p.f}</button>`).join('')}</div>`;
       if (L.pos) {
-        const fp = scalePosFor(L), cur = ps.find(p => p.f === L.pos.f);
+        const fp = scalePosFor(L), cur = ps.find(same);
+        const where = arp
+          ? `Root on the ${STRING_ORD[L.pos.s || 0]} string at fret ${L.pos.f}, in the hand position of the ${pn(rn)}${CHORDS[SCALES[L.type].chord].sym} chord shape`
+          : cur ? `Position ${cur.n} starts on the ${pl(cur.label)} (${pn(spell(rn, cur.label))}) at fret ${cur.f} on the low E string` : '';
         h += `<div class="voicing"><div class="vinfo">
             <div class="row"><div class="seg">
-              <button type="button" data-act="sstyle" data-i="${i}" data-v="box" aria-pressed="${L.pos.style !== 'nps'}">Box</button>
-              <button type="button" data-act="sstyle" data-i="${i}" data-v="nps" aria-pressed="${L.pos.style === 'nps'}">${per} notes per string</button></div>
-              <button type="button" class="btn" data-act="splay" data-i="${i}">▶ Play up the scale</button></div>
-            <span class="info">${cur ? `Position ${cur.n} starts on the ${pl(cur.label)} (${pn(spell(rn, cur.label))}) at fret ${cur.f} on the low E string` : ''} · frets ${fp.lo}–${fp.hi} · ${fp.shape.length} notes. Tap a scale note on the low E string to move here.</span>
+              <button type="button" data-act="sstyle" data-i="${i}" data-v="box" aria-pressed="${L.pos.style !== 'nps'}">${arp ? 'Shape (all chord tones)' : 'Box'}</button>
+              <button type="button" data-act="sstyle" data-i="${i}" data-v="nps" aria-pressed="${L.pos.style === 'nps'}">${arp ? 'Sweep' : per + ' notes per string'}</button></div>
+              <button type="button" class="btn" data-act="splay" data-i="${i}">▶ Play up the ${arp ? 'arpeggio' : 'scale'}</button></div>
+            <span class="info">${where} · frets ${fp.lo}–${fp.hi} · ${fp.shape.length} notes. ${arp ? 'Tap a root on the 6th, 5th or 4th string to move here.' : 'Tap a scale note on the low E string to move here.'}</span>
           </div></div>`;
       }
     }
@@ -1442,7 +1448,7 @@ function adjustPos(L){
   if (!L.pos) return;
   const anchor = L.anchor != null ? L.anchor : L.pos.f + 1.5;
   let cands;
-  if (L.kind === 'scale') cands = scalePositions(L).map(p => ({s:0, f:p.f, style:L.pos.style || 'box'}));
+  if (L.kind === 'scale') cands = scalePositions(L).map(p => ({s:p.s, f:p.f, style:L.pos.style || 'box'}));
   else cands = rootPositions(L).filter(p => findVoicing(L.root, L.type, p.s, p.f)).map(p => ({s:p.s, f:p.f}));
   if (!cands.length) { L.pos = null; return; }
   // closest to the anchor; ties go to the lower string (fuller bass), then the lower fret
@@ -1451,8 +1457,48 @@ function adjustPos(L){
 }
 
 /* ---- scale positions: each starts on a scale note on the low E string, numbered from the root ---- */
+const isArp = L => L.kind === 'scale' && SCALES[L.type] && SCALES[L.type].arp;
+/* arpeggio shape around a root position: the chord's hand position (like CAGED shapes), as a box or a sweep */
+function arpShape(L){
+  const tun = TUNINGS[state.tuning].midi, S = SCALES[L.type];
+  const pcs = new Set(S.labels.map(l => mod(L.root + semi(l))));
+  const s0 = L.pos.s || 0, rf = L.pos.f;
+  const v = findVoicing(L.root, S.chord, s0, rf);
+  let lo, hi;
+  if (v) {
+    const fr = v.shape.map(q => q.f).filter(f => f > 0);
+    lo = fr.length ? Math.min(...fr) : rf; hi = fr.length ? Math.max(...fr) : rf;
+    if (hi - lo < 3) hi = lo + 3;
+    if (v.shape.some(q => q.f === 0)) lo = 0;
+  } else { lo = Math.max(0, rf - 1); hi = rf + 3; }
+  lo = Math.min(lo, rf); hi = Math.max(hi, rf);
+  const shape = [];
+  if (L.pos.style === 'nps') {
+    // sweep: walk up the chord tones from the root, one note per string where it fits, staying in the hand position
+    const wlo = Math.max(0, lo - 1), whi = hi + 1;
+    let s = s0; shape.push({s:s0, f:rf});
+    for (let m = tun[s0] + rf + 1; m <= tun[5] + whi; m++) {
+      if (!pcs.has(mod(m))) continue;
+      let placed = false;
+      for (const x of [s + 1, s]) {
+        if (x > 5) continue;
+        const f = m - tun[x];
+        if (f >= wlo && f <= whi) { shape.push({s:x, f}); s = x; placed = true; break; }
+      }
+      if (!placed && s === 5) break;
+    }
+  } else {
+    for (let s = 0; s < 6; s++) for (let f = lo; f <= hi; f++) if (pcs.has(mod(tun[s] + f))) shape.push({s, f});
+  }
+  const frets = shape.map(q => q.f);
+  return {shape, lo:Math.min(...frets), hi:Math.max(...frets), scale:true};
+}
 function scalePositions(L){
   const tun = TUNINGS[state.tuning].midi, labels = layerLabels(L), out = [];
+  if (isArp(L)) {     // arpeggios start on the root, on the 6th, 5th or 4th string (like chord positions)
+    for (let f = 0; f <= 14; f++) for (let s = 0; s <= 2; s++) if (mod(tun[s] + f) === L.root) out.push({s, f, n:1, label:'1'});
+    return out.sort((a, b) => a.f - b.f || a.s - b.s);
+  }
   for (let f = 0; f <= 14; f++) {
     const k = labels.findIndex(l => mod(L.root + semi(l)) === mod(tun[0] + f));
     if (k >= 0) out.push({s:0, f, n:k + 1, label:labels[k]});
@@ -1461,6 +1507,7 @@ function scalePositions(L){
 }
 function scalePosFor(L){
   if (!L.pos) return null;
+  if (isArp(L)) return arpShape(L);
   const tun = TUNINGS[state.tuning].midi, labels = layerLabels(L);
   const pcs = new Set(labels.map(l => mod(L.root + semi(l))));
   const f0 = L.pos.f, shape = [];
@@ -2145,6 +2192,7 @@ function itemSub(it){
   if (it.kind === 'quiz') return `Fretboard quiz · frets ${QUIZ_RANGES[state.quizCfg.range].join('–')} · questions keep coming until time is up`;
   if (it.kind === 'scale') {
     if (!it.pos) return 'Scale · whole neck';
+    if (SCALES[it.type].arp) return `Root on the ${STRING_ORD[it.pos.s || 0]} string, fret ${it.pos.f} · ${it.pos.style === 'nps' ? 'sweep' : 'chord shape'}`;
     const p = scalePositions(itemLike(it)).find(z => z.f === it.pos.f);
     return `Position ${p ? p.n : ''} at fret ${it.pos.f} · ${it.pos.style === 'nps' ? (SCALES[it.type].labels.length >= 7 ? '3' : '2') + ' per string' : 'box'}`;
   }
@@ -2169,7 +2217,7 @@ function rollItem(cfg, avoid){
     if (cfg.positions) {
       if (kind === 'scale') {
         const ps = scalePositions(itemLike(it)).filter(p => p.f <= 12);
-        if (ps.length) it.pos = {s:0, f:rnd(ps).f, style:cfg.style === 'mix' ? rnd(['box', 'nps']) : cfg.style};
+        if (ps.length) { const p = rnd(ps); it.pos = {s:p.s || 0, f:p.f, style:cfg.style === 'mix' ? rnd(['box', 'nps']) : cfg.style}; }
       } else {
         const ps = rootPositions(itemLike(it)).filter(p => p.f <= 12 && findVoicing(root, type, p.s, p.f));
         if (ps.length) { const p = rnd(ps); it.pos = {s:p.s, f:p.f}; }
@@ -2718,7 +2766,8 @@ board.addEventListener('click', e => {
     const L = state.layers[0];
     if (L.kind === 'notes') { const k = L.notes.indexOf(pc); if (k >= 0) L.notes.splice(k, 1); else L.notes.push(pc); }
     else if (L.kind === 'chord' && L.pos && pc === L.root && s <= 3) { L.pos = {s, f}; setAnchor(L); L.visible = true; }   // tap a root to move the focus there
-    else if (L.kind === 'scale' && L.pos && s === 0 && f <= 14 && layerLabels(L).some(l => mod(L.root + semi(l)) === pc)) { L.pos = {s:0, f, style:L.pos.style}; setAnchor(L); L.visible = true; }
+    else if (isArp(L) && L.pos && s <= 2 && f <= 14 && pc === L.root) { L.pos = {s, f, style:L.pos.style}; setAnchor(L); L.visible = true; }   // arpeggio: tap a root
+    else if (L.kind === 'scale' && !isArp(L) && L.pos && s === 0 && f <= 14 && layerLabels(L).some(l => mod(L.root + semi(l)) === pc)) { L.pos = {s:0, f, style:L.pos.style}; setAnchor(L); L.visible = true; }
     else { L.root = pc; L.visible = true; adjustPos(L); }
     state.tap = {s, f}; pluck(midi);
   }
@@ -2791,13 +2840,13 @@ panel.addEventListener('click', e => {
       break;
     }
     case 'spos':
-      L.pos = v === 'none' ? null : {s:0, f:+b.dataset.f, style:(L.pos && L.pos.style) || 'box'};
+      L.pos = v === 'none' ? null : {s:+(b.dataset.s || 0), f:+b.dataset.f, style:(L.pos && L.pos.style) || 'box'};
       setAnchor(L); state.tap = null; if (L.pos) revealNeck(); break;
     case 'sposstep': {
       const ps = scalePositions(L); if (!ps.length) return;
-      const k = (L.pos ? ps.findIndex(p => p.f === L.pos.f) : -1) + +v;
+      const k = (L.pos ? ps.findIndex(p => p.f === L.pos.f && (!isArp(L) || p.s === (L.pos.s || 0))) : -1) + +v;
       if (k < 0 || k >= ps.length) return;
-      L.pos = {s:0, f:ps[k].f, style:(L.pos && L.pos.style) || 'box'}; setAnchor(L); state.tap = null; break;
+      L.pos = {s:ps[k].s || 0, f:ps[k].f, style:(L.pos && L.pos.style) || 'box'}; setAnchor(L); state.tap = null; break;
     }
     case 'sstyle': if (L.pos) { L.pos = Object.assign({}, L.pos, {style:v}); setAnchor(L); } break;
     case 'splay': {
