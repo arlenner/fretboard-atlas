@@ -72,6 +72,7 @@ h2,h3{margin:0; text-wrap:balance}
 .sound-btn[aria-pressed="false"] .on, .sound-btn[aria-pressed="true"] .off{display:none}
 .sound-btn[aria-pressed="false"]{color:var(--muted)}
 .sound-btn[aria-pressed="false"] svg{stroke:var(--muted)} .sound-btn[aria-pressed="false"] .spk{fill:var(--muted)}
+.cal-set{display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; color:var(--muted)}
 .menu-pop .hint{font-size:11px; color:var(--muted); line-height:1.35}
 .menu summary{list-style:none; border:1px solid var(--line); background:var(--surface); border-radius:8px; padding:5px 10px; font-size:13px; font-weight:600; cursor:pointer}
 .menu summary::-webkit-details-marker{display:none}
@@ -274,6 +275,11 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
 .tview.ok .tmeter i{background:var(--ok)}
 .tview.ok .tnote{color:var(--ok)}
 .tview.idle .tnote{opacity:.35}
+.passrep{display:grid; gap:6px; font-size:13px}
+.tline{position:relative; height:34px; border-radius:6px; background:color-mix(in srgb, var(--sel-ink) 10%, transparent)}
+.tline::before{content:""; position:absolute; left:0; right:0; top:50%; height:1px; background:color-mix(in srgb, var(--sel-ink) 45%, transparent)}
+.tline i{position:absolute; width:8px; height:8px; margin:-4px 0 0 -4px; border-radius:50%; background:var(--ok)}
+.tline i.miss{top:50%; width:10px; height:10px; margin:-5px 0 0 -5px; border-radius:2px; background:var(--bad)}
 .ttdots{display:inline-flex; gap:5px}
 .ttdots i{width:12px; height:12px; border-radius:50%; box-shadow:inset 0 0 0 2px currentColor; opacity:.6}
 .ttdots i.on{background:var(--ok); box-shadow:none; opacity:1}
@@ -449,6 +455,7 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
       <label class="chk"><input type="checkbox" id="setLefty"> Left-handed neck</label>
       <label class="chk"><input type="checkbox" id="setNames"> Show every note name</label>
       <label class="chk"><input type="checkbox" id="setSound"> Play notes when tapped</label>
+      <div class="cal-set"><span id="calText">Mic timing: not calibrated</span><button type="button" class="btn" data-act="calstart">Calibrate</button></div>
       <span class="hint">No sound? Turn the volume up. On iPhone, older iOS versions also mute the browser when the ring/silent switch is on.</span>
     </div>
   </details>
@@ -618,7 +625,7 @@ const DEF = {
   quizCfg:{type:'find-note', range:'0-12', pool:'core', length:'q10'},
   backing:{source:'prog', key:0, minor:false, prog:0, sevenths:false, bpc:1, pattern:'strum1', drums:true, click:false, follow:true, vol:0.8},
   drone:{root:2, fifth:true, vol:0.35},
-  ttCfg:{step:4, need:3, slips:2}, ttLast:null,
+  ttCfg:{step:4, need:3, slips:2, judge:'me', strict:'normal', bars:2}, ttLast:null, micCal:null,
   quizBest:{}, quizLast:null,
   lesson:{items:[], nextItem:1, auto:true, cfg:{
     scales:true, chords:true,
@@ -909,6 +916,7 @@ function renderToolbar(){
   $('#setNames').checked = state.allNames;
   $('#setSound').checked = state.sound;
   $('#soundBtn').setAttribute('aria-pressed', String(!!state.sound));
+  $('#calText').textContent = state.micCal ? `Mic timing: ${Math.abs(state.micCal.ms)} ms ${state.micCal.ms >= 0 ? 'late' : 'early'} (±${state.micCal.sd})` : 'Mic timing: not calibrated';
   neck.classList.toggle('lefty', state.lefty);
 }
 
@@ -1661,14 +1669,24 @@ const clickBufs = {};
 function clickBuf(kind){
   // short synthetic woodblock-ish clicks: accent, beat, subdivision
   if (clickBufs[kind]) return clickBufs[kind];
-  const a = getAudio(), sr = a.sampleRate, len = Math.floor(sr * 0.04), b = a.createBuffer(1, len, sr), d = b.getChannelData(0);
+  const a = getAudio(), sr = a.sampleRate;
+  if (kind.startsWith('mic')) return (clickBufs[kind] = micClickBuf(sr, kind === 'mic-acc' ? 1 : kind === 'mic-sub' ? 0.45 : 0.75, a));
+  const len = Math.floor(sr * 0.04), b = a.createBuffer(1, len, sr), d = b.getChannelData(0);
   const f = {acc:1760, beat:1180, sub:820}[kind];
   for (let i = 0; i < len; i++) { const t = i / sr; d[i] = Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 90) * (kind === 'sub' ? 0.5 : 1); }
   return (clickBufs[kind] = b);
 }
+/* while the mic is judging, the click is a soft-attack 9 kHz tick: audible, but outside the band the
+   note detector listens to (70 Hz–5 kHz), so the speaker can't pass for your playing */
+function micClickData(sr, amp){
+  const len = Math.floor(sr * 0.035), d = new Float32Array(len), att = Math.floor(sr * 0.003);
+  for (let i = 0; i < len; i++) { const t = i / sr, env = i < att ? 0.5 - 0.5 * Math.cos(Math.PI * i / att) : Math.exp(-(t - att / sr) * 120); d[i] = amp * env * Math.sin(2 * Math.PI * 9000 * t); }
+  return d;
+}
+function micClickBuf(sr, amp, a){ const data = micClickData(sr, amp), b = a.createBuffer(1, data.length, sr); b.getChannelData(0).set(data); return b; }
 function playClick(kind, when){
   const a = getAudio(), src = a.createBufferSource(), g = a.createGain();
-  src.buffer = clickBuf(kind); g.gain.value = state.metro.vol; src.connect(g); g.connect(a.destination); src.start(when);
+  src.buffer = clickBuf(micT.on ? 'mic-' + kind : kind); g.gain.value = state.metro.vol; src.connect(g); g.connect(a.destination); src.start(when);
 }
 function flashBeat(n, rest){
   document.querySelectorAll('.beats').forEach(el => [...el.children].forEach((d, k) => { d.classList.toggle('on', k === n && !rest); d.classList.toggle('rest', k === n && !!rest); }));
@@ -1692,6 +1710,8 @@ function metroSchedule(){
   if (metro.next < a.currentTime) metro.next = a.currentTime + 0.03;      // fell behind (tab was asleep): skip ahead, don't burst
   while (metro.next < a.currentTime + 0.12) {
     const c = clickFor(metro.tick, m);
+    // remember every tick's time (incl. subdivisions) so the mic can be graded against it
+    if (metro.grid) { metro.grid.push({t:metro.next, bar:c.bar, beat:c.beatNo, isBeat:c.isBeat}); if (metro.grid.length > 800) metro.grid.splice(0, 200); }
     if (c.barStart && m.ladder.on && metro.ladderStart != null) {
       const b = ladderBpm(metro.ladderStart, Math.max(0, c.bar - (metro.ladderBar0 || 0)), m.ladder);
       if (b !== m.bpm) setBpm(b);
@@ -1708,7 +1728,7 @@ function metroStart(){
   if (a.state !== 'running') a.resume().catch(() => {});
   metro.on = true; metro.tick = 0; metro.next = a.currentTime + 0.06;
   metro.ladderStart = state.metro.ladder.on ? state.metro.bpm : null; metro.ladderBar0 = 0;
-  metro.startedAt = Date.now(); metro.peak = state.metro.bpm;
+  metro.startedAt = Date.now(); metro.peak = state.metro.bpm; metro.grid = [];
   clearInterval(metro.timer); metro.timer = setInterval(metroSchedule, 25); metroSchedule();
   requestWake();
   setTimeout(() => { if (metro.on && ac.state !== 'running') toast('The metronome is silent because the browser blocked sound. Tap Start again.'); }, 600);
@@ -2313,21 +2333,27 @@ function ttTarget(){
   return {key:'free', title:'Free exercise'};
 }
 function lastClean(key){ let best = null; practiceLog.forEach(e => { if (e.key === key && e.clean) best = e.clean; }); return best; }
-function ttStart(){
+async function ttStart(){
   const cfg = state.ttCfg, tg = ttTarget();
+  const auto = cfg.judge === 'mic';
+  if (auto && !state.micCal) { toast('Calibrate mic timing first: it takes about 15 seconds.'); return; }
+  if (auto && !(await micTimingStart())) return;
   const custom = ($('#ttName') && $('#ttName').value.trim()) || '';
   if (custom) { tg.key = 'text|' + custom.toLowerCase(); tg.title = custom; tg.fromLesson = false; }
   const prev = lastClean(tg.key);
   const start = prev ? Math.max(30, prev - cfg.step * 2) : state.metro.bpm;
-  tt = Object.assign(tg, {bpm:start, start, streak:0, slips:0, best:null, passes:[], t0:Date.now(), prev});
+  tt = Object.assign(tg, {bpm:start, start, streak:0, slips:0, best:null, passes:[], t0:Date.now(), prev, auto, lastPass:null, passBar:null});
   setBpm(start);
-  if (!metro.on) metroStart();
+  if (!metro.on) { metroStart(); tt.passBar = 1; }                 // bar 0 is a count-in
+  else tt.passBar = Math.floor(metro.tick / (state.metro.sub * state.metro.beats)) + 2;
+  if (auto) micT.onsets = [];
   render(); revealNeck();
 }
-function ttMark(ok){
+function ttMark(ok, manual){
   if (!tt) return;
   const cfg = state.ttCfg;
-  tt.passes.push({bpm:tt.bpm, ok});
+  if (manual && tt.auto) tt.lastPass = null;        // a tap overrides the mic for this pass
+  tt.passes.push({bpm:tt.bpm, ok, by:manual || !tt.auto ? 'me' : 'mic'});
   if (ok) {
     tt.streak++;
     if (tt.streak >= cfg.need) {
@@ -2346,8 +2372,9 @@ function ttMark(ok){
 function ttEnd(cancel){
   if (!tt) return;
   const r = tt; tt = null;
+  if (r.auto) micTimingStop();
   if (!cancel && r.passes.length) {
-    logEntry({kind:'tempo', key:r.key, title:r.title, ms:Date.now() - r.t0, bpm:Math.max(...r.passes.map(p => p.bpm)), clean:r.best || null, test:{start:r.start, passes:r.passes.length}});
+    logEntry({kind:'tempo', key:r.key, title:r.title, ms:Date.now() - r.t0, bpm:Math.max(...r.passes.map(p => p.bpm)), clean:r.best || null, test:{start:r.start, passes:r.passes.length, judge:r.auto ? 'mic' : 'me'}});
     if (r.fromLesson && r.best && state.session && !state.session.done) state.session.clean = Math.max(state.session.clean || 0, r.best);
     state.ttLast = {title:r.title, best:r.best, prev:r.prev, start:r.start, passes:r.passes.length};
     if (r.best) setBpm(r.best);
@@ -2355,6 +2382,155 @@ function ttEnd(cancel){
   }
   render();
 }
+
+/* ================= mic timing: onsets, calibration and auto-judged passes ================= */
+/* in-place radix-2 FFT (re, im of length N, a power of two) */
+function fft(re, im){
+  const N = re.length;
+  for (let i = 1, j = 0; i < N; i++) { let bit = N >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+  for (let len = 2; len <= N; len <<= 1) {
+    const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < N; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const a = i + k, b = a + len / 2, xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+        const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr;
+      }
+    }
+  }
+}
+/* note-start detector: spectral flux. A new pluck adds energy at new frequencies even while
+   earlier notes are still ringing, which plain loudness can't see. ~5 ms steps over a ~21 ms window. */
+function makeOnsetDetector(sr){
+  const N = 1024, hop = 256, ring = new Float32Array(N), win = new Float32Array(N);
+  for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
+  const re = new Float32Array(N), im = new Float32Array(N), prev = new Float32Array(N / 2);
+  const lo = Math.floor(70 / sr * N), hi = Math.min(N / 2, Math.ceil(5000 / sr * N));     // guitar range
+  const st = {pending:0, hist:[], last:-1, above:false};
+  let written = 0, head = 0;                                         // circular buffer: head is the oldest sample
+  return (data, t0) => {
+    const out = [];
+    for (let i = 0; i < data.length; i++) {
+      ring[head] = data[i]; head = (head + 1) & (N - 1); written++;
+      if (++st.pending < hop || written < N) continue;
+      st.pending = 0;
+      let rms = 0;
+      for (let k = 0; k < N; k++) { const x = ring[(head + k) & (N - 1)]; re[k] = x * win[k]; im[k] = 0; rms += x * x; }
+      rms = Math.sqrt(rms / N);
+      fft(re, im);
+      let flux = 0;
+      // magnitudes scaled so a full-scale sine reads 1 (Hann gain is N/4): then leakage from sounds
+      // outside the guitar band (like the 9 kHz mic-mode click) stays negligible
+      for (let k = lo; k < hi; k++) { const m = Math.log(1 + 100 * Math.hypot(re[k], im[k]) / (N / 4)); const dd = m - prev[k]; if (dd > 0) flux += dd; prev[k] = m; }
+      const base = st.hist.length ? median(st.hist) : 0;
+      const tEnd = t0 + (i + 1) / sr;                                  // the newest sample in the window
+      const on = rms > 0.003 && flux > base * 2.2 + 2;
+      if (on && !st.above && tEnd - st.last > 0.06) { const t = tEnd - hop / (2 * sr); out.push(t); st.last = t; }
+      st.above = on;
+      st.hist.push(flux); if (st.hist.length > 30) st.hist.shift();
+    }
+    return out;
+  };
+}
+/* grade one pass: every expected click needs a note within the window; extras are counted */
+function gradePass(grid, onsets, latencyS, tolS){
+  const used = new Set(), errs = []; let hits = 0;
+  grid.forEach(g => {
+    const want = g + latencyS; let bi = -1, bd = Infinity;
+    onsets.forEach((o, k) => { if (used.has(k)) return; const dd = Math.abs(o - want); if (dd < bd) { bd = dd; bi = k; } });
+    if (bi >= 0 && bd <= tolS) { used.add(bi); hits++; errs.push(onsets[bi] - want); } else errs.push(null);
+  });
+  const first = grid[0] + latencyS - tolS, lastG = grid[grid.length - 1] + latencyS + tolS;
+  const extras = onsets.filter((o, k) => !used.has(k) && o >= first && o <= lastG).length;
+  const e = errs.filter(x => x != null), mean = e.length ? e.reduce((a, x) => a + x, 0) / e.length : 0;
+  const sd = e.length > 1 ? Math.sqrt(e.reduce((a, x) => a + (x - mean) * (x - mean), 0) / (e.length - 1)) : 0;
+  return {hits, total:grid.length, extras, mean, sd, errs, clean:hits === grid.length && extras <= 1};
+}
+/* calibration: median click-to-note gap, and how consistent it was */
+function calcLatency(grid, onsets){
+  const offs = [];
+  grid.forEach(g => { let bd = Infinity, bo = null; onsets.forEach(o => { const dd = o - g; if (Math.abs(dd) < Math.abs(bd) && Math.abs(dd) <= 0.25) { bd = dd; bo = dd; } }); if (bo != null) offs.push(bo); });
+  if (offs.length < Math.ceil(grid.length * 0.6)) return {ok:false, n:offs.length, why:'Too few notes were heard. Play a little louder, close to the phone.'};
+  const med = median(offs), mad = median(offs.map(x => Math.abs(x - med))) * 1.4826;
+  if (mad > 0.03) return {ok:false, n:offs.length, why:'Your notes were spread out too much to measure. Try again, matching each click as closely as you can.'};
+  return {ok:true, n:offs.length, ms:Math.round(med * 1000), sd:Math.round(mad * 1000)};
+}
+const STRICT = {relaxed:[0.05, 'Relaxed ±50 ms'], normal:[0.035, 'Normal ±35 ms'], strict:[0.02, 'Strict ±20 ms']};
+/* shared microphone tap for timing (sample-accurate blocks with their audio-clock time) */
+const micT = {stream:null, src:null, proc:null, detect:null, onsets:[], on:false};
+async function micTimingStart(){
+  if (micT.on) return true;
+  if (loop.on) { loopStop(); toast('The play-along loop is paused while the mic judges your timing.'); }
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('This browser does not let pages use the microphone.'); return false; }
+  const a = getAudio(); if (!a) return false; if (a.state !== 'running') a.resume().catch(() => {});
+  try { micT.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}}); }
+  catch (e) { toast(e && e.name === 'NotAllowedError' ? 'Microphone access was blocked. Allow it for this site, then try again.' : 'No microphone could be opened.'); return false; }
+  micT.src = a.createMediaStreamSource(micT.stream);
+  micT.proc = a.createScriptProcessor(1024, 1, 1);
+  micT.detect = makeOnsetDetector(a.sampleRate); micT.onsets = [];
+  micT.proc.onaudioprocess = e => {
+    const d = e.inputBuffer.getChannelData(0);
+    const t0 = (e.playbackTime || a.currentTime) - d.length / a.sampleRate;     // when this block was captured, on the audio clock
+    const found = micT.detect(d, t0);
+    if (found.length) { micT.onsets.push(...found); if (micT.onsets.length > 600) micT.onsets.splice(0, 200); }
+  };
+  const silent = a.createGain(); silent.gain.value = 0;        // keep the processor running without playing the mic back
+  micT.src.connect(micT.proc); micT.proc.connect(silent); silent.connect(a.destination);
+  micT.on = true; return true;
+}
+function micTimingStop(){
+  try { if (micT.proc) { micT.proc.onaudioprocess = null; micT.proc.disconnect(); } if (micT.src) micT.src.disconnect(); } catch (e) {}
+  if (micT.stream) micT.stream.getTracks().forEach(tr => tr.stop());
+  Object.assign(micT, {stream:null, src:null, proc:null, detect:null, onsets:[], on:false});
+}
+/* calibration run: 1 bar count-in, then 3 bars of quarter notes at 90 bpm */
+let cal = null;
+async function calStart(){
+  if (tt) ttEnd(true);
+  if (!(await micTimingStart())) return;
+  if (metro.on) metroStop();
+  cal = {saved:clone(state.metro), t0:0, until:0, done:false, msg:''};
+  Object.assign(state.metro, {bpm:90, beats:4, sub:1, accent:true, clickMode:'all', gap:{on:false, play:2, rest:2}, ladder:Object.assign({}, state.metro.ladder, {on:false})});
+  metro.grid = []; micT.onsets = [];
+  metroStart();
+  cal.until = ac.currentTime + 0.06 + 16 * (60 / 90) + 0.4;
+  render();
+}
+function calTick(){
+  if (!cal || cal.done || !ac) return;
+  const beatsDone = (metro.grid || []).filter(g => g.isBeat && g.bar >= 1 && g.t < ac.currentTime - 0.15).length;
+  const el = $('#calProg'); if (el) el.textContent = `${Math.min(12, beatsDone)} of 12 clicks`;
+  if (ac.currentTime < cal.until) return;
+  const grid = metro.grid.filter(g => g.isBeat && g.bar >= 1 && g.bar <= 3).map(g => g.t);
+  const r = calcLatency(grid, micT.onsets.slice());
+  metroStop(); Object.assign(state.metro, cal.saved); setBpm(cal.saved.bpm);
+  micTimingStop();
+  if (r.ok) { state.micCal = {ms:r.ms, sd:r.sd, at:Date.now()}; toast(`Calibrated: your notes land ${Math.abs(r.ms)} ms ${r.ms >= 0 ? 'after' : 'before'} the click (±${r.sd} ms).`); cal = null; }
+  else { cal.done = true; cal.msg = r.why; }
+  render();
+}
+setInterval(calTick, 200);
+/* auto-judged tempo test: grade each pass from the mic, then step like the manual test */
+function ttAutoCheck(){
+  if (!tt || !tt.auto || !ac || !metro.grid) return;
+  const c = state.ttCfg, bars = c.bars || 2, now = ac.currentTime;
+  if (tt.passBar == null) return;
+  const win = metro.grid.filter(g => g.bar >= tt.passBar && g.bar < tt.passBar + bars);
+  const lastG = win.length ? win[win.length - 1] : null;
+  if (!lastG || win.length < bars * state.metro.beats * state.metro.sub) return;     // pass not fully scheduled yet
+  const tol = STRICT[c.strict || 'normal'][0], lat = (state.micCal ? state.micCal.ms : 0) / 1000;
+  if (now < lastG.t + lat + tol + 0.12) return;                                     // wait for the last note of the pass
+  const grid = win.map(g => g.t);
+  const r = gradePass(grid, micT.onsets.filter(o => o >= grid[0] + lat - tol - 0.05 && o <= lastG.t + lat + tol + 0.05), lat, tol);
+  tt.lastPass = r;
+  const before = tt.bpm;
+  ttMark(r.clean);
+  if (!tt) return;
+  // after a tempo change, give one free bar to settle in before grading again
+  tt.passBar = lastG.bar + 1 + (tt.bpm !== before ? 1 : 0);
+}
+setInterval(ttAutoCheck, 100);
 
 /* ================= practice: lesson & session ================= */
 const rnd = a => a[Math.floor(Math.random() * a.length)];
@@ -2743,7 +2919,7 @@ function renderPractice(){
   // tempo test
   const tc = state.ttCfg, tgt = tt || ttTarget(), prevClean = tt ? tt.prev : lastClean(tgt.key);
   const ttCard = `<div class="card">
-    <div class="row" style="justify-content:space-between"><b>Tempo test</b><span class="info">You judge each pass. The app climbs the tempo.</span></div>
+    <div class="row" style="justify-content:space-between"><b>Tempo test</b><span class="info">${(tt ? tt.auto : tc.judge === 'mic') ? 'The mic grades each pass’s timing. The app climbs the tempo.' : 'You judge each pass. The app climbs the tempo.'}</span></div>
     ${tt ? `<div class="sess">
         <span class="rl" style="color:inherit;opacity:.7">Testing · ${esc(tt.title)}</span>
         <div class="row" style="align-items:baseline"><span class="time">${tt.bpm}</span><span>bpm</span>
@@ -2751,8 +2927,25 @@ function renderPractice(){
           <small style="opacity:.75">${tt.streak} of ${tc.need} clean${tt.slips ? ` · ${tt.slips} slip${tt.slips > 1 ? 's' : ''}` : ''}${tt.best ? ` · best so far ${tt.best}` : ''}</small></div>
         <div class="row"><button type="button" class="btn primary big-btn tt-ok" data-act="ttclean">✓ Clean</button><button type="button" class="btn big-btn tt-bad" data-act="ttslip">✕ Slipped</button>
           <button type="button" class="btn" data-act="ttend">Finish test</button><button type="button" class="btn" data-act="ttcancel">Cancel</button></div>
-        <small style="opacity:.75">Play the exercise once through, then tap how it went. ${tc.need} clean in a row raises the tempo by ${tc.step}; ${tc.slips} slips at one tempo end the test.</small></div>`
-      : `<div class="row"><span>Exercise: <b>${esc(tgt.title)}</b>${tgt.fromLesson ? ' <small class="opt-note">(current lesson item)</small>' : ''}</span></div>
+        ${tt.auto ? (() => {
+          const lp = tt.lastPass, tol = STRICT[tc.strict || 'normal'][0] * 1000;
+          if (!lp) return `<small style="opacity:.75">Listening. Play the exercise continuously; every ${tc.bars || 2} bars the mic grades the pass. You can still tap Clean or Slipped to overrule it.</small>`;
+          const marks = lp.errs.map((e, k) => e == null ? `<i class="miss" style="left:${(k + 0.5) / lp.errs.length * 100}%"></i>` : `<i style="left:${(k + 0.5) / lp.errs.length * 100}%; top:${50 + Math.max(-48, Math.min(48, e * 1000 / tol * 48))}%"></i>`).join('');
+          return `<div class="passrep"><span><b>${lp.clean ? '✓ Clean' : '✕ Slipped'}</b> · ${lp.hits}/${lp.total} notes${lp.extras ? ` · ${lp.extras} extra` : ''}${lp.hits ? ` · ${Math.abs(Math.round(lp.mean * 1000))} ms ${lp.mean >= 0 ? 'late' : 'early'} on average · spread ±${Math.round(lp.sd * 1000)} ms` : ''}</span>
+            <span class="tline" title="Each dot is a note: above the line is early, below is late; red marks a missed click">${marks}</span></div>`;
+        })() : `<small style="opacity:.75">Play the exercise once through, then tap how it went. ${tc.need} clean in a row raises the tempo by ${tc.step}; ${tc.slips} slips at one tempo end the test.</small>`}</div>`
+      : cal ? `<div class="sess"><span class="rl" style="color:inherit;opacity:.7">Calibrating mic timing</span>
+          ${cal.done ? `<span class="timeup">${esc(cal.msg)}</span><div class="row"><button type="button" class="btn primary" data-act="calstart">Try again</button><button type="button" class="btn" data-act="calcancel">Cancel</button></div>`
+            : `<b style="font-size:18px">Play a muted string on every click</b><small style="opacity:.75">One bar to get ready, then 12 clicks. Hold the phone near the guitar.</small><span class="time" id="calProg" style="font-size:28px">0 of 12 clicks</span><div class="row"><button type="button" class="btn" data-act="calcancel">Cancel</button></div>`}</div>`
+      : `<div class="row"><span class="rl">Who judges each pass</span><div class="seg">
+          <button type="button" data-act="ttjudge" data-v="me" aria-pressed="${tc.judge !== 'mic'}">I do (tap)</button>
+          <button type="button" data-act="ttjudge" data-v="mic" aria-pressed="${tc.judge === 'mic'}">Mic (timing)</button></div></div>
+        ${tc.judge === 'mic' ? `<div class="row"><span class="opt-note">${state.micCal ? `Mic timing calibrated: notes land ${Math.abs(state.micCal.ms)} ms ${state.micCal.ms >= 0 ? 'after' : 'before'} the click (±${state.micCal.sd} ms).` : '<b>Calibrate first</b> so the app knows your phone’s audio delay.'}</span>
+            <button type="button" class="btn${state.micCal ? '' : ' primary'}" data-act="calstart">${state.micCal ? 'Recalibrate' : 'Calibrate mic timing'}</button></div>
+          <div class="row"><span class="rl">Timing window</span><div class="seg">${Object.entries(STRICT).map(([k, x]) => `<button type="button" data-act="ttstrict" data-v="${k}" aria-pressed="${(tc.strict || 'normal') === k}">${x[1]}</button>`).join('')}</div>
+            <span>Bars per pass</span>${stepper('ttbars', tc.bars || 2, 'bars per pass')}</div>
+          <p class="opt-note" style="margin:0">Headphones give the best results. Without them the click switches to a high tick the mic ignores. The mic checks that a note starts on every click${state.metro.sub > 1 ? ` and subdivision (${['', '', '8ths', 'triplets', '16ths'][state.metro.sub]})` : ''}, on time, with no more than one extra. It can’t hear whether they were the right notes, so tap Slipped if you fumbled one.</p>` : ''}
+        <div class="row"><span>Exercise: <b>${esc(tgt.title)}</b>${tgt.fromLesson ? ' <small class="opt-note">(current lesson item)</small>' : ''}</span></div>
         <div class="row"><input type="text" class="task-in" id="ttName" maxlength="60" placeholder="Or name your own, e.g. Spider exercise" aria-label="Exercise name"></div>
         <div class="row"><span>Step</span>${stepper('ttstep', tc.step, 'bpm per step')}<span>bpm · clean passes</span>${stepper('ttneed', tc.need, 'clean passes per step')}<span>· slips allowed</span>${stepper('ttslips', tc.slips, 'slips that end the test')}</div>
         <div class="row"><button type="button" class="btn primary big-btn" data-act="ttstart">▶ Start tempo test</button>
@@ -2785,8 +2978,15 @@ function handlePractice(act, b){
     case 'tunref': { const m = TUNINGS[state.tuning].midi[+b.dataset.s]; pluck(m, 0, true); setTimeout(() => pluck(m, 0, true), 1600); return true; }
     // tempo test
     case 'ttstart': ttStart(); return true;
-    case 'ttclean': ttMark(true); return true;
-    case 'ttslip': ttMark(false); return true;
+    case 'ttclean': ttMark(true, true); return true;
+    case 'ttslip': ttMark(false, true); return true;
+    case 'ttjudge': state.ttCfg.judge = v; render(); return true;
+    case 'ttstrict': state.ttCfg.strict = v; render(); return true;
+    case 'ttbars': state.ttCfg.bars = Math.max(1, Math.min(8, (state.ttCfg.bars || 2) + +v)); render(); return true;
+    case 'calstart':
+      if (state.tab !== 'practice') { state.tab = 'practice'; const m = $('#menu'); if (m) m.open = false; }
+      calStart(); return true;
+    case 'calcancel': if (cal) { metroStop(); Object.assign(state.metro, cal.saved); setBpm(cal.saved.bpm); micTimingStop(); cal = null; } render(); return true;
     case 'ttend': ttEnd(); return true;
     case 'ttcancel': ttEnd(true); toast('Tempo test cancelled, nothing logged'); return true;
     case 'ttstep': state.ttCfg.step = Math.max(1, Math.min(20, state.ttCfg.step + +v)); render(); return true;
@@ -2925,6 +3125,7 @@ function handlePractice(act, b){
   return false;
 }
 $('#strip').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) handlePractice(b.dataset.act, b); });
+$('#menu').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) { e.preventDefault(); handlePractice(b.dataset.act, b); } });
 // sliders update live without redrawing the panel, so dragging stays smooth
 panel.addEventListener('input', e => {
   const el = e.target;
@@ -2939,7 +3140,10 @@ window.fretboardAtlas = {get state(){ return state; }, tick:() => { tickUI(); qu
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
-  detectPitch, tunerFeed, get tuner(){ return tuner; }, get tt(){ return tt; }};
+  detectPitch, tunerFeed, get tuner(){ return tuner; }, get tt(){ return tt; },
+  makeOnsetDetector, gradePass, calcLatency, ttAutoCheck, micClickData, get micT(){ return micT; }, get grid(){ return metro.grid; },
+  // test seam: a mic-judged tempo test without opening a microphone (grid and onsets are supplied by the test)
+  ttBeginSim:(bpm) => { tt = {key:'free', title:'Sim', bpm, start:bpm, streak:0, slips:0, best:null, passes:[], t0:Date.now(), prev:null, auto:true, lastPass:null, passBar:0}; metro.grid = []; micT.onsets = []; render(); }};
 
 /* ================= main render ================= */
 function render(){
