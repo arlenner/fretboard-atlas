@@ -73,6 +73,7 @@ h2,h3{margin:0; text-wrap:balance}
 .sound-btn[aria-pressed="false"]{color:var(--muted)}
 .sound-btn[aria-pressed="false"] svg{stroke:var(--muted)} .sound-btn[aria-pressed="false"] .spk{fill:var(--muted)}
 .cal-set{display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; color:var(--muted)}
+.menu-pop .mic-help{color:var(--accent); font-weight:600}
 .menu-pop .hint{font-size:11px; color:var(--muted); line-height:1.35}
 .menu summary{list-style:none; border:1px solid var(--line); background:var(--surface); border-radius:8px; padding:5px 10px; font-size:13px; font-weight:600; cursor:pointer}
 .menu summary::-webkit-details-marker{display:none}
@@ -460,6 +461,8 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
       <label class="chk"><input type="checkbox" id="setLefty"> Left-handed neck</label>
       <label class="chk"><input type="checkbox" id="setNames"> Show every note name</label>
       <label class="chk"><input type="checkbox" id="setSound"> Play notes when tapped</label>
+      <div class="cal-set"><span id="micText">Microphone: not used yet</span><button type="button" class="btn" data-act="micallow" id="micAllowBtn">Allow microphone</button></div>
+      <span class="hint mic-help" id="micHelpText" hidden></span>
       <div class="cal-set"><span id="calText">Mic timing: not calibrated</span><button type="button" class="btn" data-act="calstart">Calibrate</button></div>
       <span class="hint">No sound? Turn the volume up. On iPhone, older iOS versions also mute the browser when the ring/silent switch is on.</span>
     </div>
@@ -928,6 +931,10 @@ function renderToolbar(){
   neck.hidden = hid; $('#neckBar').hidden = !hid;
   $('#neckBar').setAttribute('aria-expanded', 'false'); $('#neckHide').setAttribute('aria-expanded', 'true');
   if (hid) { const L = state.layers[0]; $('#neckBarInfo').textContent = quiz ? 'Quiz running' : L && L.visible ? layerTitle(L).replace(/<[^>]+>/g, '') : ''; }
+  $('#micText').textContent = 'Microphone: ' + ({granted:'allowed ✓', denied:'blocked', prompt:'will ask when needed'}[micPerm] || 'not used yet');
+  $('#micAllowBtn').textContent = micPerm === 'granted' ? 'Test' : micPerm === 'denied' ? 'How to allow' : 'Allow microphone';
+  const mh = $('#micHelpText'), helpTxt = micAllowMsg || (micPerm === 'denied' ? micHelp('NotAllowedError') : '');
+  mh.hidden = !helpTxt; mh.textContent = helpTxt;
   $('#calText').textContent = state.micCal ? `Mic timing: ${Math.abs(state.micCal.ms)} ms ${state.micCal.ms >= 0 ? 'late' : 'early'} (±${state.micCal.sd})` : 'Mic timing: not calibrated';
   neck.classList.toggle('lefty', state.lefty);
 }
@@ -2232,6 +2239,81 @@ function logStats(){
 const fmtMin = ms => { const m = Math.round(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; };
 const ago = ts => { const d = Math.floor((Date.now() - ts) / 86400000); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`; };
 
+/* ================= microphone access (shared) ================= */
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+const IS_STANDALONE = (() => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } })();
+let micUsers = 0, micPerm = 'unknown';
+/* iOS 17+: the page's audio mode was set to "playback" (so the silent switch doesn't mute it), and that mode
+   doesn't allow recording. Switch to play-and-record while any mic feature is on, then back. */
+function micSessionStart(){ micUsers++; try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) {} }
+function micSessionEnd(){ micUsers = Math.max(0, micUsers - 1); if (!micUsers) { try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {} } }
+/* what to tell the player when the mic can't be opened, by error and by phone */
+function micHelp(errName, plat){
+  const p = plat || (IS_IOS ? (IS_STANDALONE ? 'ios-app' : 'ios') : IS_ANDROID ? 'android' : 'desktop');
+  if (errName === 'insecure') return 'The microphone only works on a secure (https) page. Open the app from its https address.';
+  if (errName === 'unsupported') return 'This browser does not let web pages use the microphone. Try Safari on iPhone or Chrome on Android.';
+  if (errName === 'NotFoundError' || errName === 'OverconstrainedError') return 'No microphone was found. If you use a headset or adapter, check it is plugged in.';
+  if (errName === 'NotReadableError' || errName === 'AbortError') return 'The microphone is busy. Close any call, voice memo or recording app, then try again.';
+  if (errName === 'InvalidStateError') return p.startsWith('ios')
+    ? 'iOS would not start the microphone (InvalidStateError). Stop any music or video in other apps, make sure no call is active, then tap Start again. If it keeps happening, close the Safari tab or app completely and reopen it.'
+    : 'The browser would not start the microphone (InvalidStateError). Close other apps or tabs using audio, then try again, or reload the page.';
+  if (errName === 'NotAllowedError' || errName === 'SecurityError') {
+    if (p === 'ios') return 'Microphone access is blocked for this site. In Safari, tap the “aA” button in the address bar → Website Settings → Microphone → Allow, then try again. If there is no option, check Settings → Apps → Safari → Microphone.';
+    if (p === 'ios-app') return 'Microphone access is blocked. Open Settings → Apps → Safari → Microphone and choose Ask or Allow, then reopen the app. (The home-screen app uses Safari’s settings.)';
+    if (p === 'android') return 'Microphone access is blocked for this site. In Chrome, tap the icon left of the address → Permissions → Microphone → Allow. If that is already on, check Android Settings → Apps → Chrome → Permissions → Microphone.';
+    return 'Microphone access is blocked for this site. Click the icon left of the address bar, allow the microphone, then try again.';
+  }
+  return 'The microphone could not be opened' + (errName ? ' (' + errName + ')' : '') + '. Try again, or reload the page.';
+}
+/* open the mic with pitch-friendly settings; returns {stream} or {err} with an explanation */
+async function openMic(){
+  if (!window.isSecureContext) return {err:micHelp('insecure')};
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return {err:micHelp('unsupported')};
+  micSessionStart();
+  // voice processing (echo cancel, noise gate, auto gain) bends pitch and swallows quiet notes, so ask for it off
+  const ask = async () => {
+    try { return await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}}); }
+    catch (e) { if (e && e.name === 'OverconstrainedError') return await navigator.mediaDevices.getUserMedia({audio:true}); throw e; }
+  };
+  const wait = ms => new Promise(res => setTimeout(res, ms));
+  let lastErr = null;
+  // iOS can refuse with InvalidStateError ("failed to start the audio device") while its audio is set up
+  // for playback only. Retry with the audio engine paused so the mode switch can take effect, then with
+  // the browser's default mode.
+  const attempts = [
+    async () => ask(),
+    async () => { if (ac && ac.state === 'running') await ac.suspend().catch(() => {}); try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) {} await wait(350); return ask(); },
+    async () => { try { if (navigator.audioSession) navigator.audioSession.type = 'auto'; } catch (e) {} await wait(350); return ask(); }
+  ];
+  for (const attempt of attempts) {
+    try {
+      const stream = await attempt();
+      if (ac && ac.state !== 'running') await ac.resume().catch(() => {});
+      micPerm = 'granted'; return {stream};
+    } catch (e) {
+      lastErr = e;
+      if (!e || e.name !== 'InvalidStateError') break;          // only the audio-device error is worth retrying
+    }
+  }
+  if (ac && ac.state !== 'running') ac.resume().catch(() => {});
+  micSessionEnd();
+  if (lastErr && (lastErr.name === 'NotAllowedError' || lastErr.name === 'SecurityError')) micPerm = 'denied';
+  return {err:micHelp(lastErr && lastErr.name)};
+}
+function closeMic(stream){ if (stream) { stream.getTracks().forEach(tr => tr.stop()); micSessionEnd(); } }
+/* current permission, where the browser can tell us (Chrome, Safari 16+) */
+async function refreshMicPerm(){
+  try { if (navigator.permissions && navigator.permissions.query) { const st = await navigator.permissions.query({name:'microphone'}); micPerm = st.state; st.onchange = () => { micPerm = st.state; renderToolbar(); }; } } catch (e) {}
+  renderToolbar();
+}
+let micAllowMsg = '';
+async function micAllowFlow(){
+  const r = await openMic();
+  if (r.stream) { closeMic(r.stream); micAllowMsg = ''; toast('Microphone allowed. The tuner and mic timing are ready.'); }
+  else micAllowMsg = r.err;
+  renderToolbar();
+}
+
 /* ================= tuner: YIN pitch detection on the microphone ================= */
 /* returns {freq, clarity} for one block of samples, or null when there is no clear pitch */
 function detectPitch(buf, sr){
@@ -2268,16 +2350,11 @@ function detectPitch(buf, sr){
 const tuner = {on:false, stream:null, src:null, an:null, buf:null, raf:0, hist:[], reading:null, inTuneSince:0, err:''};
 async function tunerStart(){
   tuner.err = '';
-  if (!window.isSecureContext) { tuner.err = 'The tuner needs a secure (https) page to use the microphone.'; render(); return; }
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { tuner.err = 'This browser does not let pages use the microphone.'; render(); return; }
   const a = getAudio(); if (!a) return; if (a.state !== 'running') a.resume().catch(() => {});
-  try {
-    // the phone's voice processing bends pitch and gates quiet notes, so turn it off
-    tuner.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}});
-  } catch (e) {
-    tuner.err = e && e.name === 'NotAllowedError' ? 'Microphone access was blocked. Allow it for this site in your browser settings, then tap Start tuner again.' : 'No microphone could be opened (' + (e && e.name || 'error') + ').';
-    render(); return;
-  }
+  const r = await openMic();
+  if (!r.stream) { tuner.err = r.err; render(); return; }
+  tuner.stream = r.stream;
+  if (a.state !== 'running') a.resume().catch(() => {});        // iOS can suspend audio while switching to recording
   tuner.src = a.createMediaStreamSource(tuner.stream);
   tuner.an = a.createAnalyser(); tuner.an.fftSize = 4096; tuner.buf = new Float32Array(tuner.an.fftSize);
   tuner.src.connect(tuner.an);
@@ -2299,7 +2376,7 @@ async function tunerStart(){
 function tunerStop(){
   tuner.on = false; cancelAnimationFrame(tuner.raf);
   try { if (tuner.src) tuner.src.disconnect(); } catch (e) {}
-  if (tuner.stream) tuner.stream.getTracks().forEach(tr => tr.stop());
+  closeMic(tuner.stream);
   tuner.stream = tuner.src = tuner.an = null; tuner.reading = null; releaseWake(); render();
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && tuner.on) tunerStop(); });
@@ -2474,10 +2551,12 @@ const micT = {stream:null, src:null, proc:null, detect:null, onsets:[], on:false
 async function micTimingStart(){
   if (micT.on) return true;
   if (loop.on) { loopStop(); toast('The play-along loop is paused while the mic judges your timing.'); }
-  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('This browser does not let pages use the microphone.'); return false; }
   const a = getAudio(); if (!a) return false; if (a.state !== 'running') a.resume().catch(() => {});
-  try { micT.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}}); }
-  catch (e) { toast(e && e.name === 'NotAllowedError' ? 'Microphone access was blocked. Allow it for this site, then try again.' : 'No microphone could be opened.'); return false; }
+  micT.err = '';
+  const r = await openMic();
+  if (!r.stream) { micT.err = r.err; render(); return false; }
+  micT.stream = r.stream;
+  if (a.state !== 'running') a.resume().catch(() => {});
   micT.src = a.createMediaStreamSource(micT.stream);
   micT.proc = a.createScriptProcessor(1024, 1, 1);
   micT.detect = makeOnsetDetector(a.sampleRate); micT.onsets = [];
@@ -2493,7 +2572,7 @@ async function micTimingStart(){
 }
 function micTimingStop(){
   try { if (micT.proc) { micT.proc.onaudioprocess = null; micT.proc.disconnect(); } if (micT.src) micT.src.disconnect(); } catch (e) {}
-  if (micT.stream) micT.stream.getTracks().forEach(tr => tr.stop());
+  closeMic(micT.stream);
   Object.assign(micT, {stream:null, src:null, proc:null, detect:null, onsets:[], on:false});
 }
 /* calibration run: 1 bar count-in, then 3 bars of quarter notes at 90 bpm */
@@ -2952,6 +3031,7 @@ function renderPractice(){
       : `<div class="row"><span class="rl">Who judges each pass</span><div class="seg">
           <button type="button" data-act="ttjudge" data-v="me" aria-pressed="${tc.judge !== 'mic'}">I do (tap)</button>
           <button type="button" data-act="ttjudge" data-v="mic" aria-pressed="${tc.judge === 'mic'}">Mic (timing)</button></div></div>
+        ${micT.err ? `<p class="mix-note warn" style="margin:0">${esc(micT.err)}</p>` : ''}
         ${tc.judge === 'mic' ? `<div class="row"><span class="opt-note">${state.micCal ? `Mic timing calibrated: notes land ${Math.abs(state.micCal.ms)} ms ${state.micCal.ms >= 0 ? 'after' : 'before'} the click (±${state.micCal.sd} ms).` : '<b>Calibrate first</b> so the app knows your phone’s audio delay.'}</span>
             <button type="button" class="btn${state.micCal ? '' : ' primary'}" data-act="calstart">${state.micCal ? 'Recalibrate' : 'Calibrate mic timing'}</button></div>
           <div class="row"><span class="rl">Timing window</span><div class="seg">${Object.entries(STRICT).map(([k, x]) => `<button type="button" data-act="ttstrict" data-v="${k}" aria-pressed="${(tc.strict || 'normal') === k}">${x[1]}</button>`).join('')}</div>
@@ -2984,6 +3064,7 @@ function handlePractice(act, b){
     case 'qstop': quizEnd(); return true;
     case 'qans': quizAnswer(+v); return true;
     case 'qreplay': quizPlay(); return true;
+    case 'micallow': micAllowFlow(); return true;
     // tuner
     case 'tunstart': tunerStart(); return true;
     case 'tunstop': tunerStop(); return true;
@@ -3154,6 +3235,7 @@ window.fretboardAtlas = {get state(){ return state; }, tick:() => { tickUI(); qu
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
+  micHelp, micSessionStart, micSessionEnd, openMic, get micUsers(){ return micUsers; }, get audioCtx(){ return ac; },
   detectPitch, tunerFeed, get tuner(){ return tuner; }, get tt(){ return tt; },
   makeOnsetDetector, gradePass, calcLatency, ttAutoCheck, micClickData, get micT(){ return micT; }, get grid(){ return metro.grid; },
   // test seam: a mic-judged tempo test without opening a microphone (grid and onsets are supplied by the test)
@@ -3430,6 +3512,7 @@ panel.addEventListener('change', e => {
 });
 
 render();
+refreshMicPerm();
 })();
 </script>
 </body>
