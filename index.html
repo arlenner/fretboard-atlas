@@ -455,8 +455,11 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 .stepper{display:inline-flex; align-items:center; gap:4px}
 .stepper .val{min-width:40px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums}
 .big-btn{font-size:16px; padding:9px 18px}
-.items{display:grid; gap:6px}
-.item{display:grid; grid-template-columns:28px minmax(0, 1fr) auto; gap:8px; align-items:center; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:var(--surface-2)}
+.task-add{display:flex; gap:6px; align-items:center; flex:1 1 260px; min-width:0}
+.task-add .task-in{flex:1 1 0; min-width:0}
+.task-add .btn{flex:none}
+.items{display:grid; gap:6px; container-type:inline-size}
+.item{display:grid; grid-template-columns:28px minmax(0, 1fr) auto auto; gap:8px; align-items:center; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:var(--surface-2)}
 .item.cur{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:var(--surface)}
 .item.past{opacity:.55}
 .item .n{font-weight:800; color:var(--muted); font-variant-numeric:tabular-nums; text-align:center}
@@ -465,6 +468,13 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 .item .it small{color:var(--muted); font-size:11px}
 .item .ctl2{display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; align-items:center}
 .item .dur{min-width:48px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums}
+/* narrow list (portrait, or the half-width side menu): title and play button on top, the other controls in a row below */
+@container (max-width: 600px){
+  .item{grid-template-columns:22px minmax(0, 1fr) auto}
+  .item .ctl2{grid-column:1 / -1; grid-row:2; justify-content:flex-start}
+  .item .ctl2 .ib{flex:1 1 auto; min-width:28px; max-width:72px; padding:0 2px}
+  .item .go{min-width:40px; height:36px}
+}
 .sess{background:var(--sel-bg); color:var(--sel-ink); border-radius:12px; padding:12px 14px; display:grid; gap:8px}
 .sess .time{font-size:44px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; font-variation-settings:'wdth' 80}
 .sess .btn{background:transparent; color:var(--sel-ink); border-color:color-mix(in srgb, var(--sel-ink) 35%, transparent)}
@@ -3592,8 +3602,8 @@ function renderPractice(){
         <button type="button" class="ib" data-act="imove" data-id="${it.id}" data-v="-1" aria-label="Move up"${k === 0 ? ' disabled' : ''}>↑</button>
         <button type="button" class="ib" data-act="imove" data-id="${it.id}" data-v="1" aria-label="Move down"${k === items.length - 1 ? ' disabled' : ''}>↓</button>
         <button type="button" class="ib" data-act="idel" data-id="${it.id}" aria-label="Remove">✕</button>
-        <button type="button" class="ib" data-act="sessstart" data-v="${k}" aria-label="Start from here" title="Start from here">▶</button>
-      </span></div>`;
+      </span>
+      <button type="button" class="ib go" data-act="sessstart" data-v="${k}" aria-label="Start from here" title="Start from here">▶</button></div>`;
   }).join('');
 
   const chipT = (on, act, v, label, k) => `<button type="button" class="chip tog${on ? ' sel' : ''}" data-act="${act}" data-v="${v}"${k ? ` data-k="${k}"` : ''} aria-pressed="${on}">${label}</button>`;
@@ -3634,8 +3644,8 @@ function renderPractice(){
     <div class="row">
       ${items.length && !(s && !s.done) ? `<button type="button" class="btn primary big-btn" data-act="sessstart" data-v="0">▶ Start lesson</button>` : ''}
       <button type="button" class="btn" data-act="iaddneck">+ What's on the neck</button>
-      <input type="text" class="task-in" id="newTask" maxlength="80" placeholder="Custom task, e.g. alternate picking 16ths" aria-label="Custom task">
-      <button type="button" class="btn" data-act="iaddtask">+ Add task</button></div>
+      <span class="task-add"><input type="text" class="task-in" id="newTask" maxlength="80" placeholder="Custom task, e.g. alternate picking 16ths" aria-label="Custom task">
+      <button type="button" class="btn" data-act="iaddtask">+ Add task</button></span></div>
     <div class="row"><label class="chk"><input type="checkbox" id="lAuto" data-act="lauto"${Ls.auto ? ' checked' : ''}> Move to the next item automatically when time is up</label></div>
     ${ing}
   </div>`;
