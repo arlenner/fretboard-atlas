@@ -50,7 +50,9 @@
 body{margin:0;background:var(--bg); color:var(--ink); font-family:var(--font); font-size:14px; line-height:1.4;
   padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); padding-block:8px 32px}
 button,select,input{font:inherit; color:inherit}
-button{cursor:pointer}
+button{cursor:pointer; touch-action:manipulation}
+/* smaller text makes iOS zoom in on focus, and a zoomed page stays zoomed (and misplaced) through a rotation */
+@media (pointer: coarse){ input:not([type=checkbox]):not([type=radio]):not([type=range]), textarea, select, select.sel{font-size:16px !important} }
 :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 h2,h3{margin:0; text-wrap:balance}
 
@@ -225,7 +227,7 @@ body{display:flex; flex-direction:column}
   body.side-open .board-scroll{padding-right:calc(var(--side-w) + 10px)}
   body.side-open.side-lefty .board-scroll{padding-right:10px; padding-left:calc(var(--side-w) + 10px)}
   body.side-open .board, body.side-open .fretnums{min-width:max(740px, calc(100vw - 38px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)))}
-  body{padding:0}
+  body{padding:0; position:fixed; inset:0; width:auto}   /* not just overflow:hidden: iOS keeps a scrolled page's old touch offset after rotating */
   body::before{display:none}
   .rotate-hint, .neck-bar, #neckHide{display:none !important}
   .neck-wrap, .neck-wrap.collapsed{position:fixed; inset:0; z-index:1; display:flex; flex-direction:column; gap:4px; padding:max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))}
@@ -242,10 +244,13 @@ body{display:flex; flex-direction:column}
   .menus{display:block; position:fixed; z-index:40; top:0; bottom:0; right:0; width:min(440px, 56vw); overflow-y:auto; overscroll-behavior:contain;
     width:var(--side-w); background:var(--bg); border-left:1px solid var(--line); box-shadow:-12px 0 32px rgba(0,0,0,.25);
     padding:0 max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) 12px;
-    transform:translateX(105%); visibility:hidden; transition:transform .22s ease-out, visibility 0s linear .22s, width .22s ease-out}
+    transform:translateX(105%); visibility:hidden; pointer-events:none}
   .menus.lefty{right:auto; left:0; border-left:0; border-right:1px solid var(--line); box-shadow:12px 0 32px rgba(0,0,0,.25); transform:translateX(-105%);
     padding-left:max(12px, env(safe-area-inset-left)); padding-right:12px}
-  .menus.open{transform:none; visibility:visible; transition:transform .22s ease-out, visibility 0s, width .22s ease-out}
+  .menus.open{transform:none; visibility:visible; pointer-events:auto}
+  /* slides only when opened or closed by hand; rotating the phone must not start a slide that leaves it over the neck */
+  .menus.anim{transition:transform .22s ease-out, visibility 0s linear .22s, width .22s ease-out}
+  .menus.anim.open{transition:transform .22s ease-out, visibility 0s, width .22s ease-out}
   .menus.full{width:100vw; border:0; box-shadow:none; padding-inline:max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right))}
   .side-head{display:flex; align-items:center; gap:8px; position:sticky; top:0; z-index:6; background:var(--bg); padding:max(8px, env(safe-area-inset-top)) 0 8px; margin-bottom:4px; border-bottom:1px solid var(--line)}
   .side-head b{margin-right:auto; font-size:15px}
@@ -3988,7 +3993,29 @@ $('#menusOpen').addEventListener('click', () => setSide('open'));
 $('#menusClose').addEventListener('click', () => setSide('closed'));
 $('#menusFull').addEventListener('click', () => setSide(side === 'full' ? 'open' : 'full'));
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && landQ.matches && side !== 'closed' && !e.defaultPrevented) setSide('closed'); });
-landQ.addEventListener('change', () => render());
+/* rotating: start each orientation clean. Browsers differ in which event they send and when the new size is ready, so check on
+   all of them and again a little later; only an actual switch redraws. */
+let wasLand = landQ.matches, portraitY = 0;
+function syncOrient(){
+  const land = landQ.matches;
+  if (land !== wasLand) {
+    wasLand = land;
+    const a = document.activeElement; if (a && a !== document.body && a.blur) a.blur();    // a focused box keeps the keyboard and zoom up
+    dragCleanup(); drag = null; eatClick = false;
+    ['#menu', '#savesMenu'].forEach(id => { $(id).open = false; });
+    clearTimeout(animT); $('#menus').classList.remove('anim');
+    if (land) side = 'closed';                     // sideways starts on the neck
+    render();
+    if (!land) requestAnimationFrame(() => scrollTo(0, portraitY));
+  } else applySide();
+  if (land && (scrollY || document.documentElement.scrollTop || document.body.scrollTop)) { scrollTo(0, 0); document.documentElement.scrollTop = document.body.scrollTop = 0; }
+}
+function syncSoon(){ syncOrient(); [120, 400, 900].forEach(ms => setTimeout(syncOrient, ms)); }
+landQ.addEventListener('change', syncSoon);
+addEventListener('orientationchange', syncSoon);
+addEventListener('resize', syncOrient);
+addEventListener('pageshow', syncOrient);
+addEventListener('scroll', () => { if (!landQ.matches && !wasLand) portraitY = scrollY; }, {passive:true});
 $('#neckBar').addEventListener('click', () => { setNeckHidden(false); neck.scrollIntoView({block:'nearest'}); });
 $('#menu').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) { e.preventDefault(); handlePractice(b.dataset.act, b); } });
 // sliders update live without redrawing the panel, so dragging stays smooth
@@ -4105,7 +4132,10 @@ function applySide(){
   const now = open && lefty;
   if (now !== was && bs) { const w = Math.min(440, innerWidth * 0.56); bs.scrollLeft = Math.max(0, bs.scrollLeft + (now ? w : -w)); }
 }
-function setSide(v){ side = v; applySide(); if (v !== 'closed') { const t = $('.menus .tabs [aria-selected="true"]'); if (t && landQ.matches) t.focus({preventScroll:true}); } else if (landQ.matches) $('#menusOpen').focus({preventScroll:true}); }
+let animT = null;
+function setSide(v){
+  const mm = $('#menus'); mm.classList.add('anim'); clearTimeout(animT); animT = setTimeout(() => mm.classList.remove('anim'), 320);
+  side = v; applySide(); if (v !== 'closed') { const t = $('.menus .tabs [aria-selected="true"]'); if (t && landQ.matches) t.focus({preventScroll:true}); } else if (landQ.matches) $('#menusOpen').focus({preventScroll:true}); }
 function revealNeck(){
   if (landQ.matches) { if (side === 'full') setSide('open'); neck.classList.remove('flash'); void neck.offsetWidth; neck.classList.add('flash'); return; }
   if (state.neckHidden) setNeckHidden(false);       // something was put on the neck: bring it back
