@@ -328,6 +328,8 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
 .chordbtn:hover{border-color:var(--muted)}
 .prog{display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:6px 0; border-top:1px solid var(--line)}
 .prog .pn{font-size:12px; color:var(--muted); width:100%}
+.roll{display:grid; gap:6px; margin-top:6px; padding-top:10px; border-top:2px solid var(--line)}
+.roll > .prog{border-top:0; background:var(--surface-2); border-radius:10px; padding:8px 10px}
 .scl{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:6px}
 .scl button{border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:6px 10px; text-align:left; display:grid}
 .scl button small{color:var(--muted); font-size:11px}
@@ -1629,6 +1631,9 @@ function renderCircle(){
   const PROGS = PROG_LIST[minor ? 'minor' : 'major'];
   const progStyle = state.circle.color !== false ? 'color' : sevenths ? 'sev' : 'tri';
   progCache = PROGS.map((p, n) => progressionChords(kpc, minor, n, progStyle).map(c => ({num:c.num, root:c.root, name:c.base, type:c.type})));
+  // the rolled progression follows the key (it's stored as degrees); it sits after the list so Play / Pin all work the same way
+  const roll = state.circle.roll && state.circle.roll.minor === minor ? state.circle.roll : null, spice = state.circle.spice || 'color', rollIdx = PROGS.length;
+  if (roll) progCache[rollIdx] = roll.items.map(it => { const c = degChord(kpc, minor, it.d, it.t); return {num:c.num, root:c.root, name:c.base, type:c.type}; });
   const rel = minor ? {pc:mod(kpc + 3), t:'ionian', what:'Relative major'} : {pc:mod(kpc + 9), t:'aeolian', what:'Relative minor'};
   const scaleRows = [];
   const addS = (pc, t, sub) => scaleRows.push({pc, t, sub});
@@ -1673,7 +1678,15 @@ function renderCircle(){
       <div><div class="row"><span class="rl" style="width:auto;margin-right:8px">Common progressions</span>
         <div class="seg"><button type="button" data-act="ccolor" data-v="0" aria-pressed="${progStyle !== 'color'}" title="Every chord a ${sevenths ? '7th' : 'triad'}, as set above">Plain</button><button type="button" data-act="ccolor" data-v="1" aria-pressed="${progStyle === 'color'}" title="Mixed qualities, the way each progression is usually played">Colorful</button></div>
         <span class="info">${progStyle === 'color' ? 'Mixed chord colors: add9s and maj7s, a dominant 7 pulling home, 9ths and 13ths for jazz.' : `All ${sevenths ? '7th chords' : 'triads'}, following the Diatonic chords setting.`}</span></div>
-        ${PROGS.map(([name], p) => `<div class="prog"><span class="pn">${name}</span>${progCache[p].map(chordBtn).join('<span class="info">→</span>')}<button type="button" class="btn" data-act="prog" data-p="${p}" aria-label="Play ${name}">Play</button><button type="button" class="btn" data-act="pinprog" data-p="${p}" aria-label="Pin ${name}">Pin all</button></div>`).join('')}</div>
+        ${PROGS.map(([name], p) => `<div class="prog"><span class="pn">${name}</span>${progCache[p].map(chordBtn).join('<span class="info">→</span>')}<button type="button" class="btn" data-act="prog" data-p="${p}" aria-label="Play ${name}">Play</button><button type="button" class="btn" data-act="pinprog" data-p="${p}" aria-label="Pin ${name}">Pin all</button></div>`).join('')}
+        <div class="roll">
+          <div class="row"><span class="rl" style="width:auto;margin-right:8px">Roll your own</span>
+            <div class="seg" aria-label="How adventurous">${[['plain', 'Plain'], ['color', 'Colorful'], ['wild', 'Adventurous']].map(([v, t]) => `<button type="button" data-act="cspice" data-v="${v}" aria-pressed="${spice === v}">${t}</button>`).join('')}</div>
+            <button type="button" class="btn primary" data-act="croll">🎲 ${roll ? 'Roll again' : 'Roll a progression'}</button></div>
+          <span class="info">${spice === 'plain' ? `Diatonic ${sevenths ? '7ths' : 'triads'} only.` : spice === 'color' ? 'Every chord fits the key, each with its own color.' : 'Adds chords borrowed from outside the key and altered dominants that pull home.'} Four chords: home, away, tension, back home.</span>
+          ${roll ? `<div class="prog"><span class="pn">Rolled · ${roll.spice === 'plain' ? 'plain' : roll.spice === 'wild' ? 'adventurous' : 'colorful'}</span>${progCache[rollIdx].map(chordBtn).join('<span class="info">→</span>')}<button type="button" class="btn" data-act="prog" data-p="${rollIdx}" aria-label="Play the rolled progression">Play</button><button type="button" class="btn" data-act="pinprog" data-p="${rollIdx}" aria-label="Pin the rolled progression">Pin all</button></div>
+            <span class="info">Like it? Pin all, then loop it from your Pinboard in Practice › Play along.</span>` : ''}
+        </div></div>
     </div></div>`;
 }
 
@@ -2375,6 +2388,13 @@ function heatClass(b, med){
 }
 
 /* ================= practice: backing loop & drone ================= */
+/* chords from outside the key (borrowed from the parallel key, or a step out): interval from the key root,
+   roman numeral, and the plain triad / 7th used when the progression is shown plain */
+const DEG = {
+  iv:{l:'4', num:'iv', tri:'min', sev:'m7'}, bVII:{l:'b7', num:'♭VII', tri:'maj', sev:'7'}, bVI:{l:'b6', num:'♭VI', tri:'maj', sev:'maj7'},
+  bIII:{l:'b3', num:'♭III', tri:'maj', sev:'maj7'}, II:{l:'2', num:'II', tri:'maj', sev:'7'}, bII:{l:'b2', num:'♭II', tri:'maj', sev:'maj7'},
+  V:{l:'5', num:'V', tri:'maj', sev:'7'}, IV:{l:'4', num:'IV', tri:'maj', sev:'7'}
+};
 /* name, scale degrees, and a "colorful" version: each chord its own quality, the way the progression is
    usually played (an add9 or maj7 here, a dominant 7 pulling home there, 9ths and 13ths for jazz) */
 const PROG_LIST = {
@@ -2384,31 +2404,76 @@ const PROG_LIST = {
     ['Doo-wop · I–vi–IV–V', [0, 5, 3, 4], ['6', 'm7', 'maj', '7']],
     ['Jazz ii–V–I', [1, 4, 0], ['m9', '13', 'maj9']],
     ['Sad pop · vi–IV–I–V', [5, 3, 0, 4], ['m7', 'maj7', 'add9', 'sus4']],
-    ['Blues-ish · I–IV–I–V', [0, 3, 0, 4], ['7', '9', '7', '7']]],
+    ['Blues-ish · I–IV–I–V', [0, 3, 0, 4], ['7', '9', '13', '7s9']],
+    ['Altered ii–V–I', [1, 4, 0], ['m11', '7alt', 'maj9']],
+    ['Royal road · IV–V–iii–vi', [3, 4, 2, 5], ['maj9', '13sus4', 'm7', 'm9']],
+    ['Backdoor · iv–♭VII–I', [DEG.iv, DEG.bVII, 0], ['m6', '9', 'maj7']],
+    ['Lydian float · I–II', [0, DEG.II], ['maj9s11', '13']]],
   minor:[
     ['Minor · i–iv–v', [0, 3, 4], ['m9', 'm7', 'm7']],
     ['Epic · i–VI–III–VII', [0, 5, 2, 6], ['min', 'maj7', 'add9', 'maj']],
     ['Andalusian · i–VII–VI–V', [0, 6, 5, 7], ['min', 'maj', 'maj7', '7b9']],
-    ['Minor ii–V–i', [1, 7, 0], ['m7b5', '7b9', 'm9']],
-    ['Dorian vamp · i–IV', [0, 8], ['m9', '13']]]
+    ['Minor ii–V–i', [1, 7, 0], ['m7b5', '7b9b13', 'm9']],
+    ['Dorian vamp · i–IV', [0, 8], ['m9', '13']],
+    ['Harmonic minor · i–iv–V', [0, 3, 7], ['mM9', 'm9', '7b9b13']],
+    ['Phrygian vamp · i–♭II', [0, DEG.bII], ['m7', 'M7s11']],
+    ['Line cliché · i–i(maj7)–i7–i6', [0, 0, 0, 0], ['min', 'mM7', 'm7', 'm6']]]
 };
 const PROG_TRI = {major:['maj','min','min','maj','maj','min','dim'], minor:['min','dim','maj','min','min','maj','maj']};
 const PROG_SEV = {major:['maj7','m7','m7','maj7','7','m7','m7b5'], minor:['m7','m7b5','maj7','m7','m7','maj7','7']};
 const PROG_NUM = {major:['I','ii','iii','IV','V','vi','vii°'], minor:['i','ii°','III','iv','v','VI','VII']};
 /* chords of a progression in a key. style: 'tri' | 'sev' | 'color' (true/false also accepted for 7ths/triads).
    Degree 7 = the harmonic-minor V, degree 8 = the Dorian IV (major chord on 4). */
+/* a degree: 0-6 in the key, 7 = the harmonic-minor V, 8 = the Dorian IV, or a DEG entry from outside the key */
+function progDeg(d, minor){
+  if (typeof d === 'object' && d) return d;
+  if (d === 7) return DEG.V;
+  if (d === 8) return DEG.IV;
+  const mk = minor ? 'minor' : 'major', sc = minor ? SCALES.aeolian : SCALES.ionian;
+  return {l:sc.labels[d], num:PROG_NUM[mk][d], tri:PROG_TRI[mk][d], sev:PROG_SEV[mk][d]};
+}
+function degChord(key, minor, d, type){
+  const g = progDeg(d, minor), kn = rootName(key, (minor ? SCALES.aeolian : SCALES.ionian).labels), base = spell(kn, g.l);
+  return {root:mod(key + semi(g.l)), type, num:g.num, base, name:pn(base) + CHORDS[type].sym};
+}
 function progressionChords(key, minor, progIdx, style){
   style = style === true ? 'sev' : style === false || style == null ? 'tri' : style;
-  const mk = minor ? 'minor' : 'major', sc = minor ? SCALES.aeolian : SCALES.ionian, kn = rootName(key, sc.labels);
-  const list = PROG_LIST[mk], pr = list[Math.min(progIdx, list.length - 1)];
-  return pr[1].map((d, k) => {
-    const l = d === 7 ? '5' : d === 8 ? '4' : sc.labels[d];
-    const plain = d >= 7 ? (style === 'sev' ? '7' : 'maj') : (style === 'sev' ? PROG_SEV : PROG_TRI)[mk][d];
-    const type = style === 'color' ? pr[2][k] : plain;
-    const num = d === 7 ? 'V' : d === 8 ? 'IV' : PROG_NUM[mk][d];
-    const base = spell(kn, l);
-    return {root:mod(key + semi(l)), type, num, base, name:pn(base) + CHORDS[type].sym};
+  const list = PROG_LIST[minor ? 'minor' : 'major'], pr = list[Math.min(progIdx, list.length - 1)];
+  return pr[1].map((d, k) => { const g = progDeg(d, minor); return degChord(key, minor, d, style === 'color' ? pr[2][k] : style === 'sev' ? g.sev : g.tri); });
+}
+/* ---- random progressions: home (T) → away (S) → tension (D) → home, with chord colors that fit the key ---- */
+const ROLL_COLOR = ['maj','min','maj7','add9','6','69','maj9','m7','m9','m11','madd9','m6','7','9','13','sus2','sus4','7sus4','m7b5'];
+const ROLL_WILD = ['maj9s11','M7s11','6s11','13sus4','9sus4','m69','mM9','m7b9','7sus4b9','13s11','9s11'];
+const ROLL_ALT = ['7alt','7b9b13','13b9','7s9b13','7b9'];
+const ROLL_BORROW = {major:[[DEG.bVI, ['maj7','add9','maj9']], [DEG.bVII, ['9','13','add9']], [DEG.iv, ['m6','m7','m9']], [DEG.bIII, ['maj7','add9']]],
+                     minor:[[DEG.bII, ['maj7','M7s11']], [DEG.IV, ['9','13']], [DEG.V, ['7b9','7b9b13','7alt']]]};
+const rpick = a => a[Math.floor(Math.random() * a.length)];
+const wpick = opts => { let r = Math.random() * opts.reduce((a, o) => a + o[1], 0); for (const o of opts) { r -= o[1]; if (r <= 0) return o[0]; } return opts[0][0]; };
+function rollProgression(minor, spice, sevenths){
+  const sc = minor ? SCALES.aeolian : SCALES.ionian, keyPcs = new Set(sc.labels.map(semi)), harmPcs = new Set(SCALES.harmMin.labels.map(semi));
+  // chords for each job, weighted: V does most of the pulling home, the vii° only now and then
+  const FN = minor ? {T:[[0, 3], [2, 2], [5, 2]], S:[[3, 3], [1, 1], [5, 2]], D:[[7, 4], [6, 2], [4, 1]]} : {T:[[0, 3], [5, 3], [2, 1]], S:[[3, 4], [1, 3]], D:[[4, 6], [6, 1]]};
+  const NEXT = {T:[['S', 5], ['D', 3], ['T', 2]], S:[['D', 5], ['T', 3], ['S', 2]], D:[['T', 8], ['S', 2]]};
+  const fns = ['T'], degs = [0];
+  for (let k = 1; k < 4; k++) {
+    let fn = wpick(NEXT[fns[k - 1]]);
+    if (k === 3 && fn === 'T') fn = 'D';               // the last chord leads back to the first
+    const opts = FN[fn].filter(([d]) => d !== degs[k - 1]);
+    fns.push(fn); degs.push(wpick(opts.length ? opts : FN[fn]));
+  }
+  const fits = (l, t, pcs) => CHORDS[t].labels.every(x => pcs.has(mod(semi(l) + semi(x))));
+  const items = degs.map(d => {
+    const g = progDeg(d, minor);
+    if (spice === 'plain') return {d, t:sevenths ? g.sev : g.tri};
+    const pool = (spice === 'wild' ? ROLL_COLOR.concat(ROLL_WILD) : ROLL_COLOR).filter(t => fits(g.l, t, d === 7 ? harmPcs : keyPcs));
+    return {d, t:pool.length ? rpick(pool) : g.tri};
   });
+  if (spice === 'wild') {
+    // a borrowed chord in one of the "away" spots, and an altered dominant where a V goes home
+    if (Math.random() < 0.7) { const k = 1 + Math.floor(Math.random() * 3), [g, ts] = rpick(ROLL_BORROW[minor ? 'minor' : 'major']); items[k] = {d:g, t:rpick(ts)}; }
+    items.forEach((it, k) => { const g = progDeg(it.d, minor), nx = items[(k + 1) % items.length]; if (g.l === '5' && nx.d === 0 && Math.random() < 0.75) it.t = rpick(ROLL_ALT); });   // only a V that goes home
+  }
+  return {minor, spice, items};
 }
 function backingChords(){
   const b = state.backing;
@@ -3642,7 +3707,7 @@ panel.addEventListener('input', e => {
 });
 panel.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'newTask') { e.preventDefault(); handlePractice('iaddtask', e.target); } });
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
@@ -3871,6 +3936,12 @@ panel.addEventListener('click', e => {
     case 'ck': state.circle.i = +b.dataset.k; state.circle.minor = b.dataset.m === '1'; break;
     case 'c7': state.circle.sevenths = v === '1'; break;
     case 'ccolor': state.circle.color = v === '1'; break;
+    case 'cspice': state.circle.spice = v; break;
+    case 'croll': state.circle.roll = rollProgression(state.circle.minor, state.circle.spice || 'color', state.circle.sevenths); {
+      render();
+      const p = PROG_LIST[state.circle.minor ? 'minor' : 'major'].length;
+      progCache[p] && progCache[p].forEach((ch, k) => chordMidis(ch.root, ch.type).forEach((m, j) => pluck(m, k * .9 + j * .03, true)));   // hear it right away
+      return; }
     case 'cchord':
       strumMidis(chordMidis(+b.dataset.r, b.dataset.t));
       if (state.circle.pin) { if (pinFromChord(+b.dataset.r, b.dataset.t)) toast(`Pinned ${chordName(+b.dataset.r, b.dataset.t)}`); break; }

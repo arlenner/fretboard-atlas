@@ -25,7 +25,7 @@ A guitar neck reference that runs in the browser. It needs no build step or serv
 - Tuner (microphone, YIN pitch detection) with nearest-string guidance and reference tones.
 - Tempo test: a guided climb that finds your clean tempo for an exercise and logs it, judged by you or by the mic (note timing against the click, after a one-time latency calibration).
 - Ear training: hear the interval, hear the chord, hear it and find it on the neck.
-- Interactive circle of fifths with diatonic chords, suggested scales and common progressions.
+- Interactive circle of fifths with diatonic chords, suggested scales and common progressions (including borrowed-chord and altered ones), plus a progression roller: plain, colorful or adventurous.
 - Alternate tunings, a left-handed neck, sharp/flat spelling, and a plucked-string sound when you tap.
 
 ## Run locally
