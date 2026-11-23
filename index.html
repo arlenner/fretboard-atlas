@@ -729,7 +729,7 @@ const DEF = {
   layers:[{id:1, kind:'scale', root:9, type:'dorian', hidden:[], notes:[], visible:true, color:0}],
   picks:[], tap:null, circle:{i:0, minor:false, sevenths:false, pin:false}, nextId:2,
   pins:[], nextPin:1, pinView:null,
-  playCfg:{bpm:90, per:4, dir:'up', loop:false},     // playing a scale or arpeggio: tempo, notes per beat, direction
+  playCfg:{bpm:90, per:4, dir:'up', loop:false, tone:'ring'},     // playing a scale or arpeggio: tempo, notes per beat, direction, ring/staccato/muted
   metro:{bpm:80, beats:4, sub:1, accent:true, vol:0.8, clickMode:'all',
     gap:{on:false, play:2, rest:2}, ladder:{on:false, step:5, bars:4, max:140}},
   quizCfg:{type:'find-note', range:'0-12', pool:'core', length:'q10'},
@@ -950,9 +950,26 @@ function scalePlayStart(L){
     const run = lay && lay.pos ? scaleRun(lay) : [];
     if (!sp.on || !run.length) { scalePlayStop(); return; }
     const dt = 60 / state.playCfg.bpm / state.playCfg.per;
+    const tone = state.playCfg.tone || 'ring';
     run.forEach((n, k) => {
       const when = t0 + k * dt, src = a.createBufferSource(), g = a.createGain();
-      src.buffer = makeBuf(n.m); g.gain.value = 0.32; src.connect(g); g.connect(master); src.start(when);
+      let stopAt = 0;
+      src.buffer = makeBuf(n.m); src.connect(g);
+      if (tone === 'ring') { g.gain.value = 0.32; g.connect(master); }
+      else if (tone === 'stacc') {
+        // staccato: full tone, cut off halfway to the next note
+        const len = Math.max(0.06, Math.min(0.35, dt * 0.5));
+        g.gain.setValueAtTime(0.32, when); g.gain.setTargetAtTime(0, when + len, 0.015);
+        g.connect(master); stopAt = when + len + 0.15;
+      } else {
+        // palm-muted: dull (low-passed) and dies away fast
+        const lp = a.createBiquadFilter(), f = 440 * Math.pow(2, (n.m - 69) / 12);
+        lp.type = 'lowpass'; lp.frequency.value = Math.min(1600, f * 3.5); lp.Q.value = 0.7;
+        const len = Math.min(0.09, dt * 0.8);
+        g.gain.setValueAtTime(0.5, when); g.gain.setTargetAtTime(0, when + len, 0.04);
+        g.connect(lp); lp.connect(master); stopAt = when + len + 0.3;
+      }
+      src.start(when); if (stopAt) src.stop(stopAt);
       sp.srcs.push(src); sp.events.push({t:when, s:n.s, f:n.f});
     });
     const end = t0 + run.length * dt;
@@ -986,6 +1003,7 @@ function scalePlayHtml(i, L, arp){
       <button type="button" class="ib" data-act="spbpm" data-i="${i}" data-v="5" aria-label="5 bpm faster">+5</button></span>
     <div class="seg" aria-label="Note value">${[1, 2, 3, 4].map(p => `<button type="button" data-act="spper" data-i="${i}" data-v="${p}" aria-pressed="${c.per === p}" title="${PER_NAMES[p]}">${['♩', '♪', '3', '16'][p - 1]}</button>`).join('')}</div>
     <div class="seg" aria-label="Direction"><button type="button" data-act="spdir" data-i="${i}" data-v="up" aria-pressed="${c.dir !== 'updown'}">Up</button><button type="button" data-act="spdir" data-i="${i}" data-v="updown" aria-pressed="${c.dir === 'updown'}">Up &amp; down</button></div>
+    <div class="seg" aria-label="Sound">${[['ring', 'Ring', 'Let each note ring'], ['stacc', 'Staccato', 'Short, separated notes'], ['mute', 'Muted', 'Palm-muted: dull and short']].map(([v, t, h]) => `<button type="button" data-act="sptone" data-i="${i}" data-v="${v}" aria-pressed="${(c.tone || 'ring') === v}" title="${h}">${t}</button>`).join('')}</div>
     <button type="button" class="chip${c.loop ? ' sel' : ''}" data-act="sploop" data-i="${i}" aria-pressed="${c.loop}">↻ Loop</button>
     <button type="button" class="chip" data-act="spmetro" data-i="${i}" title="Use the metronome's tempo">= metronome (${state.metro.bpm})</button>
     <span class="hint">${PER_NAMES[c.per]} at ${c.bpm} bpm · ${nps} notes a second</span>
@@ -3697,6 +3715,7 @@ panel.addEventListener('click', e => {
     case 'spbpm': state.playCfg.bpm = Math.max(30, Math.min(300, state.playCfg.bpm + +v)); scalePlayRestart(); break;
     case 'spper': state.playCfg.per = +v; scalePlayRestart(); break;
     case 'spdir': state.playCfg.dir = v; scalePlayRestart(); break;
+    case 'sptone': state.playCfg.tone = v; scalePlayRestart(); break;
     case 'sploop': state.playCfg.loop = !state.playCfg.loop; if (sp.on && !state.playCfg.loop) { /* finishes this pass */ } break;
     case 'spmetro': state.playCfg.bpm = state.metro.bpm; scalePlayRestart(); break;
     case 'vplay': { const vv = voicingFor(L); if (vv && vv.shape) strumMidis(vv.shape.map(q => TUNINGS[state.tuning].midi[q.s] + q.f)); return; }
