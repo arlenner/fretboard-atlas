@@ -156,6 +156,7 @@ h2,h3{margin:0; text-wrap:balance}
 .cell.open.dim::after{background:color-mix(in srgb, var(--surface) 70%, transparent)}
 .dot.vc .shp .o{stroke:#fff; stroke-width:18; stroke-linejoin:round}
 .dot.alt{transform:scale(.7); opacity:.85}
+.dot.ctx{transform:scale(.66); opacity:.6}
 .dot.mute{background:transparent; box-shadow:none; color:var(--muted); font-size:calc(var(--dot) * .62); font-weight:500}
 .voicing{display:flex; gap:14px; align-items:center; flex-wrap:wrap; background:var(--surface-2); border-radius:12px; padding:10px 12px}
 .voicing .diag{width:84px}
@@ -1367,10 +1368,12 @@ function renderBoard(){
     ? state.compare.map(id => state.pins.find(p => p.id === id)).filter(p => p && p.type) : [];
   const cmpMode = cmp.length > 0;
   const cmpPcs = cmp.map(p => new Set(CHORDS[p.type].labels.map(l => mod(p.root + semi(l)))));
-  // chord-position focus: the first visible chord layer with a position set
+  // position focus: every visible chord or scale layer with a position is filtered to its own position
   const heatAgg = heatOn && !quiz && !pickMode && !cmpMode ? quizAgg(state.heatFam || 'all') : null;
-  const fi = (pickMode || cmpMode || quiz || heatAgg) ? -1 : state.layers.findIndex(L => L.visible && (L.kind === 'chord' || L.kind === 'scale') && L.pos);
-  const focus = fi >= 0 ? Object.assign({i:fi}, focusFor(state.layers[fi])) : null;
+  const foci = (pickMode || cmpMode || quiz || heatAgg) ? [] : state.layers.map((L, i) => L.visible && (L.kind === 'chord' || L.kind === 'scale') && L.pos ? Object.assign({i}, focusFor(L)) : null).filter(Boolean);
+  const focus = foci.length > 0;
+  const voiced = foci.filter(F => F.shape && !F.scale);             // chord layers showing one voicing
+  const solo = state.layers.filter(L => L.visible).length === 1;   // nothing else on the neck: the chord's other tones are shown too
   const cmpHit = (k, s, f, pc) => { const p = cmp[k]; return (p.shape && (p.tuning || 'std') === state.tuning) ? p.shape.some(q => q.s === s && q.f === f) : cmpPcs[k].has(pc); };
   const readLabel = iv => (reading.labels.find(l => semi(l) === iv) || INTERVALS[iv]);
   const R = 'var(--row)';
@@ -1390,16 +1393,20 @@ function renderBoard(){
       maps.forEach((m, i) => { if (m && m.has(pc)) hits.push(Object.assign({i}, m.get(pc))); });
       let dim = false, muted = false;
       if (focus) {
-        const inV = !!(focus.shape && focus.shape.some(q => q.s === s && q.f === f));
-        dim = !(f >= focus.lo && f <= focus.hi) && !inV;
-        muted = !focus.scale && f === 0 && !!focus.shape && !focus.shape.some(q => q.s === s);
-        const k = hits.findIndex(h => h.i === focus.i);
-        if (k >= 0) {
-          const [h] = hits.splice(k, 1);
-          // chords: outline the voicing; scales: the position's notes stay as normal dots
-          // scales show only the pattern's own notes; chords also show other in-position tones, smaller
-          if (!dim && !(focus.scale && !inV)) { h.focus = focus.shape ? (inV ? (focus.scale ? '' : 'vc') : 'alt') : ''; if (inV) hits.unshift(h); else hits.splice(k, 0, h); }
-        }
+        dim = true;
+        foci.forEach(F => {
+          const inV = !!(F.shape && F.shape.some(q => q.s === s && q.f === f)), inWin = inV || (f >= F.lo && f <= F.hi);
+          if (inWin) dim = false;
+          const k = hits.findIndex(h => h.i === F.i);
+          if (k < 0) return;
+          // scales keep only the pattern's own notes; chords keep the voicing, plus (on their own) other in-position tones, smaller
+          const keep = F.scale ? inV : F.shape ? inV || (solo && inWin) : inWin;
+          if (!keep) hits.splice(k, 1);
+          else if (F.shape && !F.scale) hits[k].focus = inV ? 'vc' : 'alt';
+        });
+        hits.sort((a, b) => (b.focus === 'vc') - (a.focus === 'vc') || a.i - b.i);   // the voicing is drawn on top
+        if (voiced.length && hits.length && !hits[0].focus) hits[0].focus = 'ctx';    // everything else steps back behind it
+        muted = f === 0 && voiced.length > 0 && !voiced.some(F => F.shape.some(q => q.s === s)) && (dim || !hits.length || solo);
       }
       let dot = '';
       if (quiz) { dot = quizDot(s, f); dim = !qIn(s, f); muted = false; }
@@ -1445,8 +1452,8 @@ function renderBoard(){
         if (text.length >= 3) cls += ' lg3';
         if (byIv()) {
           st = `--c:${ivCol(h.label)};`;
-          if (h.i > 0) cls += ' hollow';
-          if (hits[1]) cls += ' multi';
+          if (h.i > 0 && !(h.focus === 'vc' && voiced[0].i === h.i)) cls += ' hollow';   // the highlighted voicing is solid, even as an overlay
+          if (hits[1] && !voiced.length) cls += ' multi';   // with a voicing up, the white outline means the voicing
         } else {
           st = `--c:${colOf(h.i)};`;
           if (hits[1]) { cls += ' ring'; st += `--c2:${colOf(hits[1].i)};`; }
@@ -1503,11 +1510,17 @@ function renderBoard(){
       + (cmp.length > 1 ? `<span>${common.length ? 'Common tones: <b>' + common.map(pc => pn(noteName(pc))).join(' ') + '</b>' : 'No common tones'} · a ring means two chords share that fret</span>` : '');
     return;
   }
+  const posNote = F => {
+    const P = state.layers[F.i], who = foci.length > 1 ? layerTitle(P) + ': ' : '';
+    if (isArp(P)) return `<span>${who || 'Arpeggio: '}${cagedOf(P.pos).n} shape, root on the ${STRING_ORD[P.pos.s || 0]} string, fret ${P.pos.f} · frets ${F.lo}–${F.hi} · ${P.pos.style === 'nps' ? 'sweep' : 'chord shape'}</span>`;
+    if (F.scale) return `<span>${who}Position ${scalePositions(P).find(p => p.f === P.pos.f)?.n || ''} · frets ${F.lo}–${F.hi} · ${P.pos.style === 'nps' ? (layerLabels(P).length >= 7 ? '3' : '2') + ' notes per string' : 'box'}</span>`;
+    return `<span>${who || 'Position: '}root on the ${STRING_ORD[P.pos.s]} string, fret ${P.pos.f}${F.shape ? ' · <b>' + tabText(F.shape) + '</b>' : ' · no playable shape here, showing chord tones'}</span>`;
+  };
   $('#legend').innerHTML = pinShape
     ? `<span><i style="--c:var(--pick)"></i><b>Pinned shape: ${viewPin.name}</b>${pickNote} · tap the neck to go back to your layers</span>`
     : pickMode
     ? `<span><i style="--c:var(--pick)"></i><b>Picked notes</b> · tap frets to add or remove${pickNote}</span>`
-    : (lg ? lg + key + (focus && focus.scale && isArp(state.layers[fi]) ? `<span>Arpeggio: ${cagedOf(state.layers[fi].pos).n} shape, root on the ${STRING_ORD[state.layers[fi].pos.s || 0]} string, fret ${state.layers[fi].pos.f} · frets ${focus.lo}–${focus.hi} · ${state.layers[fi].pos.style === 'nps' ? 'sweep' : 'chord shape'}</span>` : focus && focus.scale ? `<span>Position ${scalePositions(state.layers[fi]).find(p => p.f === state.layers[fi].pos.f)?.n || ''} · frets ${focus.lo}–${focus.hi} · ${state.layers[fi].pos.style === 'nps' ? (layerLabels(state.layers[fi]).length >= 7 ? '3' : '2') + ' notes per string' : 'box'}</span>` : focus ? `<span>Position: root on the ${STRING_ORD[state.layers[fi].pos.s]} string, fret ${state.layers[fi].pos.f}${focus.shape ? ' · <b>' + tabText(focus.shape) + '</b>' : ' · no playable shape here, showing chord tones'}</span>` : '') : '<span>All layers are hidden</span>');
+    : (lg ? lg + key + foci.map(posNote).join('') : '<span>All layers are hidden</span>');
 }
 
 /* ================= rendering: layers tab ================= */
@@ -1590,7 +1603,7 @@ function layerCard(L, i){
       <button type="button" class="ib" data-act="posstep" data-i="${i}" data-v="-1" aria-label="Previous position"${at <= 0 ? ' disabled' : ''}>◀</button>
       <button type="button" class="ib" data-act="posstep" data-i="${i}" data-v="1" aria-label="Next position"${at >= ps.length - 1 ? ' disabled' : ''}>▶</button>
       ${ps.map(p => {
-        const ok = !!findVoicing(L.root, L.type, p.s, p.f);
+        const ok = !!findVoicing(L.root, L.type, p.s, p.f, no5Of(L));
         const on = L.pos && p.s === L.pos.s && p.f === L.pos.f;
         return `<button type="button" class="chip${on ? ' sel' : ''}" data-act="pos" data-i="${i}" data-s="${p.s}" data-f="${p.f}"${ok ? '' : ' disabled title="No playable shape with every chord tone here"'} aria-label="Root on the ${STRING_ORD[p.s]} string, fret ${p.f}">${STRING_ORD[p.s]} · ${p.f}</button>`;
       }).join('')}</div>`;
@@ -1599,7 +1612,7 @@ function layerCard(L, i){
       h += v && v.shape
         ? `<div class="voicing">${diagram({shape:v.shape, root:L.root, type:L.type, tuning:state.tuning})}
             <div class="vinfo"><span class="tabtxt">${tabText(v.shape)}</span>
-              <span class="info">Root on the ${STRING_ORD[L.pos.s]} string at fret ${L.pos.f}. Other chord tones in this position are shown smaller.</span>
+              <span class="info">Root on the ${STRING_ORD[L.pos.s]} string at fret ${L.pos.f}. ${!L.visible ? '' : state.layers.filter(x => x.visible).length > 1 ? 'This layer shows only these notes; other layers are shown smaller behind them.' : 'Other chord tones in this position are shown smaller.'}</span>
               <div class="row"><button type="button" class="btn" data-act="vplay" data-i="${i}">▶ Play</button><button type="button" class="btn" data-act="vpin" data-i="${i}">Pin this voicing</button></div></div></div>`
         : `<div class="info">No playable shape has every chord tone with the root here, so the neck shows the chord tones around fret ${L.pos.f} instead.</div>`;
     }
@@ -1868,12 +1881,13 @@ function rootPositions(L){
 }
 const voicingCache = new Map();
 /* best playable voicing with the root as bass at (s0, rf): one note per string above it, 4-fret span, ≤4 fingers */
-function findVoicing(root, type, s0, rf){
-  const key = [state.tuning, root, type, s0, rf].join('|');
+const no5Of = L => !!L.fit && (L.hidden || []).includes('5');
+function findVoicing(root, type, s0, rf, no5){
+  const key = [state.tuning, root, type, s0, rf, no5 ? 'x5' : ''].join('|');
   if (voicingCache.has(key)) return voicingCache.get(key);
   const tun = TUNINGS[state.tuning].midi, c = CHORDS[type];
-  const tones = new Set(c.labels.map(l => mod(root + semi(l))));
-  const opt = new Set();
+  const tones = new Set(c.labels.filter(l => !(no5 && l === '5')).map(l => mod(root + semi(l))));
+  const opt = new Set(no5 ? ['5'] : []);
   if (c.labels.length >= 4) opt.add('5');
   if (c.labels.includes('11') || c.labels.includes('13')) opt.add('9');
   if (c.labels.includes('13')) opt.add('11');
@@ -1931,7 +1945,7 @@ function findVoicing(root, type, s0, rf){
 }
 function voicingFor(L){
   if (!L.pos) return null;
-  const v = findVoicing(L.root, L.type, L.pos.s, L.pos.f);
+  const v = findVoicing(L.root, L.type, L.pos.s, L.pos.f, no5Of(L));
   if (v) return v;
   const lo = Math.max(1, L.pos.f - 1);
   return {shape:null, lo, hi:lo + 3};
@@ -1944,7 +1958,7 @@ function tabText(shape){
 function shapeCenter(shape){ const fr = shape.map(q => q.f); return (Math.min(...fr) + Math.max(...fr)) / 2; }
 function posCenter(L, pos){
   if (L.kind === 'scale') { const fp = scalePosFor(Object.assign({}, L, {pos})); return fp && fp.shape.length ? shapeCenter(fp.shape) : pos.f + 1.5; }
-  const v = findVoicing(L.root, L.type, pos.s, pos.f); return v ? shapeCenter(v.shape) : pos.f + 1.5;
+  const v = findVoicing(L.root, L.type, pos.s, pos.f, no5Of(L)); return v ? shapeCenter(v.shape) : pos.f + 1.5;
 }
 /* remember the hand area the player chose; later chords and scales stay near it instead of drifting */
 function setAnchor(L){ if (L.pos) L.anchor = posCenter(L, L.pos); }
@@ -1954,7 +1968,7 @@ function adjustPos(L){
   const anchor = L.anchor != null ? L.anchor : L.pos.f + 1.5;
   let cands;
   if (L.kind === 'scale') cands = scalePositions(L).map(p => Object.assign({s:p.s, f:p.f, style:L.pos.style || 'box'}, p.d ? {d:p.d} : {}));
-  else cands = rootPositions(L).filter(p => findVoicing(L.root, L.type, p.s, p.f)).map(p => ({s:p.s, f:p.f}));
+  else cands = rootPositions(L).filter(p => findVoicing(L.root, L.type, p.s, p.f, no5Of(L))).map(p => ({s:p.s, f:p.f}));
   if (!cands.length) { L.pos = null; return; }
   // closest to the anchor; ties go to the lower string (fuller bass), then the lower fret
   cands.sort((a, b) => Math.abs(posCenter(L, a) - anchor) - Math.abs(posCenter(L, b) - anchor) || a.s - b.s || a.f - b.f);
@@ -4183,7 +4197,7 @@ panel.addEventListener('click', e => {
       const ps = rootPositions(L); if (!ps.length) return;
       let k = L.pos ? ps.findIndex(p => p.s === L.pos.s && p.f === L.pos.f) : -1;
       // skip positions with no playable shape
-      do { k += +v; } while (k >= 0 && k < ps.length && !findVoicing(L.root, L.type, ps[k].s, ps[k].f));
+      do { k += +v; } while (k >= 0 && k < ps.length && !findVoicing(L.root, L.type, ps[k].s, ps[k].f, no5Of(L)));
       if (k < 0 || k >= ps.length) return;
       L.pos = {s:ps[k].s, f:ps[k].f}; setAnchor(L); state.tap = null;
       const vv = voicingFor(L); if (vv && vv.shape) strumMidis(vv.shape.map(q => TUNINGS[state.tuning].midi[q.s] + q.f));
