@@ -58,7 +58,7 @@ h2,h3{margin:0; text-wrap:balance}
 .bar{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding-block:2px 8px}
 .brand{font-weight:800; font-variation-settings:'wdth' 72; font-size:19px; letter-spacing:.01em; margin-right:auto; display:flex; align-items:baseline; gap:8px}
 .brand small{font-weight:500; font-size:12px; color:var(--muted); font-variation-settings:'wdth' 100}
-.seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--surface)}
+.seg{display:inline-flex; flex-wrap:wrap; max-width:100%; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--surface)}
 .seg button{border:0; background:transparent; padding:5px 10px; font-size:13px; font-weight:600; white-space:nowrap}
 .seg button + button{border-left:1px solid var(--line)}
 .seg button[aria-pressed="true"]{background:var(--sel-bg); color:var(--sel-ink)}
@@ -79,6 +79,12 @@ h2,h3{margin:0; text-wrap:balance}
 .menu summary::-webkit-details-marker{display:none}
 .menu[open] summary{background:var(--sel-bg); color:var(--sel-ink)}
 .menu-pop{position:absolute; right:0; top:calc(100% + 6px); z-index:30; width:min(300px, calc(100vw - 32px)); background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px; display:grid; gap:10px; box-shadow:0 12px 32px rgba(0,0,0,.18)}
+/* narrow screens and the sidebar: the Settings button can sit anywhere in a wrapped toolbar, so the popup spans the toolbar instead of hanging off its right edge */
+@media (max-width: 640px), (orientation: landscape) and (max-height: 520px){
+  .bar{position:relative}
+  .menu{position:static}
+  .menu-pop{left:0; right:0; width:auto; max-width:420px; top:auto; margin-top:6px}
+}
 .menu-pop label{display:grid; gap:4px; font-size:12px; color:var(--muted)}
 .menu-pop select{padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); color:var(--ink)}
 .chk{display:flex !important; grid-template-columns:none; align-items:center; gap:8px; color:var(--ink) !important; font-size:13px !important}
@@ -200,6 +206,9 @@ body{display:flex; flex-direction:column}
   .rotate-hint, .neck-bar, #neckHide{display:none !important}
   .neck-wrap, .neck-wrap.collapsed{position:fixed; inset:0; z-index:1; display:flex; flex-direction:column; gap:4px; padding:max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))}
   .neck-wrap .strip{margin:0}
+  /* keep the strip's controls (stop, skip, beats) out from under the sidebar */
+  body.side-open .neck-wrap .strip{margin-right:calc(var(--side-w) + 2px)}
+  body.side-open.side-lefty .neck-wrap .strip{margin-right:0; margin-left:calc(var(--side-w) + 2px)}
   .neck, .neck[hidden]{display:flex !important; flex-direction:column; flex:1; min-height:0; padding:6px 0 4px}
   .board-scroll{flex:1; min-height:0; display:flex; flex-direction:column}
   .board{flex:1; min-height:150px; grid-template-rows:repeat(6, minmax(0, 1fr))}
@@ -767,7 +776,11 @@ state.metro.gap = Object.assign(clone(DEF.metro.gap), state.metro.gap || {});
 state.metro.ladder = Object.assign(clone(DEF.metro.ladder), state.metro.ladder || {});
 state.quizCfg = Object.assign(clone(DEF.quizCfg), state.quizCfg || {});
 state.quizBest = state.quizBest || {};
+// loops saved before the Triads / 7ths / Colorful switch: a 7ths choice stays 7ths (triads were the old default, so those get the new colorful default)
+if (state.backing && !state.backing.style && state.backing.sevenths) state.backing.style = 'sev';
 state.backing = Object.assign(clone(DEF.backing), state.backing || {});
+state.playCfg = Object.assign(clone(DEF.playCfg), state.playCfg || {});
+state.circle = Object.assign(clone(DEF.circle), state.circle || {});
 state.drone = Object.assign(clone(DEF.drone), state.drone || {});
 state.ttCfg = Object.assign(clone(DEF.ttCfg), state.ttCfg || {});
 state.lesson = Object.assign(clone(DEF.lesson), state.lesson || {});
@@ -867,7 +880,8 @@ function silentWav(){
 }
 /* must run inside a real tap: resume the context and start a sound so mobile browsers unlock audio */
 function unlockAudio(){
-  if (!state.sound) return;
+  // runs even with tap sounds off: the metronome, loop and Play buttons still need a running (and, on iOS, unmuted) engine,
+  // and this is what wakes the engine after a phone call or a trip to another app
   const a = getAudio(); if (!a) return;
   if (a.state !== 'running') a.resume().catch(() => {});
   if (unlocked) return;
@@ -3556,6 +3570,8 @@ window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions,
 
 /* ================= main render ================= */
 function render(){
+  // the scale player stops when its layer no longer has a scale position to play (changed, cleared or removed)
+  if (sp.on) { const pl = state.layers.find(x => x.id === sp.layerId); if (!pl || pl.kind !== 'scale' || !pl.pos) scalePlayStop(true); }
   renderToolbar();
   renderBoard();
   renderStrip();
@@ -3718,7 +3734,7 @@ panel.addEventListener('click', e => {
     case 'sptone': state.playCfg.tone = v; scalePlayRestart(); break;
     case 'sploop': state.playCfg.loop = !state.playCfg.loop; if (sp.on && !state.playCfg.loop) { /* finishes this pass */ } break;
     case 'spmetro': state.playCfg.bpm = state.metro.bpm; scalePlayRestart(); break;
-    case 'vplay': { const vv = voicingFor(L); if (vv && vv.shape) strumMidis(vv.shape.map(q => TUNINGS[state.tuning].midi[q.s] + q.f)); return; }
+    case 'vplay': { const vv = voicingFor(L); if (vv && vv.shape) strumMidis(vv.shape.map(q => TUNINGS[state.tuning].midi[q.s] + q.f), .035, true); return; }
     case 'vpin': {
       const vv = voicingFor(L); if (!vv || !vv.shape) return;
       if (addPin({root:L.root, type:L.type, name:chordName(L.root, L.type), shape:vv.shape.map(q => ({s:q.s, f:q.f})), tuning:state.tuning}))
@@ -3747,7 +3763,7 @@ panel.addEventListener('click', e => {
       break;
     case 'clear': state.picks = []; state.readName = null; break;
     case 'read': { const r = readings(state.picks).exact[+b.dataset.n]; if (r) state.readName = r.name; break; }
-    case 'strum': { const tun = TUNINGS[state.tuning].midi; strumMidis(state.picks.map(p => tun[p.s] + p.f)); return; }
+    case 'strum': { const tun = TUNINGS[state.tuning].midi; strumMidis(state.picks.map(p => tun[p.s] + p.f), .035, true); return; }
     case 'pick2layer': {
       if (state.layers.length >= 4) return;
       const tun = TUNINGS[state.tuning].midi;
@@ -3783,8 +3799,8 @@ panel.addEventListener('click', e => {
     case 'pinshape': if (pinFromPicks()) toast(`Pinned ${state.pins[state.pins.length - 1].name}`); break;
     case 'pinex': [[7,'maj'],[2,'maj'],[4,'min'],[0,'maj']].forEach(([r, t]) => pinFromChord(r, t)); break;
     case 'pinshow': { const p = state.pins.find(z => z.id === +b.dataset.id); if (p) { strumMidis(pinMidis(p)); showPin(p); } return; }
-    case 'pinplay': { const p = state.pins.find(z => z.id === +b.dataset.id); if (p) strumMidis(pinMidis(p)); return; }
-    case 'pinplayall': state.pins.forEach((p, k) => pinMidis(p).slice().sort((a, c) => a - c).forEach((m, j) => pluck(m, k * 0.9 + j * 0.03))); return;
+    case 'pinplay': { const p = state.pins.find(z => z.id === +b.dataset.id); if (p) strumMidis(pinMidis(p), .035, true); return; }
+    case 'pinplayall': state.pins.forEach((p, k) => pinMidis(p).slice().sort((a, c) => a - c).forEach((m, j) => pluck(m, k * 0.9 + j * 0.03, true))); return;
     case 'pinmove': {
       const k = state.pins.findIndex(z => z.id === +b.dataset.id), to = k + +v;
       if (k < 0 || to < 0 || to >= state.pins.length) return;
@@ -3807,7 +3823,7 @@ panel.addEventListener('click', e => {
     }
     case 'pinuncompare': state.compare = null; break;
     case 'cscale': loadMain('scale', +b.dataset.r, b.dataset.t); return;
-    case 'prog': progCache[+b.dataset.p].forEach((c, k) => chordMidis(c.root, c.type).forEach((m, j) => pluck(m, k * .9 + j * .03))); return;
+    case 'prog': progCache[+b.dataset.p].forEach((c, k) => chordMidis(c.root, c.type).forEach((m, j) => pluck(m, k * .9 + j * .03, true))); return;
     default: return;
   }
   render();
