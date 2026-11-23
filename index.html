@@ -971,9 +971,9 @@ function scalePlayStart(L){
       src.buffer = makeBuf(n.m); src.connect(g);
       if (tone === 'ring') { g.gain.value = 0.32; g.connect(master); }
       else if (tone === 'stacc') {
-        // staccato: full tone, cut off halfway to the next note
-        const len = Math.max(0.06, Math.min(0.35, dt * 0.5));
-        g.gain.setValueAtTime(0.32, when); g.gain.setTargetAtTime(0, when + len, 0.015);
+        // staccato: full tone, cut off about three quarters of the way to the next note, with a soft release
+        const len = Math.max(0.1, Math.min(0.5, dt * 0.75));
+        g.gain.setValueAtTime(0.32, when); g.gain.setTargetAtTime(0, when + len, 0.03);
         g.connect(master); stopAt = when + len + 0.15;
       } else {
         // palm-muted: dull (low-passed) and dies away fast
