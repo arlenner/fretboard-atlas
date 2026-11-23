@@ -258,6 +258,26 @@ body{display:flex; flex-direction:column}
 .tabs{display:flex; gap:4px; margin-top:10px; border-bottom:1px solid var(--line); overflow-x:auto}
 .tabs button{border:0; background:transparent; padding:8px 12px; font-weight:650; font-size:14px; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap}
 .tabs button[aria-selected="true"]{color:var(--ink); border-bottom-color:var(--accent)}
+.tl-short{display:none}
+@media (max-width: 560px){ .tl-long{display:none} .tl-short{display:inline} .tabs button{padding:8px 9px} }
+@media (orientation: landscape) and (max-height: 520px){ .menus:not(.full) .tl-long{display:none} .menus:not(.full) .tl-short{display:inline} }
+/* practice sections */
+.ptabs{display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; margin:0 0 12px; padding:2px}
+.ptabs::-webkit-scrollbar{display:none}
+.ptabs button{flex:0 0 auto; border:1px solid var(--line); background:var(--surface); color:var(--muted); border-radius:999px; padding:6px 12px; font-size:13px; font-weight:650; white-space:nowrap; display:inline-flex; align-items:center; gap:6px}
+.ptabs button[aria-selected="true"]{background:var(--sel-bg); color:var(--sel-ink); border-color:var(--sel-bg)}
+.ptabs .live{width:7px; height:7px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 2px color-mix(in srgb, var(--ok) 30%, transparent)}
+.practice.one{display:block; max-width:860px}
+.practice.one > .pcol{display:grid; gap:12px}
+/* lesson ingredient groups */
+.ing-grps{display:grid; gap:6px; margin:-2px 0 6px}
+.ing-grp{border:1px solid var(--line); border-radius:10px; background:var(--surface)}
+.ing-grp.some{border-color:color-mix(in srgb, var(--accent) 45%, var(--line))}
+.ing-h{width:100%; display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; border:0; background:transparent; color:var(--ink); text-align:left; padding:8px 10px; font-size:13px}
+.ing-h .car{color:var(--muted); width:10px}
+.ing-h small{color:var(--muted)}
+.ing-pre{flex-basis:100%; padding-left:18px; font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ing-chips{display:flex; flex-wrap:wrap; gap:6px; padding:0 10px 10px}
 .panel{padding-top:12px}
 .cards{display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap:12px; align-items:start}
 .card{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px; display:grid; gap:10px; min-width:0}
@@ -603,8 +623,8 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 
 <div class="tabs" role="tablist">
   <button type="button" role="tab" data-tab="layers">Layers</button>
-  <button type="button" role="tab" data-tab="finder">Chord finder</button>
-  <button type="button" role="tab" data-tab="circle">Circle of fifths</button>
+  <button type="button" role="tab" data-tab="finder"><span class="tl-long">Chord finder</span><span class="tl-short">Finder</span></button>
+  <button type="button" role="tab" data-tab="circle"><span class="tl-long">Circle of fifths</span><span class="tl-short">Circle</span></button>
   <button type="button" role="tab" data-tab="pins" id="pinsTab">Pinboard</button>
   <button type="button" role="tab" data-tab="practice">Practice</button>
 </div>
@@ -785,6 +805,9 @@ const ARP_TYPES = ['maj','min','7','maj7','m7','m7b5','dim7','dim','aug','mM7','
 const QUICK_ARPS = ['maj','min','7','maj7','m7','m7b5','dim7'];
 ARP_TYPES.forEach(cid => { SCALES['arp_' + cid] = {name:CHORDS[cid].name + ' arpeggio', labels:CHORDS[cid].labels.slice(), arp:true, chord:cid}; });
 OTHER_SCALES.push(['Arpeggios', ARP_TYPES.map(c => 'arp_' + c)]);
+/* lesson ingredients come from the same lists as the rest of the app, so new scales and chords show up there too */
+const LESSON_SCALE_GROUPS = [['Modes', MODES.slice()]].concat(OTHER_SCALES.map(([g, ids]) => [g, ids.filter(id => id !== 'chromatic' && SCALES[id])])).filter(([, ids]) => ids.length);
+const LESSON_CHORD_GROUPS = () => CHORD_LIST.map(([g, list]) => [g, list.map(x => x[0]).filter(id => id !== '5')]);
 /* scale names in running text: generic words lowercase (harmonic minor), mode and proper names keep their capital (Lydian dominant, Hungarian minor) */
 const PROPER_WORD = /^\(?(Ionian|Dorian|Phrygian|Lydian|Mixolydian|Aeolian|Locrian|Ultralocrian|Hirajōshi|In-sen|Iwato|Kumoi|Yo|Egyptian|Pelog|Balinese|Ukrainian|Byzantine|Hungarian|Neapolitan|Persian|Prometheus)/;
 const scaleNameLc = nm => nm.split(' ').map(w => PROPER_WORD.test(w) ? w : w.toLowerCase()).join(' ');
@@ -1292,7 +1315,7 @@ function renderToolbar(){
   document.querySelectorAll('#labelSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.label === state.labelMode)));
   document.querySelectorAll('#colorSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color === state.colorBy)));
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
-  $('#pinsTab').textContent = state.pins.length ? `Pinboard · ${state.pins.length}` : 'Pinboard';
+  $('#pinsTab').innerHTML = `<span class="tl-long">Pinboard</span><span class="tl-short">Pins</span>${state.pins.length ? ` · ${state.pins.length}` : ''}`;
   tuningSel.value = state.tuning;
   $('#setPref').value = state.pref;
   $('#setExt').value = state.extNames;
@@ -3538,9 +3561,14 @@ function renderPractice(){
       </span></div>`;
   }).join('');
 
-  const scaleChoices = ['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian','majPent','minPent','blues','harmMin','melMin'].concat(QUICK_ARPS.map(c => 'arp_' + c));
-  const chordChoices = ['maj','min','7','maj7','m7','m7b5','dim7','sus4','6','9','m9','maj9','7s9','13'];
   const chipT = (on, act, v, label, k) => `<button type="button" class="chip tog${on ? ' sel' : ''}" data-act="${act}" data-v="${v}"${k ? ` data-k="${k}"` : ''} aria-pressed="${on}">${label}</button>`;
+  // ingredient groups fold away; a closed group shows how many are picked and the first few names
+  const grpHtml = (k, groups, pool, label) => groups.map(([g, ids], gi) => {
+    const key = k + gi, open = !!(state.ingOpen || {})[key], picked = ids.filter(id => pool.includes(id));
+    return `<div class="ing-grp${open ? ' open' : ''}${picked.length ? ' some' : ''}">
+      <button type="button" class="ing-h" data-act="inggrp" data-v="${key}" aria-expanded="${open}"><span class="car" aria-hidden="true">${open ? '▾' : '▸'}</span><b>${g}</b><small>${picked.length} of ${ids.length}</small>${!open && picked.length ? `<span class="ing-pre">${picked.slice(0, 4).map(label).join(', ')}${picked.length > 4 ? ' …' : ''}</span>` : ''}</button>
+      ${open ? `<div class="ing-chips">${ids.map(id => chipT(pool.includes(id), 'lpool', id, label(id), k)).join('')}<button type="button" class="btn" data-act="lgrp" data-k="${k}" data-g="${gi}" data-v="all">All</button><button type="button" class="btn" data-act="lgrp" data-k="${k}" data-g="${gi}" data-v="none">None</button></div>` : ''}</div>`;
+  }).join('');
   const allNone = k => `<button type="button" class="btn" data-act="lpoolall" data-k="${k}" data-v="all">All</button><button type="button" class="btn" data-act="lpoolall" data-k="${k}" data-v="none">None</button>`;
   const kindsOn = [cfg.scales && cfg.scalePool.length && 'scales', cfg.chords && cfg.chordPool.length && 'chords', cfg.quizzes && cfg.quizPool.length && 'quizzes'].filter(Boolean);
   const mixNote = !kindsOn.length ? '<span class="mix-note warn">Nothing is included yet. Tick at least one of Scales, Chords or Quizzes.</span>'
@@ -3549,8 +3577,8 @@ function renderPractice(){
   const ing = `<details class="ingredients"${items.length ? '' : ' open'}><summary>Lesson ingredients</summary><div class="ing">
     <div class="row"><span class="rl">Include · tap to turn on or off</span>${chipT(cfg.scales, 'linc', 'scales', 'Scales')}${chipT(cfg.chords, 'linc', 'chords', 'Chords')}${chipT(cfg.quizzes, 'linc', 'quizzes', 'Quizzes')}
       <button type="button" class="btn" data-act="lall">Select everything</button>${mixNote}</div>
-    ${cfg.scales ? `<div class="row"><span class="rl">Scales to draw from</span>${scaleChoices.map(id => chipT(cfg.scalePool.includes(id), 'lpool', id, SCALES[id].short || SCALES[id].name, 'scale')).join('')}${allNone('scale')}</div>` : ''}
-    ${cfg.chords ? `<div class="row"><span class="rl">Chord types to draw from</span>${chordChoices.map(id => chipT(cfg.chordPool.includes(id), 'lpool', id, 'C' + CHORDS[id].sym, 'chord')).join('')}${allNone('chord')}</div>` : ''}
+    ${cfg.scales ? `<div class="row"><span class="rl">Scales to draw from · ${cfg.scalePool.length} picked</span>${allNone('scale')}</div><div class="ing-grps">${grpHtml('scale', LESSON_SCALE_GROUPS, cfg.scalePool, id => SCALES[id].short || SCALES[id].name)}</div>` : ''}
+    ${cfg.chords ? `<div class="row"><span class="rl">Chord types to draw from · ${cfg.chordPool.length} picked</span>${allNone('chord')}</div><div class="ing-grps">${grpHtml('chord', LESSON_CHORD_GROUPS(), cfg.chordPool, id => 'C' + CHORDS[id].sym)}</div>` : ''}
     ${cfg.quizzes ? `<div class="row"><span class="rl">Quizzes to draw from</span>${Object.entries(QUIZ_TYPES).map(([k, t]) => chipT(cfg.quizPool.includes(k), 'lqpool', k, t.name)).join('')}${allNone('quiz')}</div>` : ''}
     <div class="row"><span class="rl">Keys</span>${[0,1,2,3,4,5,6,7,8,9,10,11].map(pc => chipT(cfg.keys.includes(pc), 'lkey', pc, pn(DEFAULT[pc]))).join('')}
       <button type="button" class="btn" data-act="lkeys" data-v="all">All</button><button type="button" class="btn" data-act="lkeys" data-v="nat">Naturals</button></div>
@@ -3720,12 +3748,22 @@ function renderPractice(){
           <span class="opt-note">${prevClean ? `Last clean: <b>${prevClean} bpm</b>. Starts at ${Math.max(30, prevClean - tc.step * 2)}.` : `Starts at the metronome tempo (${state.metro.bpm} bpm).`}</span></div>
         ${state.ttLast ? `<div class="info qres">Last test: <b>${esc(state.ttLast.title)}</b> · ${state.ttLast.best ? `clean at <b>${state.ttLast.best} bpm</b>` : 'no clean tempo'} · ${state.ttLast.passes} passes</div>` : ''}`}
   </div>`;
-  return `<div class="practice"><div class="pcol">${metroCard}${ttCard}${tunerCard}${playCard}${quizCard}</div><div class="pcol">${lessonCard}${weakCard}${logCard}</div></div>`;
+  // sections, so one thing at a time fills the screen; "All" is the old everything-at-once page for big screens
+  const PT = [['lesson', 'Lesson', s && !s.done], ['metro', 'Metronome', metro.on || !!tt], ['play', 'Play along', loop.on || drone.on], ['quiz', 'Quiz', !!quiz && quiz.mode !== 'session'], ['tuner', 'Tuner', tuner.on], ['log', 'Progress', false], ['all', 'All', false]];
+  const pt = PT.some(p => p[0] === state.ptab) ? state.ptab : 'lesson';
+  const nav = `<div class="ptabs" role="tablist" aria-label="Practice sections">${PT.map(([v, t, live]) => `<button type="button" role="tab" data-act="ptab" data-v="${v}" aria-selected="${pt === v}">${t}${live ? '<i class="live" title="Running"></i>' : ''}</button>`).join('')}</div>`;
+  if (pt === 'all') return `${nav}<div class="practice"><div class="pcol">${metroCard}${ttCard}${tunerCard}${playCard}${quizCard}</div><div class="pcol">${lessonCard}${weakCard}${logCard}</div></div>`;
+  const body = {lesson:[lessonCard], metro:[metroCard, ttCard], play:[playCard], quiz:[quizCard, weakCard], tuner:[tunerCard], log:[logCard]}[pt];
+  return `${nav}<div class="practice ${body.length > 1 ? 'two' : 'one'}">${body.map(c => `<div class="pcol">${c}</div>`).join('')}</div>`;
 }
 function handlePractice(act, b){
   const v = b.dataset.v, cfg = state.lesson.cfg, items = state.lesson.items;
   const it = b.dataset.id ? items.find(x => x.id === +b.dataset.id) : null;
+  // starting something whose card is in another section opens that section
+  const goTo = {calstart:'metro', ttstart:'metro', qstart:'quiz', wdrill:'quiz', tunstart:'tuner'}[act];
+  if (goTo && state.ptab !== 'all') state.ptab = goTo;
   switch (act) {
+    case 'ptab': state.ptab = v; render(); return true;
     case 'mtoggle': if (metro.on) metroStop(); else metroStart(); render(); return true;
     case 'mbpm': setBpm(state.metro.bpm + +v); return true;
     case 'mtap': tapTempo(); return true;
@@ -3828,18 +3866,24 @@ function handlePractice(act, b){
       else if (quiz.type === 'name-interval') quiz.reveal = {ok:false, picked:-1};
       quizScored(); render(); return true;
     case 'lpoolall': {
-      const all = {scale:['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian','majPent','minPent','blues','harmMin','melMin'].concat(QUICK_ARPS.map(c => 'arp_' + c)),
-        chord:['maj','min','7','maj7','m7','m7b5','dim7','sus4','6','9','m9','maj9','7s9','13'], quiz:Object.keys(QUIZ_TYPES)}[b.dataset.k];
+      const all = {scale:LESSON_SCALE_GROUPS.flatMap(g => g[1]), chord:LESSON_CHORD_GROUPS().flatMap(g => g[1]), quiz:Object.keys(QUIZ_TYPES)}[b.dataset.k];
       const list = v === 'all' ? all.slice() : [];
       if (b.dataset.k === 'scale') cfg.scalePool = list; else if (b.dataset.k === 'chord') cfg.chordPool = list; else cfg.quizPool = list;
       render(); return true;
     }
     case 'lall':
       cfg.scales = cfg.chords = cfg.quizzes = true;
-      cfg.scalePool = ['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian','majPent','minPent','blues','harmMin','melMin'].concat(QUICK_ARPS.map(c => 'arp_' + c));
-      cfg.chordPool = ['maj','min','7','maj7','m7','m7b5','dim7','sus4','6','9','m9','maj9','7s9','13'];
+      cfg.scalePool = LESSON_SCALE_GROUPS.flatMap(g => g[1]);
+      cfg.chordPool = LESSON_CHORD_GROUPS().flatMap(g => g[1]);
       cfg.quizPool = Object.keys(QUIZ_TYPES); cfg.keys = [0,1,2,3,4,5,6,7,8,9,10,11];
       toast('Everything selected: all scales, chord types, quizzes and keys'); render(); return true;
+    case 'inggrp': state.ingOpen = state.ingOpen || {}; state.ingOpen[v] = !state.ingOpen[v]; render(); return true;
+    case 'lgrp': {
+      const groups = b.dataset.k === 'scale' ? LESSON_SCALE_GROUPS : LESSON_CHORD_GROUPS(), ids = (groups[+b.dataset.g] || [, []])[1];
+      const key = b.dataset.k === 'scale' ? 'scalePool' : 'chordPool';
+      cfg[key] = v === 'all' ? [...new Set(cfg[key].concat(ids))] : cfg[key].filter(id => !ids.includes(id));
+      render(); return true;
+    }
     case 'lqpool': { const k = cfg.quizPool.indexOf(v); if (k >= 0) cfg.quizPool.splice(k, 1); else cfg.quizPool.push(v); render(); return true; }
     case 'mgplay': state.metro.gap.play = Math.max(1, Math.min(16, state.metro.gap.play + +v)); render(); return true;
     case 'mgrest': state.metro.gap.rest = Math.max(1, Math.min(16, state.metro.gap.rest + +v)); render(); return true;
