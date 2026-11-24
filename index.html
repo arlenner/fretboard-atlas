@@ -1001,7 +1001,7 @@ const DEF = {
     scales:true, chords:true,
     scalePool:['ionian','dorian','mixolydian','aeolian','majPent','minPent','blues'],
     chordPool:['maj','min','7','maj7','m7','m7b5'],
-    keys:[0,1,2,3,4,5,6,7,8,9,10,11], positions:true, style:'box', count:4, minutes:5,
+    keys:[0,1,2,3,4,5,6,7,8,9,10,11], positions:true, style:'nps', arpStyle:'box', count:4, minutes:5,
     quizzes:true, quizPool:['find-note','name-note','find-interval','name-interval','ear-interval','ear-chord','ear-find'], v:3}},
   session:null
 };
@@ -1036,6 +1036,7 @@ state.circle = Object.assign(clone(DEF.circle), state.circle || {});
 state.drone = Object.assign(clone(DEF.drone), state.drone || {});
 state.ttCfg = Object.assign(clone(DEF.ttCfg), state.ttCfg || {});
 state.lesson = Object.assign(clone(DEF.lesson), state.lesson || {});
+if (state.lesson.cfg && state.lesson.cfg.style && !state.lesson.cfg.arpStyle) state.lesson.cfg.arpStyle = state.lesson.cfg.style;      // arpeggios used to share the scales' setting
 state.lesson.cfg = Object.assign(clone(DEF.lesson.cfg), state.lesson.cfg || {});
 // quizzes became a regular ingredient (on by default); older saved settings had them off
 if ((state.lesson.cfg.v || 0) < 2) state.lesson.cfg.quizzes = true;
@@ -2265,6 +2266,29 @@ function scalePosFor(L){
   const frets = shape.map(q => q.f);
   return {shape, lo:Math.min(...frets), hi:Math.max(...frets), scale:true};
 }
+/* does the notes-per-string run from this position cover all six strings without skipping a scale note? (some run off the nut) */
+function npsClean(L, f){
+  const tun = TUNINGS[state.tuning].midi, labels = layerLabels(L), pcs = new Set(labels.map(l => mod(L.root + semi(l))));
+  const F = scalePosFor(Object.assign({}, L, {pos:{s:0, f, style:'nps'}})), m = F.shape.map(q => tun[q.s] + q.f);
+  if (m.length !== (labels.length >= 7 ? 18 : 12)) return false;
+  let n = 0; for (let k = Math.min(...m); k <= Math.max(...m); k++) if (pcs.has(mod(k))) n++;
+  return n === m.length;
+}
+/* lessons saved before notes per string became the default move over to it, once */
+function lessonsToNps(){
+  const cfg = state.lesson.cfg; if (cfg.npsV) return;
+  reviewSeed();
+  if (cfg.style !== 'mix') cfg.style = 'nps';
+  cfg.npsV = 1;
+  const conv = it => { if (it && it.kind === 'scale' && it.pos && it.pos.style !== 'nps' && SCALES[it.type] && !SCALES[it.type].arp && npsClean(itemLike(it), it.pos.f)) it.pos = Object.assign({}, it.pos, {style:'nps'}); };
+  state.lesson.items.forEach(conv); (state.lesson.mine || []).forEach(conv);
+  Object.keys(review.items).forEach(k => {
+    const r = review.items[k]; if (!r || !r.item) return;
+    conv(r.item); const n = r.item.kind === 'scale' ? itemKey(r.item) : k;
+    if (n !== k) { delete review.items[k]; if (!review.items[n]) review.items[n] = r; }
+  });
+  saveReview(); save();
+}
 function focusFor(L){ return L.kind === 'scale' ? scalePosFor(L) : voicingFor(L); }
 
 /* ================= pinboard ================= */
@@ -3350,7 +3374,9 @@ function guideDiff(){
 }
 function guideLayers(){
   const g = guide, L = {id:state.nextId++, kind:'scale', root:g.root, type:g.type, hidden:[], notes:[], visible:true, color:0, pos:{s:0, f:g.fret, style:'box'}, anchor:g.fret + 1.5};
-  adjustPos(L); g.pos = L.pos ? Object.assign({}, L.pos) : null;
+  const near = scalePositions(L).filter(p => npsClean(L, p.f)).sort((a, b) => Math.abs(a.f - g.fret) - Math.abs(b.f - g.fret))[0];
+  if (near) { L.pos = {s:0, f:near.f, style:'nps'}; setAnchor(L); } else adjustPos(L);
+  g.pos = L.pos ? Object.assign({}, L.pos) : null;
   state.layers = [L];
 }
 function guideStart(type, root){
@@ -4101,7 +4127,7 @@ function itemSub(it){
     if (!it.pos) return 'Scale · whole neck';
     if (SCALES[it.type].arp) return `${cagedOf(it.pos).n} shape, root on the ${STRING_ORD[it.pos.s || 0]} string, fret ${it.pos.f} · ${it.pos.style === 'nps' ? 'sweep' : 'chord shape'}`;
     const p = scalePositions(itemLike(it)).find(z => z.f === it.pos.f);
-    return `Position ${p ? p.n : ''} at fret ${it.pos.f} · ${it.pos.style === 'nps' ? (SCALES[it.type].labels.length >= 7 ? '3' : '2') + ' per string' : 'box'}`;
+    return `Position ${p ? p.n : ''} at fret ${it.pos.f} · ${it.pos.style === 'nps' ? (SCALES[it.type].labels.length >= 7 ? '3' : '2') + ' notes per string' : 'box'}`;
   }
   return CHORDS[it.type].name + (it.pos ? ` · root on the ${STRING_ORD[it.pos.s]} string, fret ${it.pos.f}` : ' · whole neck');
 }
@@ -4123,8 +4149,10 @@ function rollItem(cfg, avoid){
     const it = {id:state.lesson.nextItem++, kind, root, type, pos:null, min:cfg.minutes, bpm:null};
     if (cfg.positions) {
       if (kind === 'scale') {
-        const ps = scalePositions(itemLike(it)).filter(p => p.f <= 12);
-        if (ps.length) { const p = rnd(ps); it.pos = {s:p.s || 0, f:p.f, ...(p.d ? {d:p.d} : {}), style:cfg.style === 'mix' ? rnd(['box', 'nps']) : cfg.style}; }
+        const L = itemLike(it), arp = isArp(L), want = arp ? cfg.arpStyle || 'box' : cfg.style;
+        const all = scalePositions(L).filter(p => p.f <= 12); let style = want === 'mix' ? rnd(['box', 'nps']) : want, ps = all;
+        if (style === 'nps' && !arp) { ps = all.filter(p => npsClean(L, p.f)); if (!ps.length) { ps = all; style = 'box'; } }
+        if (ps.length) { const p = rnd(ps); it.pos = {s:p.s || 0, f:p.f, ...(p.d ? {d:p.d} : {}), style}; }
       } else {
         const ps = rootPositions(itemLike(it)).filter(p => p.f <= 12 && findVoicing(root, type, p.s, p.f));
         if (ps.length) { const p = rnd(ps); it.pos = {s:p.s, f:p.f}; }
@@ -4354,7 +4382,9 @@ function renderPractice(){
     <div class="row"><span class="rl">Where on the neck</span><div class="seg">
       <button type="button" data-act="lpos" data-v="0" aria-pressed="${!cfg.positions}">Whole neck</button>
       <button type="button" data-act="lpos" data-v="1" aria-pressed="${cfg.positions}">Random position</button></div>
-      ${cfg.positions && cfg.scales ? `<div class="seg">${[['box','Box'],['nps','Per string'],['mix','Mix']].map(([v, t]) => `<button type="button" data-act="lstyle" data-v="${v}" aria-pressed="${cfg.style === v}">${t}</button>`).join('')}</div>` : ''}</div>
+      </div>${cfg.positions && cfg.scales ? `
+    <div class="row"><span class="rl">Scale fingering</span><div class="seg">${[['nps','Notes per string'],['box','Box'],['mix','Mix']].map(([v, t]) => `<button type="button" data-act="lstyle" data-v="${v}" aria-pressed="${cfg.style === v}">${t}</button>`).join('')}</div></div>
+    ${cfg.scalePool.some(id => SCALES[id] && SCALES[id].arp) ? `<div class="row"><span class="rl">Arpeggio fingering</span><div class="seg">${[['box','Shape'],['nps','Sweep'],['mix','Mix']].map(([v, t]) => `<button type="button" data-act="larp" data-v="${v}" aria-pressed="${(cfg.arpStyle || 'box') === v}">${t}</button>`).join('')}</div></div>` : ''}` : ''}
     <div class="row"><span class="rl">Size</span>
       <span class="stepper"><button type="button" class="ib" data-act="lcount" data-v="-1" aria-label="Fewer items">−</button><span class="val">${cfg.count}</span><button type="button" class="ib" data-act="lcount" data-v="1" aria-label="More items">+</button></span> items ×
       <span class="stepper"><button type="button" class="ib" data-act="lminutes" data-v="-1" aria-label="Fewer minutes">−</button><span class="val">${cfg.minutes}</span><button type="button" class="ib" data-act="lminutes" data-v="1" aria-label="More minutes">+</button></span> min each
@@ -4732,6 +4762,7 @@ function handlePractice(act, b){
     case 'lkeys': cfg.keys = v === 'all' ? [0,1,2,3,4,5,6,7,8,9,10,11] : [0,2,4,5,7,9,11]; render(); return true;
     case 'lpos': cfg.positions = v === '1'; render(); return true;
     case 'lstyle': cfg.style = v; render(); return true;
+    case 'larp': cfg.arpStyle = v; render(); return true;
     case 'lcount': cfg.count = Math.max(1, Math.min(12, cfg.count + +v)); render(); return true;
     case 'lminutes': cfg.minutes = Math.max(1, Math.min(60, cfg.minutes + +v)); render(); return true;
     case 'lgen':
@@ -4863,11 +4894,12 @@ document.addEventListener('click', e => { if (eatClick) { eatClick = false; e.st
 // offline: the service worker keeps a copy of the app; with a connection you always get the newest version
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) {}     // ask the browser not to clear the practice data
+lessonsToNps();
 if (state.guideBack) guideRestore();      // the page closed in the middle of a guide: put the neck back
 // small read-only hook for automated tests and the browser console
 window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
-  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
+  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
   micHelp, micSessionStart, micSessionEnd, openMic, get micUsers(){ return micUsers; }, get audioCtx(){ return ac; },
   detectPitch, tunerFeed, get tuner(){ return tuner; }, get tt(){ return tt; },
