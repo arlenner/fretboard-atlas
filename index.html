@@ -159,6 +159,10 @@ h2,h3{margin:0; text-wrap:balance}
 .dot.vc .shp .o{stroke:#fff; stroke-width:18; stroke-linejoin:round}
 .dot.alt{transform:scale(.7); opacity:.85}
 .toolbar2.add-end{margin-top:14px}
+.dot.land{background:rgba(0,0,0,.55); color:#fff; border:2.5px dashed #fff; border-radius:50%; box-shadow:none}
+.dot.stay .shp .o{stroke:#fff; stroke-width:18; stroke-dasharray:22 14; stroke-linejoin:round}
+.legend .lg-next{opacity:.7}
+.legend .lg-next.on{opacity:1; color:var(--accent)}
 .dot.ctx{transform:scale(.66); opacity:.6}
 .dot.mute{background:transparent; box-shadow:none; color:var(--muted); font-size:calc(var(--dot) * .62); font-weight:500}
 .voicing{display:flex; gap:14px; align-items:center; flex-wrap:wrap; background:var(--surface-2); border-radius:12px; padding:10px 12px}
@@ -331,6 +335,10 @@ body.pv-done .neck-wrap{display:none !important}
   .pview .pv-tools .pv-s{min-height:27px; font-size:12px; padding:0 8px; border-radius:8px}
   body.pv-done .pview{inset:0; height:auto; overflow-y:auto; display:block; padding-top:14px}
 }
+.chg{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap:6px}
+.chg > span{display:grid; align-content:start; border:1px solid var(--line); border-radius:10px; padding:6px 8px; min-width:0}
+.chg small{color:var(--muted)}
+.chg .ld{color:var(--ink)}
 /* lesson ingredient groups */
 .ing-grps{display:grid; grid-template-columns:minmax(0, 1fr); gap:6px; margin:-2px 0 6px}
 .ing-grp{border:1px solid var(--line); border-radius:10px; background:var(--surface)}
@@ -1445,7 +1453,8 @@ function renderBoard(){
   const cmpPcs = cmp.map(p => new Set(CHORDS[p.type].labels.map(l => mod(p.root + semi(l)))));
   // position focus: every visible chord or scale layer with a position is filtered to its own position
   const heatAgg = heatOn && !quiz && !pickMode && !cmpMode ? quizAgg(state.heatFam || 'all') : null;
-  const foci = (pickMode || cmpMode || quiz || heatAgg) ? [] : state.layers.map((L, i) => L.visible && (L.kind === 'chord' || L.kind === 'scale') && L.pos ? Object.assign({i}, focusFor(L)) : null).filter(Boolean);
+  const fv = pickMode || cmpMode || quiz || heatAgg ? null : followView();
+  const foci = (pickMode || cmpMode || quiz || heatAgg || fv) ? [] : state.layers.map((L, i) => L.visible && (L.kind === 'chord' || L.kind === 'scale') && L.pos ? Object.assign({i}, focusFor(L)) : null).filter(Boolean);
   const focus = foci.length > 0;
   const voiced = foci.filter(F => F.shape && !F.scale);             // chord layers showing one voicing
   const solo = state.layers.filter(L => L.visible).length === 1;   // nothing else on the neck: the chord's other tones are shown too
@@ -1494,6 +1503,7 @@ function renderBoard(){
           dot = `<span class="dot heat ${heatClass(b, heatAgg.med)}${b.n < 3 ? ' few' : ''}" aria-label="${pct}% right from ${b.n} answer${b.n > 1 ? 's' : ''}">${pct}</span>`;
         }
       }
+      else if (fv) { dot = followDot(fv, pc); dim = !!fv.win && (f < fv.win[0] || f > fv.win[1]); if (dim) dot = ''; }
       else if (cmpMode) {
         const hc = cmp.map((p, k) => k).filter(k => cmpHit(k, s, f, pc));
         if (hc.length) {
@@ -1577,6 +1587,10 @@ function renderBoard(){
   }
   if (quiz) {
     $('#legend').innerHTML = `<span><b>${QUIZ_TYPES[quiz.type].name}</b> · ${quizPrompt()} · frets ${QUIZ_RANGES[quiz.range].join('–')}</span>`;
+    return;
+  }
+  if (fv) {
+    $('#legend').innerHTML = `<span><b>${fv.c.name}</b> · big notes are the chord, small ones ${scaleTitle(fv.sc.root, fv.sc.type)}</span>${fv.nx ? `<span class="lg-next${loop.preview ? ' on' : ''}">next <b>${fv.nx.name}</b> · ${leadText(fv.c, fv.nx)}</span>` : ''}`;
     return;
   }
   if (cmpMode) {
@@ -2857,6 +2871,80 @@ function loopSlot(barIn, beatNo, chords){
   while (pos >= lens[k]) { pos -= lens[k]; k++; }
   return {k, pos, len:lens[k]};
 }
+/* ---- follow the changes: the chord of the moment over a scale, and where the next chord wants you to land ---- */
+const neckView = () => state.backing.view || (state.backing.follow === false ? 'off' : 'tones');
+const scalePcs = s => new Set(SCALES[s.type].labels.map(l => mod(s.root + semi(l))));
+const chordTones = c => CHORDS[c.type].labels.map(l => ({l, pc:mod(c.root + semi(l))}));
+/* the scale the whole loop lives in: the key, or for pins and the Looper the mode on the first chord that covers the most chord tones */
+function homeScale(){
+  const b = state.backing;
+  if (b.source === 'prog') return {root:b.key, type:b.minor ? 'aeolian' : 'ionian'};
+  const list = loop.on ? loop.chords : backingChords(); if (!list.length) return {root:0, type:'ionian'};
+  const root = list[0].root, cover = m => { const ps = scalePcs({root, type:m}); return list.reduce((a, c, k) => a + chordTones(c).filter(x => ps.has(x.pc)).length * (k ? 1 : 2), 0); };
+  return {root, type:MODES.slice().sort((x, y) => cover(y) - cover(x))[0]};
+}
+/* for one chord: the scale on its root that holds every chord tone and leaves the home scale least */
+function bestScale(c, home){
+  const hp = scalePcs(home), all = chordTones(c), minor = all.some(x => x.l === 'b3') && !all.some(x => x.l === '3'), mel = (OTHER_SCALES.find(g => /^Melodic/.test(g[0])) || [0, []])[1];
+  const find = tones => {
+    let best = null;
+    [...new Set(MODES.concat(...OTHER_SCALES.map(g => g[1])))].forEach(type => {
+      const S = SCALES[type]; if (!S || S.arp || S.labels.length < 6 || S.labels.length > 8 || type === 'chromatic' || /bebop/i.test(S.name)) return;
+      const ps = scalePcs({root:c.root, type}); if (!tones.every(x => ps.has(x.pc))) return;
+      const inside = [...ps].filter(x => hp.has(x)).length;
+      // familiar scales first: an exotic one has to keep clearly more of the key. A minor chord's scale shouldn't hold the major 3rd.
+      const score = (inside - (ps.size - inside)) * 2 - Math.abs(S.labels.length - 7) * 1.5 - (MODES.includes(type) ? 0 : mel.includes(type) ? 1.5 : 4.5) - (minor && ps.has(mod(c.root + 4)) ? 5 : 0);
+      if (!best || score > best.score) best = {root:c.root, type, score};
+    });
+    return best;
+  };
+  const best = find(all) || find(all.filter(x => x.l !== '5'));      // altered chords often leave the 5th out
+  return best ? {root:best.root, type:best.type} : home;
+}
+const mainScale = () => { const L = state.layers[0]; return L.kind === 'scale' && L.type !== 'chromatic' && SCALES[L.type] && !SCALES[L.type].arp ? {root:L.root, type:L.type} : null; };
+function scaleFor(c){
+  const u = state.backing.under || 'best';
+  if (u === 'mine' && mainScale()) return mainScale();
+  return u === 'best' ? bestScale(c, homeScale()) : homeScale();
+}
+/* the two notes that say which chord it is: its 3rd (or sus note) and its 7th (or 6th, or 5th) */
+function guideTones(c){
+  const T = chordTones(c), pick = (...ds) => { for (const d of ds) { const x = T.find(y => degOf(y.l) === d && y.l !== '9' && y.l !== '11' && y.l !== '13') || T.find(y => degOf(y.l) === d); if (x) return x; } return null; };
+  return [pick(3, 4, 2), pick(7, 6, 5)].filter((x, k, a) => x && a.findIndex(y => y && y.pc === x.pc) === k);
+}
+/* how to get there: for each of the next chord's guide tones, the closest note of this chord */
+function voiceLead(c, nx){
+  const from = chordTones(c), dist = (a, b) => { const d = mod(b - a); return d > 6 ? d - 12 : d; };
+  return guideTones(nx).map(g => { const f = from.slice().sort((a, b) => Math.abs(dist(a.pc, g.pc)) - Math.abs(dist(b.pc, g.pc)))[0]; return {from:f, to:g, step:dist(f.pc, g.pc)}; });
+}
+const toneName = (c, l) => pn(spell(rootName(c.root, CHORDS[c.type].labels), l));
+const leadText = (c, nx) => voiceLead(c, nx).map(v => v.step === 0 ? `${toneName(nx, v.to.l)} stays` : `${toneName(c, v.from.l)} → ${toneName(nx, v.to.l)}`).join(', ');
+const AREAS = {auto:null, low:[0, 4], mid:[4, 8], high:[7, 11], top:[11, 15]};
+function followView(){
+  if (!loop.on || loop.idx < 0 || neckView() !== 'tones' || !loop.chords[loop.idx]) return null;
+  const c = loop.chords[loop.idx], n = loop.chords.length, nx = n > 1 ? loop.chords[(loop.idx + 1) % n] : null, sc = scaleFor(c), L = state.layers[0];
+  let win = AREAS[state.backing.area || 'auto'] || null;
+  if (!win && (state.backing.area || 'auto') === 'auto' && L.visible && L.pos && (L.kind === 'scale' || L.kind === 'chord')) { const F = focusFor(L); if (F) win = [F.lo, F.hi]; }
+  return {c, nx, sc, win, pcs:scalePcs(sc), cur:new Map(chordTones(c).map(x => [x.pc, x.l])), next:loop.preview && nx ? new Map(guideTones(nx).map(x => [x.pc, x.l])) : new Map()};
+}
+function followDot(fv, pc){
+  const col = l => byIv() ? ivCol(l) : 'var(--l0)', txt = (c, l) => state.labelMode === 'note' ? toneName(c, l) : pl(l);
+  const now = fv.cur.get(pc), nx = fv.next.get(pc);
+  const mk = (l, t, cls, c) => `<span class="dot sv s${degOf(l)}${l === '1' && cls !== 'ctx' ? ' root' : ''}${t.length >= 3 ? ' lg3' : ''} ${cls}" style="--c:${c}">${shapeSvg(degOf(l))}${t}</span>`;
+  // next chord's guide tone: a dashed ring. On a note you are already on, the ring goes around it (it stays).
+  if (nx != null && now == null) return `<span class="dot land" aria-label="next: ${txt(fv.nx, nx)}">${txt(fv.nx, nx)}</span>`;
+  if (now != null) return mk(now, txt(fv.c, now), nx != null ? 'stay' : 'now', col(now));
+  if (!fv.pcs.has(pc)) return '';
+  const iv = INTERVALS[mod(pc - fv.c.root)];
+  return mk(iv, state.labelMode === 'note' ? pn(noteName(pc)) : pl(iv), 'ctx', byIv() ? ivCol(iv) : 'var(--neutral)');
+}
+/* the loop moved on: redraw the neck and the strip, and move the highlights, without rebuilding the panel under your fingers */
+function loopPaint(){
+  renderBoard(); renderStrip();
+  document.querySelectorAll('#panel .loop-chords .lc').forEach((el, k) => el.classList.toggle('on', loop.on && k === loop.idx));
+  document.querySelectorAll('#panel .lane .slot').forEach((el, k) => el.classList.toggle('on', loop.on && state.backing.source === 'lane' && k === loop.idx));
+}
+
 /* called from the metronome scheduler for every tick while the loop runs */
 function loopTick(c, when){
   if (!loop.on || !loop.chords.length || !c.isBeat) return;
@@ -2866,7 +2954,12 @@ function loopTick(c, when){
   const v = loop.voices[k], chordStart = pos === 0;
   if (chordStart) {
     const delay = Math.max(0, (when - ac.currentTime) * 1000);
-    setTimeout(() => { if (!loop.on) return; loop.idx = k; if (b.follow) loopShowChord(k); else render(); }, delay);
+    setTimeout(() => { if (!loop.on || !loop.chords[k]) return; loop.idx = k; loop.preview = false; if (neckView() === 'chord') loopShowChord(k); else loopPaint(); }, delay);
+  }
+  // the last beats of a chord show where the next one wants you
+  if (loop.chords.length > 1 && pos === len - Math.max(1, Math.min(m.beats, Math.floor(len / 2)))) {
+    const delay = Math.max(0, (when - ac.currentTime) * 1000) + (chordStart ? 5 : 0);
+    setTimeout(() => { if (loop.on && loop.idx === k && neckView() === 'tones') { loop.preview = true; loopPaint(); } }, delay);
   }
   const vol = 0.3 * b.vol;
   if (b.pattern === 'pad') { if (chordStart) padChord(v.midis, when, spb * lens[k]); }
@@ -2889,7 +2982,7 @@ function loopShowChord(k){
 function loopStart(){
   const chords = backingChords();
   if (!chords.length) { toast(state.backing.source === 'pins' ? 'Pin some chords first: the loop plays your Pinboard in order.' : state.backing.source === 'lane' ? 'The Looper is empty. Add chords on the Pinboard tab.' : 'That progression has no chords.'); return; }
-  loop.chords = chords; loop.voices = chords.map(voiceChord); loop.idx = -1; loop.on = true;
+  loop.chords = chords; loop.voices = chords.map(voiceChord); loop.idx = -1; loop.preview = false; loop.on = true;
   if (!metro.on) { metroStart(); metro.loopOwned = true; loop.bar0 = 0; }
   else loop.bar0 = Math.ceil(metro.tick / (state.metro.sub * state.metro.beats));
   render();
@@ -2899,6 +2992,7 @@ function refreshLoop(){
   if (!loop.on) return;
   const chords = backingChords(); if (!chords.length) { loopStop(); return; }
   loop.chords = chords; loop.voices = chords.map(voiceChord);
+  if (loop.idx >= chords.length) loop.idx = -1;
 }
 function loopStop(){ if (metro.on && metro.loopOwned) metroStop(); loop.on = false; loop.idx = -1; metro.loopOwned = false; render(); }
 
@@ -3767,7 +3861,7 @@ function renderStrip(){
   if (heatOn && !quiz) h += `<span class="st-item"><b>Weak-spot heatmap</b><small>${FAMILIES[state.heatFam || 'all'].label}</small></span><button type="button" class="ib" data-act="heatoff">Close heatmap</button>`;
   if (loop.on && loop.chords.length) {
     const k = Math.max(0, loop.idx), nx = (k + 1) % loop.chords.length;
-    h += `<span class="st-loop">Loop <b>${loop.chords[k].name}</b>${loop.chords.length > 1 ? ` <small>then ${loop.chords[nx].name}</small>` : ''}</span><button type="button" class="ib" data-act="bstart">■ Loop</button>`;
+    h += `<span class="st-loop">Loop <b>${loop.chords[k].name}</b>${loop.chords.length > 1 ? ` <small>then ${loop.chords[nx].name}${neckView() === 'tones' && loop.idx >= 0 ? ' · ' + leadText(loop.chords[k], loop.chords[nx]) : ''}</small>` : ''}</span><button type="button" class="ib" data-act="bstart">■ Loop</button>`;
   }
   if (drone.on) h += `<button type="button" class="ib" data-act="dstart" aria-label="Stop drone">■ Drone ${pn(DEFAULT[state.drone.root])}</button>`;
   if (quiz) h += `<div class="qrow">${quizStripHtml()}</div>`;
@@ -3945,8 +4039,12 @@ function renderPractice(){
       <div class="seg">${[['strum1','Strum on 1'], ['quarters','Every beat'], ['pad','Sustained']].map(([v, t]) => `<button type="button" data-act="bpat" data-v="${v}" aria-pressed="${B.pattern === v}">${t}</button>`).join('')}</div>
       ${B.source === 'lane' ? '<span class="info">Chord lengths come from the Looper.</span>' : ''}<div class="seg"${B.source === 'lane' ? ' hidden' : ''}>${[1, 2, 4].map(n => `<button type="button" data-act="bbpc" data-v="${n}" aria-pressed="${B.bpc === n}">${n} bar${n > 1 ? 's' : ''} each</button>`).join('')}</div></div>
     <div class="row"><label class="chk"><input type="checkbox" id="bDrums" data-act="bdrums"${B.drums ? ' checked' : ''}> Drums</label>
-      <label class="chk"><input type="checkbox" id="bClick" data-act="bclick"${B.click ? ' checked' : ''}> Click too</label>
-      <label class="chk"><input type="checkbox" id="bFollow" data-act="bfollow"${B.follow ? ' checked' : ''}> Show each chord on the neck</label></div>
+      <label class="chk"><input type="checkbox" id="bClick" data-act="bclick"${B.click ? ' checked' : ''}> Click too</label></div>
+    <div class="row"><span class="rl">On the neck</span><div class="seg">${[['tones', 'Follow the changes'], ['chord', 'Each chord’s shape'], ['off', 'Leave it alone']].map(([v, t]) => `<button type="button" data-act="bview" data-v="${v}" aria-pressed="${neckView() === v}">${t}</button>`).join('')}</div></div>
+    ${neckView() === 'tones' ? `<div class="row"><span class="rl">Scale under the chords</span><div class="seg">${[['best', 'Best for each chord'], ['key', 'One for the whole loop'], ['mine', 'My main layer']].map(([v, t]) => `<button type="button" data-act="bunder" data-v="${v}" aria-pressed="${(B.under || 'best') === v}"${v === 'mine' && !mainScale() ? ' disabled title="Set the main layer to a scale first"' : ''}>${t}</button>`).join('')}</div></div>
+    <div class="row"><span class="rl">Where</span><div class="seg">${[['auto', state.layers[0].pos && state.layers[0].visible ? 'My position' : 'Whole neck'], ['low', '0–4'], ['mid', '4–8'], ['high', '7–11'], ['top', '11–15']].map(([v, t]) => `<button type="button" data-act="barea" data-v="${v}" aria-pressed="${(B.area || 'auto') === v}">${t}</button>`).join('')}</div></div>
+    ${chordsNow.length ? `<div class="chg">${chordsNow.map((c, k) => { const sc = scaleFor(c), nx = chordsNow[(k + 1) % chordsNow.length]; return `<span><b>${c.name}</b><small>${scaleTitle(sc.root, sc.type)}</small>${chordsNow.length > 1 ? `<small class="ld">${leadText(c, nx)}</small>` : ''}</span>`; }).join('')}</div>
+    <span class="opt-note">Big notes belong to the chord. Just before each change, dashed rings show the next chord’s 3rd and 7th (its 5th if it has no 7th): land on one as it arrives. Your layers come back when the loop stops.</span>` : ''}` : ''}
     <div class="row"><span class="rl">Loop volume</span><input type="range" id="bVol" min="0.1" max="1" step="0.05" value="${B.vol}" data-act="bvol" aria-label="Loop volume"></div>
     <div class="row"><button type="button" class="btn primary big-btn" data-act="bstart">${loop.on ? '■ Stop loop' : '▶ Start loop'}</button></div>
     <div class="metro-opts">
@@ -4116,6 +4214,9 @@ function handlePractice(act, b){
       if (!heatArmed) { heatArmed = true; clearTimeout(heatTimer); heatTimer = setTimeout(() => { heatArmed = false; if (state.tab === 'practice') render(); }, 3000); render(); return true; }
       heatArmed = false; answers = []; try { localStorage.setItem(ANSKEY, '[]'); } catch (e) {} toast('Quiz stats reset'); render(); return true;
     // play along
+    case 'bview': state.backing.view = v; state.backing.follow = v !== 'off'; render(); return true;
+    case 'bunder': state.backing.under = v; render(); return true;
+    case 'barea': state.backing.area = v; render(); return true;
     case 'bsrc': state.backing.source = v; refreshLoop(); render(); return true;
     case 'bmode': state.backing.minor = v === '1'; state.backing.prog = 0; refreshLoop(); render(); return true;
     case 'b7': state.backing.style = v; state.backing.sevenths = v === 'sev'; refreshLoop(); render(); return true;
@@ -4375,10 +4476,13 @@ document.addEventListener('pointerup', e => {
 document.addEventListener('pointercancel', () => { dragCleanup(); drag = null; });
 // a drag ends with a click on whatever it started on; swallow that one
 document.addEventListener('click', e => { if (eatClick) { eatClick = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+// offline: the service worker keeps a copy of the app; with a connection you always get the newest version
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) {}     // ask the browser not to clear the practice data
 // small read-only hook for automated tests and the browser console
 window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
-  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
+  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
   micHelp, micSessionStart, micSessionEnd, openMic, get micUsers(){ return micUsers; }, get audioCtx(){ return ac; },
   detectPitch, tunerFeed, get tuner(){ return tuner; }, get tt(){ return tt; },
@@ -4444,7 +4548,7 @@ board.addEventListener('click', e => {
   const s = +cell.dataset.s, f = +cell.dataset.f;
   const tun = TUNINGS[state.tuning].midi, midi = tun[s] + f, pc = mod(midi);
   if (quiz) { quizTap(s, f); return; }
-  if (pvOn()) { pluck(midi); return; }     // practicing: tapping the neck only sounds the note
+  if (pvOn() || (state.tab !== 'finder' && followView())) { pluck(midi); return; }     // practicing: tapping the neck only sounds the note
   if (heatOn) {     // the heatmap view explains a fret instead of changing the root
     const b = quizAgg(state.heatFam || 'all').cells.get(s + ':' + f);
     toast(b ? `${STRING_ORD[s]} string, ${f ? 'fret ' + f : 'open'} · ${pn(noteName(pc))} · ${b.ok} of ${b.n} right${b.ms.length ? ` · avg ${(median(b.ms) / 1000).toFixed(1)} s` : ''}` : `${STRING_ORD[s]} string, ${f ? 'fret ' + f : 'open'} · ${pn(noteName(pc))} · no answers here yet`);

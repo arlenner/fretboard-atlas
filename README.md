@@ -26,6 +26,7 @@ A guitar neck reference that runs in the browser. It needs no build step or serv
 - Metronome options: click on 2 & 4 or beat 1 only, gap click (play N bars, rest M), and a speed ladder.
 - Practice log (stored in the browser): minutes, streak, 14-day chart, per-exercise tempo history with a 'clean at N bpm' marker, quiz scores, and copy/restore backup.
 - Play along: progression loops (any key, or your Pinboard) with strum/pad patterns and drums on the metronome clock, plus a root or root+5th drone.
+- Follow the changes: while a loop plays, the neck shows each chord's tones over a fitting scale, and the next chord's 3rd and 7th just before it arrives.
 - Weak spots: every quiz answer is tracked by fret, note, string, interval and chord type; a heatmap on the neck shows % right per fret (green / amber for slow / red), and 'weak spots first' quizzes drill what you miss.
 - Tuner (microphone, YIN pitch detection) with nearest-string guidance and reference tones.
 - Tempo test: a guided climb that finds your clean tempo for an exercise and logs it, judged by you or by the mic (note timing against the click, after a one-time latency calibration).
@@ -46,4 +47,5 @@ Then visit http://localhost:8000.
 ## Files
 
 - `index.html` – the whole app (HTML, CSS and JS)
+- `sw.js` – keeps a copy of the app so it opens without a connection
 - `manifest.webmanifest`, `icon.svg` – what lets you install it on your home screen
