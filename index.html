@@ -339,6 +339,45 @@ body.pv-done .neck-wrap{display:none !important}
 .chg > span{display:grid; align-content:start; border:1px solid var(--line); border-radius:10px; padding:6px 8px; min-width:0}
 .chg small{color:var(--muted)}
 .chg .ld{color:var(--ink)}
+/* guides */
+.gtitle{font-size:20px}
+.guide p{margin:0}
+.gbody{display:grid; grid-template-columns:minmax(0, 1fr); gap:10px}
+.gsteps{display:flex; gap:4px}
+.gsteps button{flex:1 1 0; min-width:0; min-height:40px; border:0; background:transparent; padding:0; color:var(--muted); font-size:11px; display:grid; gap:4px; align-content:start; text-align:left}
+.gsteps i{height:5px; border-radius:3px; background:var(--line)}
+.gsteps .past i{background:var(--ok)}
+.gsteps [aria-selected="true"] i{background:var(--accent)}
+.gsteps [aria-selected="true"]{color:var(--ink); font-weight:700}
+.gsteps span{overflow-wrap:anywhere; line-height:1.15}
+.gform{display:flex; flex-wrap:wrap; gap:6px}
+.gform span{display:grid; justify-items:center; min-width:38px; padding:5px 6px; border:1px solid var(--line); border-radius:10px}
+.gform small{color:var(--muted)}
+.gform .ch{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+.gmiss{font-size:18px; font-weight:700}
+.gnav{flex-wrap:nowrap; position:sticky; bottom:0; background:var(--surface); padding:8px 0 2px; z-index:2}
+.gnav .big-btn{flex:1 1 0}
+.guide .btn.right{background:var(--ok); border-color:var(--ok); color:#fff; opacity:1}
+.guide .btn.wrong{background:var(--bad); border-color:var(--bad); color:#fff; opacity:1}
+.chip.gdone{color:var(--muted)}
+.grate .btn, .gans .btn{flex:1 1 0; min-height:44px}
+/* phones: one section of a layer card at a time */
+.sec{display:contents}
+.lsum, .ti, .view-btn{display:none}
+.lsum{flex-wrap:wrap; gap:6px}
+.lsum button{flex:1 1 auto; min-width:60px; min-height:44px; display:grid; justify-items:start; align-content:center; border:1px solid var(--line); background:var(--surface-2); border-radius:10px; padding:3px 9px; text-align:left}
+.lsum button[aria-expanded="true"]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+.lsum small{color:var(--muted); font-size:11px}
+.lsum b{font-size:13px}
+@media (orientation: portrait) and (max-width: 700px), (orientation: landscape) and (max-height: 520px){
+  .lsum{display:flex}
+  .toolbar2 [data-act="example"]{display:none}
+  .sec:not(.open){display:none}
+}
+@media (pointer: coarse){
+  .chip, .btn, .panel .seg button{min-height:38px}
+  .panel .ib{min-height:38px; min-width:38px}
+}
 /* lesson ingredient groups */
 .ing-grps{display:grid; grid-template-columns:minmax(0, 1fr); gap:6px; margin:-2px 0 6px}
 .ing-grp{border:1px solid var(--line); border-radius:10px; background:var(--surface)}
@@ -626,6 +665,34 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 .pin-notes{font-weight:650; letter-spacing:.02em}
 .toast{position:fixed; left:50%; bottom:calc(16px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); z-index:40; background:var(--sel-bg); color:var(--sel-ink); padding:8px 14px; border-radius:10px; font-weight:600; font-size:13px; box-shadow:0 8px 24px rgba(0,0,0,.25); max-width:calc(100vw - 32px); text-align:center}
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+@media (orientation: landscape) and (max-height: 520px){
+  .gnav{position:static}
+  .bar .view-btn{display:inline-block}
+  .bar > .ctl{display:none}
+  .bar.showview > .ctl{display:flex; order:5}
+  .bar #todayBtnWrap{margin-right:auto; order:-1}
+}
+/* phone held upright: the tabs sit at the bottom edge, and the toolbar is one line */
+@media (orientation: portrait) and (max-width: 700px){
+  body{padding-bottom:calc(78px + env(safe-area-inset-bottom, 0px))}
+  .menus > .tabs{position:fixed; z-index:30; left:0; right:0; bottom:0; margin:0; gap:0; background:var(--surface); border-top:1px solid var(--line); border-bottom:0; padding:0 max(4px, env(safe-area-inset-right)) env(safe-area-inset-bottom, 0px) max(4px, env(safe-area-inset-left)); overflow:visible}
+  .menus > .tabs button{flex:1 1 0; min-width:0; min-height:58px; padding:6px 0; margin:0; border-bottom:0; border-top:3px solid transparent; display:grid; justify-items:center; align-content:center; gap:2px; font-size:12px}
+  .menus > .tabs button[aria-selected="true"]{border-top-color:var(--accent)}
+  .tabs .ti{display:block; width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2; stroke-linejoin:round; stroke-linecap:round}
+  .tabs .tl-long{display:none}
+  .tabs .tl-short{display:inline}
+  .tabs .tt{white-space:nowrap}
+  .toast{bottom:calc(74px + env(safe-area-inset-bottom, 0px))}
+  .bar{gap:6px}
+  .bar .brand{display:none}
+  .bar .view-btn{display:inline-block}
+  .bar > .ctl{display:none}
+  .bar.showview > .ctl{display:flex; order:5}
+  .gnav{bottom:calc(60px + env(safe-area-inset-bottom, 0px)); padding-bottom:8px}
+  .bar #todayBtnWrap{margin-right:auto; order:-1}
+  body.pv{padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px))}
+  body.rotated .rotate-hint{display:none}
+}
 </style>
 </head>
 <body>
@@ -655,6 +722,7 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
     <button type="button" class="ib" id="menusClose" aria-label="Close menus" title="Close menus">✕</button>
   </div>
 <div class="bar">
+  <button type="button" class="btn view-btn" id="viewBtn" aria-expanded="false">View</button>
   <div class="brand">Fretboard Atlas <small>24 frets · 6 strings</small></div>
   <div class="ctl"><span class="seg-label">Tap</span>
     <div class="seg" id="modeSeg">
@@ -705,11 +773,11 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 </div>
 
 <div class="tabs" role="tablist">
-  <button type="button" role="tab" data-tab="layers">Layers</button>
-  <button type="button" role="tab" data-tab="finder"><span class="tl-long">Chord finder</span><span class="tl-short">Finder</span></button>
-  <button type="button" role="tab" data-tab="circle"><span class="tl-long">Circle of fifths</span><span class="tl-short">Circle</span></button>
-  <button type="button" role="tab" data-tab="pins" id="pinsTab">Pinboard</button>
-  <button type="button" role="tab" data-tab="practice">Practice</button>
+  <button type="button" role="tab" data-tab="layers"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5zM3 13l9 5 9-5"/></svg><span class="tt">Layers</span></button>
+  <button type="button" role="tab" data-tab="finder"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 5 5"/></svg><span class="tt"><span class="tl-long">Chord finder</span><span class="tl-short">Finder</span></span></button>
+  <button type="button" role="tab" data-tab="circle"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg><span class="tt"><span class="tl-long">Circle of fifths</span><span class="tl-short">Circle</span></span></button>
+  <button type="button" role="tab" data-tab="pins"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span class="tt" id="pinsTab">Pinboard</span></button>
+  <button type="button" role="tab" data-tab="practice"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16l12-8z"/></svg><span class="tt">Practice</span></button>
 </div>
 <div class="panel" id="panel"></div>
 </aside>
@@ -718,6 +786,7 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 <script>
 (function(){
 "use strict";
+const thumbQ = matchMedia('(orientation: portrait) and (max-width: 700px)');
 /* a phone held sideways gets its own layout: the neck fills the screen and the menus are a sidebar */
 const landQ = matchMedia('(orientation: landscape) and (max-height: 520px)');
 let side = 'closed';          // that sidebar: 'closed', 'open' (over part of the neck) or 'full' (whole screen)
@@ -1461,6 +1530,7 @@ function renderBoard(){
   const cmpHit = (k, s, f, pc) => { const p = cmp[k]; return (p.shape && (p.tuning || 'std') === state.tuning) ? p.shape.some(q => q.s === s && q.f === f) : cmpPcs[k].has(pc); };
   const readLabel = iv => (reading.labels.find(l => semi(l) === iv) || INTERVALS[iv]);
   const R = 'var(--row)';
+  const charPcs = guide && (guide.step === 1 || guide.step === 2) ? new Set(guideRef(guide.type).ch.map(l => mod(guide.root + semi(l)))) : null;
   let inl = '';
   for (let f = 1; f <= 24; f++) {
     let dots = '';
@@ -1534,6 +1604,7 @@ function renderBoard(){
         let cls = 'dot sv s' + dg, st, pip = '';
         if (h.isRoot) cls += ' root';
         if (h.focus) cls += ' ' + h.focus;
+        else if (charPcs && h.i === 0 && charPcs.has(pc)) cls += ' vc';      // a guide is pointing out these notes
         if (text.length >= 3) cls += ' lg3';
         if (byIv()) {
           st = `--c:${ivCol(h.label)};`;
@@ -1682,15 +1753,27 @@ function layerCard(L, i){
       ${i > 0 ? `<button type="button" class="btn" data-act="del" data-i="${i}" aria-label="Remove overlay ${i}">Remove</button>` : ''}</div>
     </div>
     <div class="row"><div class="seg">${kinds.map(([k, t]) => `<button type="button" aria-pressed="${L.kind === k}" data-act="kind" data-i="${i}" data-v="${k}">${t}</button>`).join('')}</div></div>`;
-  if (L.kind !== 'notes') h += `<div class="row"><span class="rl">Root</span>${rootChips(L, i)}</div>`;
+  // on a phone only one section of the card is open at a time; a line of buttons shows what each is set to
+  const secOpen = (state.secOpen || {})[L.id] !== undefined ? state.secOpen[L.id] : i === 0 ? 'root' : 'type';
+  const sec = k => `<div class="sec${secOpen === k ? ' open' : ''}" data-sec="${k}">`;
+  if (L.kind !== 'notes') {
+    const posT = !L.pos ? 'whole neck' : L.kind === 'chord' ? `${STRING_ORD[L.pos.s]} · ${L.pos.f}` : isArp(L) ? `${cagedOf(L.pos).n} shape` : `fret ${L.pos.f}`;
+    const typeT = L.kind === 'chord' ? CHORDS[L.type].sym || 'major' : L.kind === 'scale' ? (SCALES[L.type].arp ? (CHORDS[SCALES[L.type].chord].sym || 'major') + ' arp' : SCALES[L.type].short || SCALES[L.type].name) : '';
+    const tabs = [['root', 'Root', pn(rn)], L.kind === 'intervals' ? null : ['type', 'Type', typeT],
+      L.kind === 'chord' || (L.kind === 'scale' && L.type !== 'chromatic') ? ['pos', 'Position', posT] : null,
+      ['flt', 'Notes', L.hidden.length ? `${layerLabels(L).length - L.hidden.length} of ${layerLabels(L).length}` : 'all'],
+      L.kind === 'scale' && !isArp(L) && L.type !== 'chromatic' ? ['fit', 'Chords', 'that fit'] : null].filter(Boolean);
+    h += `<div class="lsum">${tabs.map(([k, a, v]) => `<button type="button" data-act="sec" data-i="${i}" data-v="${k}" aria-expanded="${secOpen === k}"><small>${a}</small><b>${v}</b></button>`).join('')}</div>`;
+    h += `${sec('root')}<div class="row"><span class="rl">Root</span>${rootChips(L, i)}</div></div>`;
+  }
   if (L.kind === 'chord') {
-    h += `<div class="row"><span class="rl">Chord type</span>${QUICK_CHORDS.map(id => `<button type="button" class="chip${L.type === id ? ' sel' : ''}" data-act="ctype" data-i="${i}" data-v="${id}">${pn(rn) + CHORDS[id].sym}</button>`).join('')}
+    h += `${sec('type')}<div class="row"><span class="rl">Chord type</span>${QUICK_CHORDS.map(id => `<button type="button" class="chip${L.type === id ? ' sel' : ''}" data-act="ctype" data-i="${i}" data-v="${id}">${pn(rn) + CHORDS[id].sym}</button>`).join('')}
       <select class="sel" id="ctype-${L.id}" data-act="ctype-sel" data-i="${i}" aria-label="All chord types">
       ${CHORD_LIST.map(([g, list]) => `<optgroup label="${g}">${list.map(([id, sym, name]) => `<option value="${id}"${L.type === id ? ' selected' : ''}>${pn(rn)}${sym} · ${name}</option>`).join('')}</optgroup>`).join('')}
-      </select></div>`;
+      </select></div></div>`;
     const ps = rootPositions(L);
     const at = L.pos ? ps.findIndex(p => p.s === L.pos.s && p.f === L.pos.f) : -1;
-    h += `<div class="row"><span class="rl">Position · focus on one shape</span>
+    h += `${sec('pos')}<div class="row"><span class="rl">Position · focus on one shape</span>
       <button type="button" class="chip${L.pos ? '' : ' sel'}" data-act="pos" data-i="${i}" data-v="none">Whole neck</button>
       <button type="button" class="ib" data-act="posstep" data-i="${i}" data-v="-1" aria-label="Previous position"${at <= 0 ? ' disabled' : ''}>◀</button>
       <button type="button" class="ib" data-act="posstep" data-i="${i}" data-v="1" aria-label="Next position"${at >= ps.length - 1 ? ' disabled' : ''}>▶</button>
@@ -1698,7 +1781,7 @@ function layerCard(L, i){
         const ok = !!findVoicing(L.root, L.type, p.s, p.f, no5Of(L));
         const on = L.pos && p.s === L.pos.s && p.f === L.pos.f;
         return `<button type="button" class="chip${on ? ' sel' : ''}" data-act="pos" data-i="${i}" data-s="${p.s}" data-f="${p.f}"${ok ? '' : ' disabled title="No playable shape with every chord tone here"'} aria-label="Root on the ${STRING_ORD[p.s]} string, fret ${p.f}">${STRING_ORD[p.s]} · ${p.f}</button>`;
-      }).join('')}</div>`;
+      }).join('')}</div></div>`;
     if (L.pos) {
       const v = voicingFor(L);
       h += v && v.shape
@@ -1710,24 +1793,24 @@ function layerCard(L, i){
     }
   }
   if (L.kind === 'scale') {
-    h += `<div class="row"><span class="rl">Mode</span>${MODES.map((m, k) => `<button type="button" class="chip${L.type === m ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="${m}">${pn(rootName(L.root, SCALES[m].labels))} ${SCALES[m].short}</button>`).join('')}</div>
+    h += `${sec('type')}<div class="row"><span class="rl">Mode</span>${MODES.map((m, k) => `<button type="button" class="chip${L.type === m ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="${m}">${pn(rootName(L.root, SCALES[m].labels))} ${SCALES[m].short}</button>`).join('')}</div>
       <div class="row"><span class="rl">Arpeggio</span>${QUICK_ARPS.map(c => `<button type="button" class="chip${L.type === 'arp_' + c ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="arp_${c}">${pn(rootName(L.root, CHORDS[c].labels))}${CHORDS[c].sym}</button>`).join('')}</div>
       <div class="row"><span class="rl">Other scales</span><select class="sel" id="stype-${L.id}" data-act="stype-sel" data-i="${i}" aria-label="Other scales">
         <option value="">${MODES.includes(L.type) || QUICK_ARPS.includes((SCALES[L.type].chord || '')) && SCALES[L.type].arp ? 'Choose a scale…' : ''}</option>
         ${OTHER_SCALES.map(([g, ids]) => `<optgroup label="${g}">${ids.map(id => `<option value="${id}"${L.type === id ? ' selected' : ''}>${pn(rootName(L.root, SCALES[id].labels))} ${SCALES[id].name}</option>`).join('')}</optgroup>`).join('')}
-      </select></div>`;
+      </select></div></div>`;
     if (L.type !== 'chromatic') {
       const ps = scalePositions(L), arp = isArp(L);
       const same = p => L.pos && p.f === L.pos.f && (!arp || (p.s === (L.pos.s || 0) && p.d === (L.pos.d || 1)));
       const at = L.pos ? ps.findIndex(same) : -1;
       const rn = layerRoot(L), per = layerLabels(L).length >= 7 ? 3 : 2;
-      h += `<div class="row"><span class="rl">Position · focus on one area of the neck</span>
+      h += `${sec('pos')}<div class="row"><span class="rl">Position · focus on one area of the neck</span>
         <button type="button" class="chip${L.pos ? '' : ' sel'}" data-act="spos" data-i="${i}" data-v="none">Whole neck</button>
         <button type="button" class="ib" data-act="sposstep" data-i="${i}" data-v="-1" aria-label="Previous position"${at <= 0 ? ' disabled' : ''}>◀</button>
         <button type="button" class="ib" data-act="sposstep" data-i="${i}" data-v="1" aria-label="Next position"${at >= ps.length - 1 ? ' disabled' : ''}>▶</button>
         ${ps.map(p => arp
           ? `<button type="button" class="chip${same(p) ? ' sel' : ''}" data-act="spos" data-i="${i}" data-s="${p.s}" data-f="${p.f}" data-d="${p.d}" aria-label="${p.cag} shape, root on the ${STRING_ORD[p.s]} string at fret ${p.f}, frets ${p.lo} to ${p.hi}" title="Root on the ${STRING_ORD[p.s]} string, fret ${p.f}">${p.cag} · ${p.lo}–${p.hi}</button>`
-          : `<button type="button" class="chip${same(p) ? ' sel' : ''}" data-act="spos" data-i="${i}" data-s="0" data-f="${p.f}" aria-label="Position ${p.n}, starting on the ${pl(p.label)} at fret ${p.f}" title="Starts on ${pl(p.label)} (${pn(spell(rn, p.label))})">P${p.n} · ${p.f}</button>`).join('')}</div>`;
+          : `<button type="button" class="chip${same(p) ? ' sel' : ''}" data-act="spos" data-i="${i}" data-s="0" data-f="${p.f}" aria-label="Position ${p.n}, starting on the ${pl(p.label)} at fret ${p.f}" title="Starts on ${pl(p.label)} (${pn(spell(rn, p.label))})">P${p.n} · ${p.f}</button>`).join('')}</div></div>`;
       if (L.pos) {
         const fp = scalePosFor(L), cur = ps.find(same);
         const where = arp
@@ -1750,12 +1833,12 @@ function layerCard(L, i){
     h += `<div class="row"><span class="rl">Notes to show${i === 0 ? ' · tapping the neck toggles notes too' : ''}</span>${n}</div>`;
   } else {
     const lbls = layerLabels(L);
-    h += `<div class="row"><span class="rl">Filter · tap to show or hide</span>${lbls.map((l, k) => {
+    h += `${sec('flt')}<div class="row"><span class="rl">Filter · tap to show or hide</span>${lbls.map((l, k) => {
       const title = L.kind === 'intervals' ? intervalName(k) : 'Interval ' + pl(l);
       return `<button type="button" class="chip flt${L.hidden.includes(l) ? '' : ' on'}"${byIv() ? ` style="--c:${ivCol(l)}"` : ''} data-act="flt" data-i="${i}" data-v="${l}" title="${title}" aria-pressed="${!L.hidden.includes(l)}"><b>${pl(l)}</b><span>${pn(spell(rn, l))}</span></button>`;
     }).join('')}
       <button type="button" class="btn" data-act="fall" data-i="${i}">All</button>
-      <button type="button" class="btn" data-act="froot" data-i="${i}">Root only</button></div>`;
+      <button type="button" class="btn" data-act="froot" data-i="${i}">Root only</button></div></div>`;
     let info = `<span class="notes-line">${lbls.map(l => pn(spell(rn, l))).join('  ')}</span>`;
     if (L.kind === 'scale' && SCALES[L.type].arp) info += ` · the notes of <b>${pn(rootName(L.root, CHORDS[SCALES[L.type].chord].labels))}${CHORDS[SCALES[L.type].chord].sym}</b> played one at a time. Use Position for sweep and box shapes.`;
     if (L.kind === 'scale' && MODES.includes(L.type)) {
@@ -1765,7 +1848,8 @@ function layerCard(L, i){
     if (L.kind === 'chord') info += ` · ${CHORDS[L.type].name}, ${lbls.map(pl).join(' ')}`;
     if (L.kind === 'intervals') info = 'Every interval from the root. Turn on the ones you want to see.';
     h += `<div class="info">${info}</div>`;
-    if (L.kind === 'scale') h += fitHtml(L, i);
+    if (L.kind === 'scale' && GUIDE[L.type]) h += `<div class="row"><button type="button" class="btn" data-act="glearn" data-i="${i}">Learn this scale ▶</button></div>`;
+    if (L.kind === 'scale') h += sec('fit') + fitHtml(L, i) + '</div>';
   }
   return h + '</div>';
 }
@@ -2872,9 +2956,9 @@ function loopSlot(barIn, beatNo, chords){
   return {k, pos, len:lens[k]};
 }
 /* ---- follow the changes: the chord of the moment over a scale, and where the next chord wants you to land ---- */
-const neckView = () => state.backing.view || (state.backing.follow === false ? 'off' : 'tones');
+const neckView = () => loop.guide ? 'tones' : state.backing.view || (state.backing.follow === false ? 'off' : 'tones');
 const scalePcs = s => new Set(SCALES[s.type].labels.map(l => mod(s.root + semi(l))));
-const chordTones = c => CHORDS[c.type].labels.map(l => ({l, pc:mod(c.root + semi(l))}));
+const chordTones = c => CHORDS[c.type].labels.filter(l => !(c.no5 && l === '5')).map(l => ({l, pc:mod(c.root + semi(l))}));
 /* the scale the whole loop lives in: the key, or for pins and the Looper the mode on the first chord that covers the most chord tones */
 function homeScale(){
   const b = state.backing;
@@ -2903,6 +2987,7 @@ function bestScale(c, home){
 }
 const mainScale = () => { const L = state.layers[0]; return L.kind === 'scale' && L.type !== 'chromatic' && SCALES[L.type] && !SCALES[L.type].arp ? {root:L.root, type:L.type} : null; };
 function scaleFor(c){
+  if (loop.guide && guide) return {root:guide.root, type:guide.type};
   const u = state.backing.under || 'best';
   if (u === 'mine' && mainScale()) return mainScale();
   return u === 'best' ? bestScale(c, homeScale()) : homeScale();
@@ -2923,8 +3008,9 @@ const AREAS = {auto:null, low:[0, 4], mid:[4, 8], high:[7, 11], top:[11, 15]};
 function followView(){
   if (!loop.on || loop.idx < 0 || neckView() !== 'tones' || !loop.chords[loop.idx]) return null;
   const c = loop.chords[loop.idx], n = loop.chords.length, nx = n > 1 ? loop.chords[(loop.idx + 1) % n] : null, sc = scaleFor(c), L = state.layers[0];
-  let win = AREAS[state.backing.area || 'auto'] || null;
-  if (!win && (state.backing.area || 'auto') === 'auto' && L.visible && L.pos && (L.kind === 'scale' || L.kind === 'chord')) { const F = focusFor(L); if (F) win = [F.lo, F.hi]; }
+  const area = loop.guide ? 'auto' : state.backing.area || 'auto';
+  let win = AREAS[area] || null;
+  if (!win && area === 'auto' && L.visible && L.pos && (L.kind === 'scale' || L.kind === 'chord')) { const F = focusFor(L); if (F) win = [F.lo, F.hi]; }
   return {c, nx, sc, win, pcs:scalePcs(sc), cur:new Map(chordTones(c).map(x => [x.pc, x.l])), next:loop.preview && nx ? new Map(guideTones(nx).map(x => [x.pc, x.l])) : new Map()};
 }
 function followDot(fv, pc){
@@ -2982,19 +3068,19 @@ function loopShowChord(k){
 function loopStart(){
   const chords = backingChords();
   if (!chords.length) { toast(state.backing.source === 'pins' ? 'Pin some chords first: the loop plays your Pinboard in order.' : state.backing.source === 'lane' ? 'The Looper is empty. Add chords on the Pinboard tab.' : 'That progression has no chords.'); return; }
-  loop.chords = chords; loop.voices = chords.map(voiceChord); loop.idx = -1; loop.preview = false; loop.on = true;
+  loop.chords = chords; loop.voices = chords.map(voiceChord); loop.idx = -1; loop.preview = false; loop.guide = false; loop.on = true;
   if (!metro.on) { metroStart(); metro.loopOwned = true; loop.bar0 = 0; }
   else loop.bar0 = Math.ceil(metro.tick / (state.metro.sub * state.metro.beats));
   render();
 }
 /* settings changed while the loop plays: swap in the new chords without stopping the beat */
 function refreshLoop(){
-  if (!loop.on) return;
+  if (!loop.on || loop.guide) return;
   const chords = backingChords(); if (!chords.length) { loopStop(); return; }
   loop.chords = chords; loop.voices = chords.map(voiceChord);
   if (loop.idx >= chords.length) loop.idx = -1;
 }
-function loopStop(){ if (metro.on && metro.loopOwned) metroStop(); loop.on = false; loop.idx = -1; metro.loopOwned = false; render(); }
+function loopStop(){ if (metro.on && metro.loopOwned) metroStop(); loop.on = false; loop.guide = false; loop.idx = -1; metro.loopOwned = false; render(); }
 
 /* drone: sustained root (and optional 5th), slightly detuned for a living sound */
 const drone = {on:false, nodes:[], gain:null};
@@ -3115,6 +3201,272 @@ function reviewStats(now){
 }
 const dueText = (due, now) => { const d = Math.round((due - dayStart(now || Date.now())) / 86400000); return d < 0 ? `${-d} day${d === -1 ? '' : 's'} overdue` : d === 0 ? 'due today' : d === 1 ? 'tomorrow' : `in ${d} days`; };
 
+/* ================= guides: one scale at a time — hear it, what makes it different, the chord it lives on, an ear check, then play ================= */
+/* [how it feels, where it turns up, how to practice it] */
+const GUIDE = {
+  ionian:['Settled and bright. The 7 leans up into the root, and the 4 leans down onto the 3.', 'Most pop, folk and classical melody.', 'Treat the 4 as a passing note over a held major chord, or lean on it and let it fall to the 3.'],
+  dorian:['Minor, but hopeful. The natural 6 lets some light in.', 'Funk, soul, modal jazz and a lot of folk. “So What” is the classic example.', 'Land on the 6 over the minor chord, then settle on the 5.'],
+  phrygian:['Dark and tense, with a Spanish edge. The ♭2 sits a half step above home.', 'Flamenco, metal and film scores.', 'Fall from the ♭2 to the root. That half step is the whole sound.'],
+  lydian:['Wide open and floating. The ♯4 takes away the pull that makes major feel settled.', 'Film and game scores, dream pop, modern jazz over maj7 chords.', 'Hold the ♯4 over a major chord, then let it rise to the 5.'],
+  mixolydian:['Major with the edge taken off. The ♭7 keeps it bluesy and unresolved.', 'Rock, blues, funk and folk jams on one dominant chord.', 'Swap the 7 for the ♭7 in major licks you already know.'],
+  aeolian:['Plainly sad or serious. The ♭6 is heavier than Dorian’s 6.', 'Rock and pop in minor keys.', 'Let the ♭6 drop to the 5.'],
+  locrian:['Unstable: even the 5th is flat, so home never feels like home.', 'Mostly over half-diminished chords (the ii in a minor ii–V–i) and in metal.', 'Think of it as a color over m7♭5. Rest on the ♭5 or ♭3 rather than expecting it to settle.'],
+  majPent:['Open and singable: major without its two half-step notes, so nothing clashes.', 'Country, folk, gospel, rock solos.', 'Lean on the 6 and the 2. Slide into the 3.'],
+  minPent:['Tough and direct: minor without the 2 and the ♭6.', 'Blues, rock, almost everything.', 'Make phrases with two or three notes and leave gaps.'],
+  blues:['Minor pentatonic with grit. The ♭5 is a passing sting between the 4 and the 5.', 'Blues, rock, jazz.', 'Pass through the ♭5. Don’t park on it.'],
+  majBlues:['Sweet and sly. The ♭3 slides up into the major 3.', 'Country, gospel, jump blues.', 'Hammer from the ♭3 to the 3.'],
+  domPent:['Major pentatonic with the 6 traded for a ♭7, so it spells out a dominant chord.', 'Dominant vamps, and some Indian-inspired jazz.', 'Outline a 9th chord: root, 3, 5, ♭7, 2.'],
+  m6Pent:['Minor pentatonic with a 6 for the ♭7: bittersweet.', 'Minor blues, and over m6 chords.', 'Aim for the 6 and hear it against the ♭3: that interval is a tritone.'],
+  hirajoshi:['Still and haunting: wide gaps beside close half steps.', 'Inspired by Japanese koto tuning. Also metal and ambient.', 'Use the two half steps (2 to ♭3, 5 to ♭6) as sighs.'],
+  inSen:['Sparse, with a dark ♭2 and no 3rd, so neither major nor minor.', 'Koto-inspired music, and modal jazz over sus♭9 chords.', 'Try it over a held root and 4th.'],
+  iwato:['Like Locrian with the ♭3 and ♭6 removed: hollow and unresolved.', 'Koto-inspired and ambient music.', 'Let notes ring over a drone.'],
+  kumoi:['A minor pentatonic with a 2 and a natural 6: calm but wistful.', 'Japanese-inspired and modal jazz. The same notes as Dorian without the 4 and ♭7.', 'Hang on the 6, then step down to the 5.'],
+  yo:['Neutral and bright, with no half steps and no 3rd.', 'Japanese folk song. Also good over sus chords.', 'Lean on the 4 as a resting place.'],
+  egyptian:['Suspended and open: no 3rd at all.', 'Sus4 vamps, modern rock and fusion. It’s a mode of the major pentatonic.', 'Try it over a 7sus4 chord and let nothing resolve.'],
+  pelog:['Dark and bell-like, with two half steps.', 'A rough guitar version of a Balinese gamelan tuning (the real one isn’t tuned like a guitar).', 'Play slow repeating patterns rather than runs.'],
+  harmMin:['Minor with a raised 7 that pulls hard to the root. The gap from ♭6 to 7 sounds exotic.', 'Classical minor, tango, neoclassical metal.', 'Use it when the V7 chord arrives, then go back to natural minor.'],
+  melMin:['Minor below, major above: smooth and sophisticated.', 'Jazz over m6 and m(maj7) chords. It’s the parent of seven modern modes.', 'Let the 6 and 7 carry you up to the root.'],
+  dorianb2:['Dorian with Phrygian’s dark ♭2.', 'Over 7sus♭9 chords in modern jazz.', 'Contrast the ♭2 with the bright 6.'],
+  lydAug:['Lydian pushed further: ♯4 and ♯5 float away from home.', 'Over maj7♯5 chords in jazz and film music.', 'Resolve the ♯5 up to the 6.'],
+  lydDom:['Bright and bluesy at once: Lydian’s ♯4 with Mixolydian’s ♭7.', 'Over 7♯11 chords, tritone substitutes, and the backdoor ♭VII7. Also cartoon themes.', 'Over a dominant chord that doesn’t go home, land on the ♯4.'],
+  mixob6:['A major 3rd with a minor-sounding top: bittersweet.', 'Film scores, and V chords heading to minor.', 'Let the ♭6 fall to the 5 while the major 3 rings.'],
+  locNat2:['Locrian made usable: the natural 2 gives you a 9 to rest on.', 'Over m7♭5 chords, especially held ones.', 'Hold the 2 over the half-diminished chord.'],
+  altered:['All the tension a dominant can hold: ♭9, ♯9, ♯11 and ♭13.', 'Over a V7 chord about to resolve. It’s melodic minor a half step up.', 'Play it just before the change and resolve by half step to a note of the I chord.'],
+  locNat6:['Locrian with a brighter 6.', 'Over the iiø chord in minor, when the line is headed for harmonic minor.', 'Use the 6 to lead into the V chord’s 3rd.'],
+  ionAug:['Major with the 5 stretched up.', 'Over maj7♯5 chords in minor keys.', 'Resolve the ♯5 to the 6.'],
+  ukrDorian:['Dorian with a raised 4: yearning, with an Eastern European flavor.', 'Klezmer, Ukrainian and Romanian folk music.', 'Use the ♯4 as a slide up into the 5.'],
+  phrygDom:['Spanish and Middle Eastern: a major 3rd right after a ♭2.', 'Flamenco, klezmer, metal. The sound of V7♭9 in a minor key.', 'Circle the gap between the ♭2 and the 3.'],
+  lydS2:['Lydian with a wide ♯2: bright and slightly strange.', 'Over maj7 chords for an exotic color.', 'Use the ♯2 as a slide into the 3.'],
+  ultraLoc:['Extremely unstable, with everything flattened.', 'Over diminished 7th chords resolving in minor.', 'Treat it as a short run into the next chord.'],
+  harmMaj:['Major until the top, where a ♭6 clouds over.', 'Borrowed minor iv moments in jazz and romantic music.', 'Use the ♭6 falling to the 5 over the major chord.'],
+  doubleHarm:['Ornate: two wide gaps, each next to half steps.', 'Middle Eastern and Byzantine-influenced music, surf rock (“Misirlou”).', 'Circle the root using the ♭2 and the 7.'],
+  hungMin:['Harmonic minor with a ♯4: dramatic and theatrical.', 'Romani- and Hungarian-influenced music, film villains, metal.', 'Lean into the half steps around the 5 (♯4 and ♭6).'],
+  hungMaj:['A dominant color with a ♯2 and ♯4, and a bluesy bite.', 'Over 7♯9 and 13♯11 chords.', 'Play the ♯2 against the 3.'],
+  neaMin:['Harmonic minor with a dark ♭2.', 'Classical and metal.', 'Approach the root from both sides: ♭2 above, 7 below.'],
+  neaMaj:['Melodic minor with a ♭2: smooth but shadowed.', 'Impressionist music and modern jazz.', 'Let the ♭2 resolve down while the 7 resolves up.'],
+  persian:['Dense half steps around the root and the 4.', 'Film and metal for an exotic color (real Persian music uses its own tunings).', 'Play the half steps as ornaments around a held note.'],
+  enigmatic:['Exactly that: close to whole-tone in the middle, half steps at the ends.', 'A famous puzzle scale that Verdi harmonized.', 'Improvise slowly over a held root. Find which notes feel like rest.'],
+  prometheus:['Luminous and unresolved: Lydian dominant without its 5.', 'Scriabin’s “mystic chord” as a scale. Great over 13♯11 chords.', 'With no 5, use the ♯4 as your anchor and let the 6 and 2 glow around it.'],
+  bebopDom:['Mixolydian with both 7s, so chord tones land on the beat.', 'Bebop lines over dominant chords.', 'Run down in 8ths starting with the root on a beat: root, ♭7, 5 and 3 all fall on beats within the bar.'],
+  bebopMaj:['Major with a ♯5 passing note.', 'Bebop lines over major 6 chords.', 'Run it in 8ths from a chord tone on the beat: 1, 3, 5 and 6 stay on the beats.'],
+  augmented:['Six notes in a minor-3rd, half-step pattern: shimmering and rootless.', 'Coltrane-style jazz, over maj7♯5 chords.', 'Move any idea up four frets: it still fits.'],
+  wholeTone:['Dreamlike: all whole steps, so there’s no home.', 'Debussy, dream sequences, over 7♯5 chords.', 'Move any shape up two frets: it still fits.'],
+  dimHW:['Tense but organized, repeating every minor 3rd.', 'Over 13♭9 dominant chords.', 'Move any lick up three frets: it still fits.'],
+  dimWH:['Symmetrical and suspenseful.', 'Over diminished 7th chords.', 'Move any lick up three frets: it still fits.']
+};
+const GUIDE_CH = {ionian:['mixolydian', ['7']], dorian:['aeolian', ['6']], phrygian:['aeolian', ['b2']], lydian:['ionian', ['#4']], mixolydian:['ionian', ['b7']], aeolian:['dorian', ['b6']], locrian:['phrygian', ['b5']],
+  majPent:['ionian', ['6']], minPent:['aeolian', ['b7']], yo:['ionian', ['4']], egyptian:['mixolydian', ['b7']], kumoi:['dorian', ['6']], inSen:['phrygian', ['b2']], iwato:['locrian', ['b5']], hirajoshi:['aeolian', ['b6']], pelog:['phrygian', ['b2']], domPent:['mixolydian', ['b7']],
+  m6Pent:['dorian', ['6']], harmMin:['aeolian', ['7']], melMin:['aeolian', ['6', '7']], prometheus:['mixolydian', ['#4']], lydDom:['mixolydian', ['#4']], phrygDom:['mixolydian', ['b2', 'b6']], altered:['mixolydian', ['b2', '#2', '#4', 'b6']], bebopDom:['mixolydian', ['7']], ultraLoc:['locrian', ['b4', 'bb7']], locNat2:['locrian', ['2']]};
+const GUIDE_HOME = {altered:'7alt', bebopDom:'7', bebopMaj:'6', wholeTone:'7s5', dimHW:'13b9', dimWH:'dim7', prometheus:'13s11', augmented:'M7s5', hungMaj:'7'};
+const GUIDE_PATH = ['minPent','majPent','aeolian','ionian','dorian','mixolydian','blues','lydian','phrygian','harmMin','melMin','lydDom','phrygDom','prometheus','altered','mixob6','locNat2','harmMaj','doubleHarm','hungMin','wholeTone','dimHW'];
+const GUIDE_STEPS = ['Hear it', 'What’s different', 'Its chords', 'Ear check', 'Make music', 'Done'];
+/* what to compare a scale with, and the notes that make the difference */
+function guideRef(type){
+  if (GUIDE_CH[type]) return {ref:GUIDE_CH[type][0], ch:GUIDE_CH[type][1]};
+  const L = SCALES[type].labels, ps = new Set(L.map(semi)), third = ps.has(4) ? 4 : ps.has(3) ? 3 : null;
+  const ref = ['ionian','aeolian','mixolydian','dorian','lydian','phrygian','locrian'].map((m, k) => {
+    const mp = new Set(SCALES[m].labels.map(semi));
+    return [m, [...ps].filter(x => mp.has(x)).length + (third != null && mp.has(third) ? 1.5 : 0) - k * 0.01];
+  }).sort((a, b) => b[1] - a[1])[0][0];
+  const rp = new Set(SCALES[ref].labels.map(semi)), ch = L.filter(l => !rp.has(semi(l)));
+  return {ref, ch:ch.length ? ch.slice(0, 4) : [L[L.length - 1]]};
+}
+/* the home chord, and a second chord that brings the character note out */
+function guideChords(type, root){
+  const D = chordsInScale({kind:'scale', root, type, hidden:[], notes:[]}), chp = guideRef(type).ch.map(l => mod(root + semi(l)));
+  const tones = (r, f) => CHORDS[f.t].labels.filter(l => !(f.no5 && l === '5')).map(l => mod(r + semi(l)));
+  const plain = ['maj7','7','m7','m7b5','mM7','M7s5','6','m6','maj','min','7s5','7b5','dim7','sus4','7sus4','sus2','dim','aug'];
+  const best = (d, want) => {
+    if (d.stack) { const f = d.fits.find(x => x.t === d.stack && !x.no5); if (f) return f; }
+    const r = f => { const k = plain.indexOf(f.t); return (k < 0 ? 40 : k) + (f.no5 ? 8 : 0) - (want && tones(d.r, f).some(x => chp.includes(x)) ? 12 : 0); };
+    return d.fits.slice().sort((a, b) => r(a) - r(b))[0] || null;
+  };
+  const mk = (d, f) => f && {root:d.r, type:f.t, no5:f.no5, name:d.name + CHORDS[f.t].sym + (f.no5 ? ' (no 5)' : ''), label:d.l};
+  const home = mk(D[0], D[0].fits.find(f => f.t === GUIDE_HOME[type]) || best(D[0], false));
+  const third = t => CHORDS[t].labels.includes('3') ? '3' : CHORDS[t].labels.includes('b3') ? 'b3' : '';      // same kind of chord as home: major stays major
+  const color = home ? D[0].fits.filter(f => f.t !== home.type && third(f.t) === third(home.type) && tones(D[0].r, f).some(x => chp.includes(x)) && CHORDS[f.t].labels.length >= 4).slice(0, 3).map(f => mk(D[0], f)) : [];
+  const sc = {'7':3, maj7:3, maj:2.5, m7:1, '6':1.5, min:1};
+  const second = D.slice(1).map(d => { const f = best(d, true); return f && {d, f, v:(tones(d.r, f).some(x => chp.includes(x)) ? 4 : 0) + (sc[f.t] || 0)}; }).filter(Boolean).sort((a, b) => b.v - a.v)[0];
+  return {home, color, second:second ? mk(second.d, second.f) : null};
+}
+let guide = null;
+const gp = {srcs:[], token:0};
+function guideStopSound(){ gp.token++; gp.srcs.forEach(s => { try { s.stop(); } catch (e) {} }); gp.srcs = []; }
+/* play a list of [midi, start, length] */
+function guidePlay(seq){
+  guideStopSound(); if (sp.on) scalePlayStop();
+  const a = getAudio(); if (!a) return;
+  const token = gp.token;
+  const go = () => {
+    if (token !== gp.token) return;
+    const t0 = a.currentTime + 0.06;
+    seq.forEach(([m, t, len]) => {
+      const s = a.createBufferSource(), g = a.createGain(); s.buffer = makeBuf(m); s.playbackRate.value = s.buffer.rate;
+      g.gain.setValueAtTime(0.32, t0 + t); g.gain.setTargetAtTime(0, t0 + t + len, 0.06); s.connect(g); g.connect(master); s.start(t0 + t); s.stop(t0 + t + len + 0.4); gp.srcs.push(s);
+    });
+  };
+  if (a.state === 'running') go(); else a.resume().then(go).catch(() => {});
+}
+const guideBase = root => 48 + mod(root);
+function guideLine(type, root){          // root held underneath, then up to the octave and back
+  const b = guideBase(root), up = SCALES[type].labels.map(l => b + mod(semi(l))).sort((x, y) => x - y).concat(b + 12), all = up.concat(up.slice(0, -1).reverse()), dt = 0.27;
+  return [[b - 12, 0, 2.2], [b - 12, up.length * dt, 2.2]].concat(all.map((m, k) => [m, k * dt, k === all.length - 1 ? 1.2 : dt * 1.4]));
+}
+function guideDiff(){
+  const R = guideRef(guide.type), b = guideBase(guide.root), rp = SCALES[R.ref].labels, out = []; let t = 0;
+  R.ch.forEach(l => {
+    const old = rp.find(x => degOf(x) === degOf(l)) || rp.slice().sort((x, y) => Math.abs(semi(x) - semi(l)) - Math.abs(semi(y) - semi(l)))[0];
+    if (semi(old) !== semi(l)) { out.push([b - 12, t, 1.3], [b, t, .4], [b + mod(semi(old)), t + .5, .8]); t += 1.5; }
+    out.push([b - 12, t, 1.8], [b, t, .4], [b + mod(semi(l)), t + .5, 1.2]); t += 2.1;
+  });
+  return out;
+}
+function guideLayers(){
+  const g = guide, L = {id:state.nextId++, kind:'scale', root:g.root, type:g.type, hidden:[], notes:[], visible:true, color:0, pos:{s:0, f:g.fret, style:'box'}, anchor:g.fret + 1.5};
+  adjustPos(L); g.pos = L.pos ? Object.assign({}, L.pos) : null;
+  state.layers = [L];
+}
+function guideStart(type, root){
+  if (!SCALES[type] || !GUIDE[type]) return;
+  if (state.session && !state.session.done) { toast('Finish or stop the lesson you are in first.'); return; }
+  guideQuiet(); if (quiz) quizEnd(true); if (loop.on) loopStop();
+  state.session = null;
+  if (!state.guideBack) state.guideBack = {layers:clone(state.layers), drone:state.drone.root};
+  guide = {type, root:mod(root), step:0, fret:5, t0:Date.now(), ear:{n:0, ok:0, q:null, pick:null}, mission:0, rating:null};
+  state.tab = 'practice'; state.ptab = 'learn'; state.drone.root = guide.root; state.pview = false; heatOn = false; state.tap = null;
+  guideLayers(); requestWake();
+  if (landQ.matches && side === 'closed') setSide('open');
+  render();
+  if (landQ.matches) $('#menus').scrollTop = 0; else scrollTo(0, Math.max(0, $('.neck-wrap').offsetTop));
+}
+function guideQuiet(){
+  guideStopSound(); if (sp.on) scalePlayStop(true); if (drone.on) droneStop();
+  if (loop.on && loop.guide) { if (metro.on && metro.loopOwned) metroStop(); loop.on = false; loop.idx = -1; metro.loopOwned = false; }
+  loop.guide = false;
+}
+function guideStep(k){
+  if (!guide) return;
+  guideQuiet(); guide.step = Math.max(0, Math.min(GUIDE_STEPS.length - 1, k));
+  if (guide.step === 3) Object.assign(guide.ear, {n:0, ok:0, q:null, pick:null});
+  guideLayers();
+  if (guide.step === GUIDE_STEPS.length - 1 && !guide.logged) {
+    guide.logged = true; state.guides = state.guides || {}; state.guides[guide.type] = Date.now();
+    const ms = Date.now() - guide.t0, it = guideItem();
+    if (ms >= 20000) logEntry({kind:'scale', key:itemKey(it), title:logTitleFor(it), ms:Math.min(ms, 1800000), bpm:null, clean:null});
+    reviewGrade(it, 'hold');
+  }
+  render();
+  const c = $('.card.guide'), m = $('#menus');
+  if (c && landQ.matches) m.scrollTop += c.getBoundingClientRect().top - $('.side-head').getBoundingClientRect().bottom - 6;
+}
+const guideItem = () => ({kind:'scale', root:guide.root, type:guide.type, pos:guide.pos});
+function guideRestore(){ if (state.guideBack) { if (Array.isArray(state.guideBack.layers) && state.guideBack.layers.length) state.layers = state.guideBack.layers; state.drone.root = state.guideBack.drone || 0; state.guideBack = null; } }
+function guideEnd(keep){
+  if (!guide) return;
+  guideQuiet();
+  if (keep) { if (state.guideBack) state.drone.root = state.guideBack.drone || 0; state.guideBack = null; state.layers = state.layers.slice(0, 1); } else guideRestore();
+  guide = null; releaseWake(); render();
+}
+const guideMissions = () => { const c = guideRef(guide.type).ch.map(pl), x = c[0]; return [`Use only the root and the ${x}. Hear them against the chord.`, `Play short phrases and end each one on the ${x}.`, `Start on the ${c[c.length - 1]}, end on the root.`, 'Three notes per phrase, then leave a bar empty.', 'Copy a rhythm you like, using any notes of the scale.', `Play freely. Every so often, hold the ${x}.`]; };
+function guideVamp(){
+  if (loop.on && loop.guide) { guideQuiet(); render(); return; }
+  guideQuiet(); if (loop.on) loopStop();
+  const G = guideChords(guide.type, guide.root), list = [G.home, G.second].filter(Boolean).map(c => ({root:c.root, type:c.type, name:c.name, bars:2, no5:c.no5}));
+  if (!list.length) { state.drone.root = guide.root; droneStart(); render(); return; }
+  loop.guide = true; loop.chords = list; loop.idx = -1; loop.preview = false; loop.on = true;
+  // a "no 5" chord is played without its 5th, which isn't in the scale
+  loop.voices = list.map(c => c.no5 ? {midis:CHORDS[c.type].labels.filter(l => l !== '5').map(l => guideBase(c.root) + lab(l).semi), pos:null} : voiceChord(c));
+  if (!metro.on) { metroStart(); metro.loopOwned = true; loop.bar0 = 0; } else loop.bar0 = Math.ceil(metro.tick / (state.metro.sub * state.metro.beats));
+  render();
+}
+function guideAsk(){ const e = guide.ear; e.q = Math.random() < 0.5 ? 'this' : 'ref'; e.pick = null; guidePlay(guideLine(e.q === 'this' ? guide.type : guideRef(guide.type).ref, guide.root)); render(); }
+const listAnd = a => a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+function renderLearn(){
+  if (!guide) return renderLearnList();
+  const g = guide, R = guideRef(g.type), S = SCALES[g.type], txt = GUIDE[g.type], rn = rootName(g.root, S.labels), title = scaleTitle(g.root, g.type), refT = scaleTitle(g.root, R.ref);
+  const rp = new Set(SCALES[R.ref].labels.map(semi)), sps = new Set(S.labels.map(semi)), subset = [...sps].every(x => rp.has(x));
+  const gone = SCALES[R.ref].labels.filter(l => !sps.has(semi(l)) && !S.labels.some(x => degOf(x) === degOf(l)));
+  const b = (act, label, o) => `<button type="button" class="btn${o && o.p ? ' primary' : ''}" data-act="${act}"${o && o.v != null ? ` data-v="${o.v}"` : ''}${o && o.x ? ' ' + o.x : ''}>${label}</button>`;
+  const ch = listAnd(R.ch.map(l => `<b>${pl(l)}</b> (${pn(spell(rn, l))})`)), goneT = listAnd(gone.map(l => `<b>${pl(l)}</b>`));
+  let h = '';
+  if (g.step === 0) h = `<p>${txt[0]}</p><p class="info"><b>You’ll hear it in:</b> ${txt[1]}</p>
+    <div class="row">${b('gplay', sp.on ? '■ Stop' : '▶ Play it', {p:!sp.on})}${b('gdrone', drone.on ? '■ Stop drone' : '▶ Drone on ' + pn(rn))}</div>
+    <p class="info">Start the drone, play the scale along with it, then try it yourself. Every note is heard against the root, and that’s what gives a scale its own sound.</p>
+    <div class="row"><span class="rl">Where on the neck</span><div class="seg">${[0, 3, 5, 7, 10].map(f => `<button type="button" data-act="gfret" data-v="${f}" aria-pressed="${g.fret === f}">${f ? 'near ' + f : 'open'}</button>`).join('')}</div></div>`;
+  else if (g.step === 1) h = `<div class="gform">${S.labels.map(l => `<span class="${R.ch.some(x => semi(x) === semi(l)) ? 'ch' : ''}"><b>${pl(l)}</b><small>${pn(spell(rn, l))}</small></span>`).join('')}</div>
+    <p>Compare it with <b>${refT}</b>. ${subset ? `It uses the same notes but leaves out the ${goneT}. Listen for the ${ch}.` : `The difference is the ${ch}${gone.length ? `, and it leaves out the ${goneT}` : ''}.`} ${R.ch.length > 1 ? 'They’re' : 'It’s'} outlined in white on the neck.</p>
+    <div class="row">${b('gline', '▶ ' + refT, {v:'ref'})}${b('gline', '▶ ' + title, {v:'this', p:true})}${subset ? '' : b('gdiff', '▶ Just the difference')}</div><p class="info"><b>Practice tip:</b> ${txt[2]}</p>`;
+  else if (g.step === 2) {
+    const G = guideChords(g.type, g.root), chip = c => `<button type="button" class="chip" data-act="gchord" data-r="${c.root}" data-t="${c.type}" data-no5="${c.no5 ? 1 : ''}">▶ ${c.name}</button>`;
+    h = G.home ? `<p>Its home chord is <b>${G.home.name}</b>. Play it, then the scale over it.</p><div class="row">${chip(G.home)}${b('gover', '▶ Scale over the chord', {p:true})}</div>
+      ${G.color.length ? `<span class="rl">Home chords with the character note in them</span><div class="row">${G.color.map(chip).join('')}</div>` : ''}
+      ${G.second ? `<span class="rl">A chord to rock back and forth with</span><div class="row">${chip(G.second)}</div><p class="info">${G.home.name} ↔ ${G.second.name}, the chord on the ${pl(G.second.label)}. You’ll improvise over these two.</p>` : ''}`
+      : '<p>No ordinary chord fits on its root, so use a drone instead.</p>';
+  }
+  else if (g.step === 3) {
+    const e = g.ear, done = e.n >= 5;
+    h = `<p>Is it <b>${title}</b> or <b>${refT}</b>? ${subset ? `Listen for whether you hear the ${goneT}.` : `Listen for the ${ch}.`}</p>
+      ${e.q ? `<div class="row gans">${[['this', title], ['ref', refT]].map(([v, l]) => `<button type="button" class="btn${e.pick ? v === e.q ? ' right' : v === e.pick ? ' wrong' : '' : ''}" data-act="gans" data-v="${v}"${e.pick ? ' disabled' : ''}>${l}</button>`).join('')}</div>` : ''}
+      ${done ? `<p><b>${e.ok} of 5.</b> ${e.ok >= 5 ? 'You’ve got it.' : e.ok >= 4 ? 'Nearly there.' : 'Play both again under “What’s different”, then retry.'}</p><div class="row">${b('gearagain', 'Try again')}</div>`
+      : `<div class="row">${e.q ? b('greplay', '▶ Hear it again') : b('gask', '▶ Play the first one', {p:true})}${e.q && e.pick ? b('gask', '▶ Next', {p:true}) : ''}</div>
+      <p class="info">${e.n} of 5 answered · ${e.ok} right</p>`}`;
+  }
+  else if (g.step === 4) {
+    const G = guideChords(g.type, g.root), M = guideMissions(), on = loop.on && loop.guide || drone.on;
+    h = `<p class="gmiss">${M[g.mission % M.length]}</p><div class="row">${b('gvamp', on ? '■ Stop' : G.home ? `▶ ${[G.home, G.second].filter(Boolean).map(c => c.name).join(' ↔ ')}` : '▶ Drone', {p:true})}${b('gmission', 'Another idea')}
+      <span class="stepper"><button type="button" class="ib" data-act="mbpm" data-v="-5" aria-label="Slower">−</button><span class="val"><span data-bpm-out>${state.metro.bpm}</span> bpm</span><button type="button" class="ib" data-act="mbpm" data-v="5" aria-label="Faster">+</button></span></div>
+      <p class="info">While it plays, big notes are the chord and small ones the rest of the scale. Dashed rings show where the next chord wants you.</p>`;
+  }
+  else {
+    const n = guideNext(g.type), r = review.items[itemKey(guideItem())];
+    h = `<p><b>${title}</b> is in your review schedule. How did it go?</p><div class="row grate">${RATES.map(([v, l]) => `<button type="button" class="btn${g.rating === v ? ' primary' : ''}" data-act="grate" data-v="${v}" aria-pressed="${g.rating === v}">${l}</button>`).join('')}</div>
+    ${r ? `<p class="info">Back ${dueText(r.due)}.</p>` : ''}
+    <div class="row">${n ? b('gnext', `Next: ${scaleTitle(g.root, n)}`, {v:n, p:true}) : ''}${b('gkeep', 'Keep it on the neck')}${b('gend', 'Put my neck back')}</div>`;
+  }
+  return `<div class="card guide"><div class="row" style="justify-content:space-between"><b class="gtitle">${title}</b>${b('gend', 'Close')}</div>
+    <div class="gsteps" role="tablist" aria-label="Guide steps">${GUIDE_STEPS.map((s, k) => `<button type="button" role="tab" data-act="gstep" data-v="${k}" aria-selected="${g.step === k}" class="${k < g.step ? 'past' : ''}"><i></i><span>${s}</span></button>`).join('')}</div>
+    <div class="gbody">${h}</div>
+    ${g.step < GUIDE_STEPS.length - 1 ? `<div class="row gnav">${b('gstep', '◀', {v:g.step - 1, x:'aria-label="Previous step"' + (g.step ? '' : ' disabled')})}<button type="button" class="btn primary big-btn" data-act="gstep" data-v="${g.step + 1}">${GUIDE_STEPS[g.step + 1]} ▶</button></div>` : ''}</div>`;
+}
+function guideNext(after){ const done = state.guides || {}; return GUIDE_PATH.find(x => x !== after && !done[x]) || null; }
+function renderLearnList(){
+  const done = state.guides || {}, root = state.learnRoot == null ? (state.layers[0].root || 0) : state.learnRoot, M = mainScale(), nx = guideNext(), n = Object.keys(done).filter(k => GUIDE[k]).length;
+  const chip = id => `<button type="button" class="chip${done[id] ? ' gdone' : ''}" data-act="gstart" data-v="${id}">${done[id] ? '✓ ' : ''}${scaleTitle(root, id)}</button>`;
+  return `<div class="card"><div class="row" style="justify-content:space-between"><b>Guided lessons</b><span class="info">${n} of ${Object.keys(GUIDE).length} done</span></div>
+    <span class="info">About five minutes with one scale: hear it, find what makes it different, play its chords, test your ear, then improvise.</span>
+    <div class="row">${nx ? `<button type="button" class="btn primary big-btn" data-act="gstart" data-v="${nx}">▶ ${scaleTitle(root, nx)}</button>` : ''}${M && GUIDE[M.type] && M.type !== nx ? `<button type="button" class="btn" data-act="gstart" data-v="${M.type}" data-r="${M.root}">▶ On the neck: ${scaleTitle(M.root, M.type)}</button>` : ''}</div>
+    <div class="row"><span class="rl">Root</span>${[0,1,2,3,4,5,6,7,8,9,10,11].map(pc => `<button type="button" class="chip${root === pc ? ' sel' : ''}" data-act="groot" data-v="${pc}">${pn(DEFAULT[pc])}</button>`).join('')}</div>
+    ${LESSON_SCALE_GROUPS.filter(([, ids]) => ids.some(id => GUIDE[id])).map(([gn, ids]) => `<span class="rl">${gn}</span><div class="row">${ids.filter(id => GUIDE[id]).map(chip).join('')}</div>`).join('')}</div>`;
+}
+function handleGuide(act, b){
+  const v = b.dataset.v;
+  if (act === 'gstart') { guideStart(v, b.dataset.r ? +b.dataset.r : state.learnRoot == null ? state.layers[0].root || 0 : state.learnRoot); return true; }
+  if (act === 'groot') { state.learnRoot = +v; render(); return true; }
+  if (!guide) return false;
+  const e = guide.ear, ref = guideRef(guide.type).ref;
+  switch (act) {
+    case 'gstep': guideStep(+v); return true;
+    case 'gfret': guide.fret = +v; if (sp.on) scalePlayStop(true); guideLayers(); render(); return true;
+    case 'gplay': guideStopSound(); if (sp.on) scalePlayStop(); else if (state.layers[0].pos) scalePlayStart(state.layers[0]); return true;
+    case 'gdrone': state.drone.root = guide.root; if (drone.on) droneStop(); else droneStart(); render(); return true;
+    case 'gline': guidePlay(guideLine(v === 'ref' ? ref : guide.type, guide.root)); return true;
+    case 'gdiff': guidePlay(guideDiff()); return true;
+    case 'gchord': { const no5 = !!b.dataset.no5, base = guideBase(+b.dataset.r); guidePlay(CHORDS[b.dataset.t].labels.filter(l => !(no5 && l === '5')).map((l, k) => [base + lab(l).semi, k * .035, 2.2])); return true; }
+    case 'gover': { const c = guideChords(guide.type, guide.root).home; if (c) guidePlay(CHORDS[c.type].labels.filter(l => !(c.no5 && l === '5')).map((l, k) => [guideBase(c.root) - 12 + lab(l).semi, k * .035, 3.4]).concat(guideLine(guide.type, guide.root).slice(2).map(([m, t, n]) => [m + 12, t + .5, n]))); return true; }
+    case 'gask': guideAsk(); return true;
+    case 'greplay': guidePlay(guideLine(e.q === 'this' ? guide.type : ref, guide.root)); return true;
+    case 'gans': if (e.q && !e.pick) { e.pick = v; e.n++; if (v === e.q) e.ok++; render(); } return true;
+    case 'gearagain': Object.assign(e, {n:0, ok:0, q:null, pick:null}); render(); return true;
+    case 'gvamp': if (drone.on) { droneStop(); render(); } else guideVamp(); return true;
+    case 'gmission': guide.mission++; render(); return true;
+    case 'grate': guide.rating = v; reviewGrade(guideItem(), v); render(); return true;
+    case 'gnext': guideStart(v, guide.root); return true;
+    case 'gkeep': guideEnd(true); return true;
+    case 'gend': guideEnd(false); return true;
+  }
+  return false;
+}
+
 /* ================= Today: a session built from what's due, what's weak, and something new ================= */
 const TODAY = {10:[3, 4, 3], 20:[3, 5, 4, 4, 4], 30:[4, 6, 5, 5, 5, 5]};
 /* a remembered position may not exist in the current tuning: move it to one that does */
@@ -3177,6 +3529,7 @@ function buildToday(mins, now){
   return out;
 }
 function setToday(start){
+  if (guide) guideEnd(false);
   const items = buildToday(state.lesson.todayMin || 20);
   if (!items.length) { toast('Pick at least one scale, chord or quiz under Lesson ingredients first.'); return; }
   if (!state.lesson.today) state.lesson.mine = state.lesson.items.slice();     // your own lesson is kept to one side
@@ -4152,9 +4505,10 @@ function renderPractice(){
         ${state.ttLast ? `<div class="info qres">Last test: <b>${esc(state.ttLast.title)}</b> · ${state.ttLast.best ? `clean at <b>${state.ttLast.best} bpm</b>` : 'no clean tempo'} · ${state.ttLast.passes} passes</div>` : ''}`}
   </div>`;
   // sections, so one thing at a time fills the screen; "All" is the old everything-at-once page for big screens
-  const PT = [['lesson', 'Lesson', s && !s.done], ['metro', 'Metronome', metro.on || !!tt], ['play', 'Play along', loop.on || drone.on], ['quiz', 'Quiz', !!quiz && quiz.mode !== 'session'], ['tuner', 'Tuner', tuner.on], ['log', 'Progress', false], ['all', 'All', false]];
+  const PT = [['lesson', 'Lesson', s && !s.done], ['learn', 'Learn', !!guide], ['metro', 'Metronome', metro.on || !!tt], ['play', 'Play along', loop.on || drone.on], ['quiz', 'Quiz', !!quiz && quiz.mode !== 'session'], ['tuner', 'Tuner', tuner.on], ['log', 'Progress', false], ['all', 'All', false]];
   const pt = PT.some(p => p[0] === state.ptab) ? state.ptab : 'lesson';
   const nav = `<div class="ptabs" role="tablist" aria-label="Practice sections">${PT.map(([v, t, live]) => `<button type="button" role="tab" data-act="ptab" data-v="${v}" aria-selected="${pt === v}">${t}${live ? '<i class="live" title="Running"></i>' : ''}</button>`).join('')}</div>`;
+  if (pt === 'learn') return `${guide ? '' : nav}<div class="practice one"><div class="pcol">${renderLearn()}</div></div>`;
   if (pt === 'all') return `${nav}<div class="practice"><div class="pcol">${metroCard}${ttCard}${tunerCard}${playCard}${quizCard}</div><div class="pcol">${lessonCard}${weakCard}${revCard}${logCard}</div></div>`;
   const body = {lesson:[lessonCard], metro:[metroCard, ttCard], play:[playCard], quiz:[quizCard, weakCard], tuner:[tunerCard], log:[revCard, logCard]}[pt];
   return `${nav}<div class="practice ${body.length > 1 ? 'two' : 'one'}">${body.map(c => `<div class="pcol">${c}</div>`).join('')}</div>`;
@@ -4163,6 +4517,7 @@ function handlePractice(act, b){
   const v = b.dataset.v, cfg = state.lesson.cfg, items = state.lesson.items;
   const it = b.dataset.id ? items.find(x => x.id === +b.dataset.id) : null;
   // starting something whose card is in another section opens that section
+  if (act[0] === 'g' && handleGuide(act, b)) return true;
   const goTo = {calstart:'metro', ttstart:'metro', qstart:'quiz', wdrill:'quiz', tunstart:'tuner'}[act];
   if (goTo && state.ptab !== 'all') state.ptab = goTo;
   switch (act) {
@@ -4305,7 +4660,7 @@ function handlePractice(act, b){
     case 'sessprev': sessStep(-1); return true;
     case 'sessplus': sessAddMinute(); return true;
     case 'sessstop': sessStop(); return true;
-    case 'sessstart': if (items.length) { pvOpen(); sessStart(+v || 0); } return true;
+    case 'sessstart': if (guide) guideEnd(false); if (items.length) { pvOpen(); sessStart(+v || 0); } return true;
     case 'todaygo': setToday(true); return true;
     case 'todaysee': setToday(false); return true;
     case 'todaymin': state.lesson.todayMin = +v; if (state.lesson.today && !state.session) setToday(false); else render(); return true;
@@ -4380,6 +4735,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && landQ.matc
 let wasLand = landQ.matches, portraitY = 0;
 function syncOrient(){
   const land = landQ.matches;
+  if (land && !state.rotated) { state.rotated = true; document.body.classList.add('rotated'); save(); }
   if (land !== wasLand) {
     wasLand = land;
     const a = document.activeElement; if (a && a !== document.body && a.blur) a.blur();    // a focused box keeps the keyboard and zoom up
@@ -4393,6 +4749,7 @@ function syncOrient(){
   } else applySide();
   if (land && (scrollY || document.documentElement.scrollTop || document.body.scrollTop)) { scrollTo(0, 0); document.documentElement.scrollTop = document.body.scrollTop = 0; }
 }
+document.body.classList.toggle('rotated', !!state.rotated);        // the 'turn your phone' hint has done its job
 function syncSoon(){ syncOrient(); [120, 400, 900].forEach(ms => setTimeout(syncOrient, ms)); }
 landQ.addEventListener('change', syncSoon);
 addEventListener('orientationchange', syncSoon);
@@ -4479,10 +4836,11 @@ document.addEventListener('click', e => { if (eatClick) { eatClick = false; e.st
 // offline: the service worker keeps a copy of the app; with a connection you always get the newest version
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) {}     // ask the browser not to clear the practice data
+if (state.guideBack) guideRestore();      // the page closed in the middle of a guide: put the neck back
 // small read-only hook for automated tests and the browser console
 window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
-  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
+  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
   micHelp, micSessionStart, micSessionEnd, openMic, get micUsers(){ return micUsers; }, get audioCtx(){ return ac; },
   detectPitch, tunerFeed, get tuner(){ return tuner; }, get tt(){ return tt; },
@@ -4548,7 +4906,7 @@ board.addEventListener('click', e => {
   const s = +cell.dataset.s, f = +cell.dataset.f;
   const tun = TUNINGS[state.tuning].midi, midi = tun[s] + f, pc = mod(midi);
   if (quiz) { quizTap(s, f); return; }
-  if (pvOn() || (state.tab !== 'finder' && followView())) { pluck(midi); return; }     // practicing: tapping the neck only sounds the note
+  if (pvOn() || (guide && state.tab === 'practice') || (state.tab !== 'finder' && followView())) { pluck(midi); return; }     // practicing: tapping the neck only sounds the note
   if (heatOn) {     // the heatmap view explains a fret instead of changing the root
     const b = quizAgg(state.heatFam || 'all').cells.get(s + ':' + f);
     toast(b ? `${STRING_ORD[s]} string, ${f ? 'fret ' + f : 'open'} · ${pn(noteName(pc))} · ${b.ok} of ${b.n} right${b.ms.length ? ` · avg ${(median(b.ms) / 1000).toFixed(1)} s` : ''}` : `${STRING_ORD[s]} string, ${f ? 'fret ' + f : 'open'} · ${pn(noteName(pc))} · no answers here yet`);
@@ -4595,7 +4953,9 @@ document.getElementById('colorSeg').addEventListener('click', e => {
 });
 document.querySelector('.tabs').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
-  state.tab = b.dataset.tab; render();
+  const same = state.tab === b.dataset.tab; state.tab = b.dataset.tab; render();
+  // the bar is always in reach on a phone, so a new tab starts at its top; tapping the open one goes back up
+  if (thumbQ.matches) { const w = $('.neck-wrap'), y = panel.getBoundingClientRect().top + scrollY - (getComputedStyle(w).position === 'sticky' ? w.offsetHeight : 0); if (same) scrollTo(0, 0); else if (scrollY > y) scrollTo(0, Math.max(0, y)); }
 });
 tuningSel.addEventListener('change', () => { state.tuning = tuningSel.value; state.tap = null; state.layers.forEach(adjustPos); render(); });
 $('#setPref').addEventListener('change', e => { state.pref = e.target.value; render(); });
@@ -4610,6 +4970,7 @@ function setSound(on){
   toast(on ? 'Sound on' : 'Sound off');
 }
 $('#setSound').addEventListener('change', e => setSound(e.target.checked));
+$('#viewBtn').addEventListener('click', () => { const on = $('.bar').classList.toggle('showview'); $('#viewBtn').setAttribute('aria-expanded', String(on)); });
 $('#soundBtn').addEventListener('click', () => setSound(!state.sound));
 document.addEventListener('click', e => { ['#menu', '#savesMenu'].forEach(id => { const m = $(id); if (m.open && !m.contains(e.target)) m.open = false; }); });
 $('#savesMenu').addEventListener('toggle', () => { if ($('#savesMenu').open) { $('#menu').open = false; saveDelArmed = null; renderSaves(); } });
@@ -4622,6 +4983,8 @@ panel.addEventListener('click', e => {
   if (handlePractice(b.dataset.act, b)) return;
   const act = b.dataset.act, i = +b.dataset.i, L = state.layers[i], v = b.dataset.v;
   switch (act) {
+    case 'sec': { const cur = (state.secOpen || {})[L.id] !== undefined ? state.secOpen[L.id] : i === 0 ? 'root' : 'type'; const keep = {}; state.layers.forEach(x => { if ((state.secOpen || {})[x.id] !== undefined) keep[x.id] = state.secOpen[x.id]; }); keep[L.id] = cur === v ? null : v; state.secOpen = keep; break; }
+    case 'glearn': guideStart(L.type, L.root); return;
     case 'vis': L.visible = !L.visible; break;
     case 'del': state.layers.splice(i, 1); break;
     case 'kind':
