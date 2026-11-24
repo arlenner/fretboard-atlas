@@ -339,6 +339,25 @@ body.pv-done .neck-wrap{display:none !important}
 .chg > span{display:grid; align-content:start; border:1px solid var(--line); border-radius:10px; padding:6px 8px; min-width:0}
 .chg small{color:var(--muted)}
 .chg .ld{color:var(--ink)}
+/* compose */
+.compose{display:grid; gap:10px; grid-template-columns:minmax(0, 1fr); margin-bottom:12px}
+.cpstrip{display:flex; gap:4px; overflow-x:auto; padding:2px; align-items:flex-end}
+.cpc{flex:1 0 auto; min-width:52px; max-width:110px; border:1px solid var(--line); border-radius:10px; background:var(--surface-2); padding:6px 6px 5px; display:grid; justify-items:center; align-content:end; gap:2px; min-height:88px}
+.cpc.sel{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+.cpc i{display:block; width:14px; border-radius:4px 4px 0 0; background:var(--accent)}
+.cpc b{font-size:13px; white-space:nowrap}
+.cpc small{font-size:11px; color:var(--muted); white-space:nowrap}
+.cpnotes{display:grid; gap:6px}
+.cpnotes p{margin:0}
+.cprow{border:0; text-align:left; width:100%; color:inherit}
+.compose .it{display:grid; gap:2px}
+.compose .it b{font-size:14px}
+.compose .it small{font-size:12px; overflow-wrap:anywhere}
+.compose .it small b{font-size:12px; color:var(--ink)}
+.compose .cplead{opacity:.85; font-style:italic}
+.cpnum{color:var(--muted); font-weight:600}
+.cpplay{flex:1 1 auto; min-width:0; border:0; background:transparent; padding:0; text-align:left; color:inherit}
+.cpopt .ib{min-width:40px; min-height:40px; font-size:16px}
 /* time check and takes */
 .tcnow{display:grid; gap:4px; padding:26px 14px; border-radius:12px; text-align:center; background:color-mix(in srgb, var(--sel-ink) 12%, transparent)}
 .tcnow b{font-size:40px; line-height:1; font-variation-settings:'wdth' 85}
@@ -2439,7 +2458,7 @@ function laneHtml(){
 let clearArmed = false, clearTimer = null;
 function renderPins(){
   if (!state.pins.length) {
-    return laneHtml() + `<div class="empty"><h3>Pin chords to build a progression</h3>
+    return laneHtml() + composeHtml() + `<div class="empty"><h3>Pin chords to build a progression</h3>
       <p>Pinned chords stay here in order, so you can play them through, step through them on the neck, or overlay a few at once to compare.</p>
       <p>Pin a shape from the <b>Chord finder</b>, a chord or a whole progression from the <b>Circle of fifths</b>, or tap <b>Pin</b> on any chord layer.</p>
       <div class="row"><button type="button" class="btn primary" data-act="pinex">Pin an example: I–V–vi–IV in G</button></div></div>`;
@@ -2466,7 +2485,7 @@ function renderPins(){
         ${p.type ? `<label class="chk"><input type="checkbox" id="pinsel-${p.id}" data-act="pinsel" data-id="${p.id}"${p.sel ? ' checked' : ''}> Compare</label>` : ''}
       </div></div>`;
   }).join('');
-  return laneHtml() + `<div class="toolbar2">
+  return laneHtml() + composeHtml() + `<div class="toolbar2">
       <button type="button" class="btn primary" data-act="pinplayall">▶ Play all</button>
       <button type="button" class="btn" data-act="pinlane">All to the Looper</button>
       ${Array.isArray(state.compare) && state.compare.length
@@ -3177,6 +3196,265 @@ function droneStop(quiet){
   if (!quiet) releaseWake();
 }
 function droneVolume(){ if (drone.gain && ac) drone.gain.gain.setTargetAtTime(state.drone.vol * 0.5, ac.currentTime, 0.05); }
+
+/* ================= composing: why a progression works, and where it could go next ================= */
+state.compose = Object.assign({key:'auto', view:'next', open:'home'}, state.compose || {});
+let cpAt = null, cpUndo = null, cpTimers = [];
+const cpCanUndo = () => !!cpUndo && cpUndo.now === JSON.stringify(state.lane);
+const CP_NUM = ['I', '♭II', 'II', '♭III', 'III', 'IV', '♯IV', 'V', '♭VI', 'VI', '♭VII', 'VII'], CP_LAB = ['1', 'b2', '2', 'b3', '3', '4', '#4', '5', 'b6', '6', 'b7', '7'];
+/* what kind of chord it is, whatever its extensions */
+function cpKind(type){
+  const L = CHORDS[type].labels, h = x => L.includes(x);
+  if (h('3')) return h('b7') ? 'dom' : h('#5') ? 'aug' : 'maj';
+  if (h('b3')) return h('b5') ? (h('bb7') ? 'dim' : h('b7') ? 'hdim' : 'dim') : 'min';
+  return h('b7') ? 'dom' : 'sus';
+}
+const keyId = k => k.root + (k.minor ? 'm' : 'M');
+const keyTitle = k => `${pn(rootName(k.root, (k.minor ? SCALES.aeolian : SCALES.ionian).labels))} ${k.minor ? 'minor' : 'major'}`;
+/* name a chord the way its key would spell it: A♭ in C minor, not G♯ */
+function cpName(k, root, type){
+  const kn = rootName(k.root, (k.minor ? SCALES.aeolian : SCALES.ionian).labels), n = spell(kn, CP_LAB[mod(root - k.root)]);
+  return pn(/bb|##/.test(n) || ['Cb', 'Fb', 'E#', 'B#'].includes(n) ? rootName(root, CHORDS[type].labels) : n) + CHORDS[type].sym;
+}
+function cpNum(iv, type, kind){
+  const sym = CHORDS[type].sym, min = kind === 'min' || kind === 'hdim' || kind === 'dim', n = min ? CP_NUM[iv].toLowerCase() : CP_NUM[iv];
+  return n + (kind === 'hdim' ? 'ø' + (sym.replace(/^m/, '').replace('♭5', '')) : kind === 'dim' ? '°' + sym.replace(/^dim/, '') : min ? sym.replace(/^m(?!aj)/, '') : sym);
+}
+const CP_DIA = {M:{0:'maj', 2:'min', 4:'min', 5:'maj', 7:'dom', 9:'min', 11:'hdim'}, m:{0:'min', 2:'hdim', 3:'maj', 5:'min', 7:'min', 8:'maj', 10:'dom'}};
+const CP_FN = {M:{0:'T', 2:'S', 4:'T', 5:'S', 7:'D', 9:'T', 11:'D'}, m:{0:'T', 2:'S', 3:'T', 5:'S', 7:'D', 8:'S', 10:'D', 11:'D'}};
+function cpDiatonic(iv, type, kind, minor){
+  const d = CP_DIA[minor ? 'm' : 'M'][iv]; if (!d) return false;
+  const L = CHORDS[type].labels, maj7 = L.includes('7');
+  if (kind === 'sus') return true;
+  if (d === 'dom') return kind === 'dom' || (kind === 'maj' && !maj7);
+  if (d === 'hdim') return kind === 'hdim' || (kind === 'dim' && !L.includes('bb7'));
+  return kind === d;
+}
+const cpOrd = iv => CP_NUM[iv];
+/* one chord in one key, with its neighbours: what it is called, what it does, and how far from home that is */
+function cpLabel(c, key, prev, next, blues){
+  const iv = mod(c.root - key.root), kind = cpKind(c.type), mk = key.minor ? 'm' : 'M', num = cpNum(iv, c.type, kind), FN = CP_FN[mk], L = CHORDS[c.type].labels;
+  const nIv = next ? mod(next.root - key.root) : null, nName = next ? next.name : '', toNext = next ? mod(next.root - c.root) : null, nKind = next ? cpKind(next.type) : null;
+  const R = (fn, k, cost, why, n) => ({iv, kind, num:n || num, fn, cls:k, cost, why});
+  const home = key.minor ? 'i' : 'I', dia = CP_DIA[mk];
+  if (kind === 'dom' && blues && (iv === 0 || iv === 5)) return R(iv ? 'S' : 'T', 'blues', .1, iv ? 'The blues IV: a ♭7 where the key wouldn’t have one, so it grooves rather than pulls.' : 'Home with a blues ♭7: it rests and pulls at once.');
+  if (cpDiatonic(iv, c.type, kind, key.minor) && !(key.minor && iv === 10 && kind === 'dom' && nIv === 3)) {
+    let why;
+    if (iv === 0) why = prev && mod(prev.root - key.root) === 7 ? 'Home. The V before it makes this the arrival.' : 'Home.';
+    else if (FN[iv] === 'D' && nIv === 0) why = iv === 7 && kind === 'min' ? 'A minor v: it falls home gently, with no leading note.' : iv === 10 ? 'Walks up a whole step into home. Softer than a V.' : 'The main pull home: its 3rd is the leading note, and its root drops a 5th.';
+    else if (iv === 7 && nIv != null && kind !== 'min' && FN[nIv] !== 'D') why = nIv === (key.minor ? 8 : 9) ? `Deceptive: you expect home and get ${nName}.` : `Sets up home, then steps away to ${nName}.`;
+    else if (FN[iv] === 'D') why = 'Wants to go home.';
+    else if (FN[iv] === 'S' && nIv === 0) why = iv === 5 ? `${key.minor ? 'iv' : 'IV'} to ${home}, the “amen” move: home without the pull of a V.` : 'Slides home without a V.';
+    else if (FN[iv] === 'S') why = nIv === 7 ? 'Sets up the V.' : 'Leaves home without much pull.';
+    else why = `A softer home: it shares two notes with ${home}.`;
+    return R(FN[iv], 'key', 0, why);
+  }
+  // V in minor, borrowed from the harmonic minor
+  if (key.minor && iv === 7 && (kind === 'dom' || kind === 'maj' || kind === 'aug')) return R('D', 'key', 0, nIv === 0 ? 'The V of harmonic minor: its raised 3rd is the note that pulls home.' : 'The V of harmonic minor. Wants to go home.');
+  if (iv === 7 && (kind === 'dom' || kind === 'sus' || kind === 'aug')) return R('D', 'key', 0, 'V with its pull held or sharpened.');
+  if (kind === 'dim' && iv === 11) return R('D', 'key', .1, 'Built on the leading note: a V7♭9 without its root.');
+  // dominants of something else
+  const tgt = mod(iv + 5), tOk = dia[tgt] && tgt !== 0 || tgt === 7;
+  if ((kind === 'dom' || (kind === 'maj' && next && toNext === 5 && !L.includes('7'))) && iv === 10 && nIv === 0) return R('D', 'backdoor', .4, 'The backdoor: ♭VII7 slides up a whole step into home. It borrows from the parallel minor.');
+  if (kind === 'dom' && next && toNext === 11 && (nIv === 0 || dia[nIv])) return R('D', 'sub', .4, `Tritone sub: it stands in for the V of ${nName} and shares that chord’s 3rd and 7th. The bass slides down a half step.`, nIv === 0 ? 'subV' : `subV/${cpOrd(nIv)}`);
+  if (key.minor && kind === 'dom' && iv === 5 && toNext !== 5) return R('S', 'modal', .3, 'The Dorian IV: a bright major 6th in a minor key.');
+  if (!key.minor && kind === 'dom' && iv === 10 && toNext !== 5) return R('D', 'backdoor', .6, 'The backdoor dominant. It usually slides up to home.');
+  if ((kind === 'dom' || kind === 'aug' || (kind === 'maj' && toNext === 5 && !L.includes('7'))) && tOk) {
+    const res = toNext === 5, tn = res ? nName : cpOrd(tgt);
+    return R('D', 'second', res ? .4 : kind === 'dom' ? .7 : 1.1, res ? `A borrowed V: it treats ${tn} as home for a moment, which makes ${tn} feel earned.` : `The V of ${tn}, but it doesn’t go there${next ? `: ${nName} is the surprise` : ''}.`, `V/${(dia[tgt] === 'min' || dia[tgt] === 'hdim') ? cpOrd(tgt).toLowerCase() : cpOrd(tgt)}`);
+  }
+  if (!key.minor && iv === 5 && kind === 'min' && nIv === 10 && nKind === 'dom') return R('S', 'borrow', .4, 'The minor iv that opens the backdoor: iv to ♭VII7 to home, all borrowed from the parallel minor.');
+  if ((kind === 'min' || kind === 'hdim') && next && toNext === 5 && nKind === 'dom' && nIv !== 7) return R('S', 'relii', .5, `The ii that sets up ${nName}: together they point at ${pn(noteName(next.root + 5))}.`, `ii/${cpOrd(mod(nIv + 5))}`);
+  if (kind === 'dim' && next && toNext === 1) return R('D', 'passdim', .4, `A passing diminished: it leads up a half step into ${nName}, like that chord’s V7♭9.`);
+  if (kind === 'dim' && next && toNext === 11) return R('S', 'passdim', .5, `A passing diminished on the way down to ${nName}.`);
+  if (kind === 'dim' && next && toNext === 0) return R('S', 'passdim', .5, `A diminished on the same root: it leans into ${nName} and lets go.`);
+  // borrowed
+  if (!key.minor) {
+    const B = {'5min':['S', 'The minor iv, borrowed from the parallel minor. Its ♭6 falls a half step to the 5.'], '8maj':['S', '♭VI from the parallel minor: dark and wide.'], '3maj':['T', '♭III from the parallel minor: a rock color.'], '10maj':['S', '♭VII, the Mixolydian color: lift with no leading note.'], '0min':['T', 'Home turned minor.'], '7min':['S', 'A minor v: it takes away the pull, Mixolydian style.'], '2hdim':['S', 'iiø from the parallel minor: a darker way to set up V.'], '1maj':['S', '♭II, the Phrygian or Neapolitan color: a half step above home.'], '2maj':['S', 'The Lydian II: its ♯4 lifts the key.'], '2dom':['S', 'The Lydian II: its ♯4 lifts the key.']};
+    const b = B[iv + kind]; if (b) return R(b[0], 'borrow', kind === 'maj' && (iv === 8 || iv === 10) ? .5 : .7, b[1]);
+  } else {
+    const B = {'5maj':['S', 'The Dorian IV: a bright major 6th in a minor key.'], '1maj':['S', '♭II, the Phrygian or Neapolitan color: a half step above home.'], '0maj':['T', 'The Picardy home: minor turns major.'], '2min':['S', 'The Dorian ii: the 6th is raised.'], '9hdim':['S', 'The Dorian viø.'], '3aug':['T', '♭III+ from harmonic minor: home’s leading note is inside it.'], '8dom':['S', '♭VI7: it leans down a half step to V.']};
+    const b = B[iv + kind]; if (b) return R(b[0], 'borrow', iv === 0 ? .9 : .6, b[1]);
+  }
+  if (prev && prev.type === c.type && prev.root !== c.root) return R('S', 'parallel', 1.3, `The same chord shape as ${prev.name}, moved. It works by sound, not by key.`);
+  if (prev && (kind === 'maj' || kind === 'min' || kind === 'dom') && [3, 4, 8, 9].includes(mod(c.root - prev.root))) { const com = cpCommon(prev, c); return R('S', 'mediant', 1.3, `A chromatic third from ${prev.name}${com.length ? `: ${com.join(' and ')} stay${com.length > 1 ? '' : 's'} put while everything else moves` : ''}.`); }
+  if (iv === 0 && kind === 'dom') return R('T', 'second', .9, 'Home with a ♭7: it leans toward IV.');
+  if (iv === 0 && (kind === 'aug' || kind === 'maj')) return R('T', 'borrow', .6, 'Home with a changed color.');
+  return R('S', 'out', 2, 'Outside the key. The ear follows the smooth notes, or the surprise.');
+}
+function cpCommon(a, b){ const B = new Set(chordTones(b).map(x => x.pc)); return chordTones(a).filter(x => B.has(x.pc)).map(x => toneName(a, x.l)); }
+const CP_KEYS = Array.from({length:24}, (_, i) => ({root:i % 12, minor:i >= 12}));
+const cpBlues = (list, key) => { const has = iv => list.some(c => mod(c.root - key.root) === iv && cpKind(c.type) === 'dom'); return has(0) && has(5); };
+/* the key at every chord: the cheapest path through the 24 keys, where changing key has to pay for itself */
+function cpKeys(list, fixed){
+  if (fixed) return list.map(() => fixed);
+  const n = list.length, SW = 3, cost = CP_KEYS.map(key => { const bl = cpBlues(list, key); return list.map((c, i) => {
+    const x = cpLabel(c, key, list[i - 1], list[i + 1], bl), tonic = x.iv === 0 && (x.cls === 'key' || x.cls === 'blues');
+    let v = x.cost; if (tonic) { v -= .15; if (i === 0) v -= .7; if (i === n - 1) v -= .5; if (i && mod(list[i - 1].root - key.root) === 7 && ['dom', 'maj'].includes(cpKind(list[i - 1].type))) v -= .25; }
+    return v; }); });
+  let best = cost.map(c => c[0]); const back = [];
+  for (let i = 1; i < n; i++) {
+    const mk = best.indexOf(Math.min(...best)), b = [];
+    best = best.map((v, k) => { const sw = best[mk] + SW; if (v <= sw) { b[k] = k; return v + cost[k][i]; } b[k] = mk; return sw + cost[k][i]; });
+    back.push(b);
+  }
+  let k = best.indexOf(Math.min(...best)); const out = [k];
+  for (let i = n - 2; i >= 0; i--) { k = back[i][k]; out.unshift(k); }
+  return out.map(i => CP_KEYS[i]);
+}
+function cpFixed(){ const m = /^(\d+)([Mm])$/.exec(state.compose.key); return m && +m[1] < 12 ? {root:+m[1], minor:m[2] === 'm'} : null; }
+function cpTension(x, c){
+  const base = {T:x.iv === 0 ? .08 : .25, S:.42, D:.72}[x.fn], add = {key:0, blues:.1, second:.12, sub:.15, backdoor:.02, relii:.1, borrow:.14, modal:.1, passdim:.12, parallel:.2, mediant:.2, out:.35}[x.cls] || 0;
+  return Math.min(1, base + add + CHORDS[c.type].labels.filter(l => ['b9', '#9', 'b13', '#5', '#11', 'b5'].includes(l)).length * .05);
+}
+function cpAnalyze(list, fixed){
+  const keys = cpKeys(list, fixed);
+  const rows = list.map((c, i) => { const key = keys[i], bl = cpBlues(list, key), x = cpLabel(c, key, list[i - 1], list[i + 1] || null, bl); return Object.assign(x, {key, name:c.name, bars:c.bars || 1, tension:cpTension(x, c), moved:i > 0 && keyId(keys[i - 1]) !== keyId(key)}); });
+  return {keys, rows, notes:cpNotes(list, rows)};
+}
+function cpNotes(list, rows){
+  const n = rows.length, out = [], last = rows[n - 1], first = rows[0];
+  const areas = []; rows.forEach((r, i) => { if (!i || r.moved) areas.push({t:keyTitle(r.key), at:i}); });
+  if (areas.length > 1) out.push(`Changes key: starts in ${areas[0].t}, then ${areas.slice(1).map(a => `${a.t} at chord ${a.at + 1} (${rows[a.at].name})`).join(', ')}.`);
+  if (n < 2) return out;
+  const off = rows.filter(r => r.cls !== 'key' && r.cls !== 'blues');
+  out.push(off.length ? `${n - off.length} of ${n} chords are plain in the key. The color comes from ${[...new Set(off.map(r => r.name))].slice(0, 4).join(', ')}.` : `Every chord is in the key. Nothing here surprises, so melody and rhythm carry the interest.`);
+  const tb = rows.filter(r => r.fn === 'T').reduce((a, r) => a + r.bars, 0), all = rows.reduce((a, r) => a + r.bars, 0);
+  if (tb / all >= .6 && n > 2) out.push(`Home-type chords take up ${Math.round(tb / all * 100)}% of the time. Spending longer away would make coming back mean more.`);
+  else if (!rows.some(r => r.iv === 0)) out.push('It never lands on home, which keeps it floating.');
+  if (last.iv === 0) out.push(first.iv === 0 ? 'It starts and ends at home: closed. Good for an ending, gentle as a loop.' : 'It ends at home: closed.');
+  else if (last.fn === 'D') out.push(`It ends on ${last.name}, which pulls back to the top: a natural loop.`);
+  else out.push(`It ends on ${last.name}, unresolved without a strong pull: open, good before a new section.`);
+  const mv = []; for (let i = 1; i < n; i++) { const d = mod(list[i].root - list[i - 1].root); mv.push(d === 5 || d === 7 ? 'f' : [1, 2, 10, 11].includes(d) ? 's' : d === 0 ? '0' : d === 6 ? 't' : 'h'); }
+  const top = ['f', 's', 'h'].map(k => [k, mv.filter(x => x === k).length]).sort((a, b) => b[1] - a[1])[0];
+  if (mv.length >= 3 && top[1] / mv.length >= .7) out.push({f:'The bass moves almost only in 4ths and 5ths: strong and forward. A step or a third would stand out.', s:'The bass moves almost only by step: smooth. A leap of a 4th would feel like an event.', h:'The roots move almost only in thirds: dreamy, with weak pull. A 4th or 5th would give it direction.'}[top[0]]);
+  if (n >= 4 && rows.every(r => r.bars === rows[0].bars)) out.push(`Every chord lasts ${barsLabel(rows[0].bars)}. Changing that is the cheapest way to make contrast.`);
+  const pk = rows.reduce((a, r, i) => r.tension > rows[a].tension ? i : a, 0);
+  if (rows[pk].tension >= .6) out.push(`The tension peaks on chord ${pk + 1} (${rows[pk].name})${pk === n - 1 ? ', right at the end' : pk < n / 3 ? ', early' : ''}.`);
+  return out;
+}
+/* ---- where can I go: chords that could come after one of yours, sorted by what they do ---- */
+const CP_GROUPS = {home:['Go home', 'Resolve it'], on:['Carry on', 'Stay in the key'], tense:['Build tension', 'Make it want something'], dark:['Darken', 'Take light away'], lift:['Lift', 'Let light in'], surprise:['Surprise', 'Break the pattern'], key:['Change key', 'Move house']};
+const CP_T = {maj:['maj', 'maj7', 'maj9'], min:['min', 'm7', 'm9'], mi:['min', 'm7', 'm7'], V:['maj', '7', '13'], dom:['7', '7', '9'], domb:['7', '7b9', '7b9b13'], alt:['7s5', '7alt', '7alt'], hdim:['dim', 'm7b5', 'm7b5'], dim:['dim7', 'dim7', 'dim7'], iv:['min', 'm6', 'm6'], sub:['7', '7', '9s11'], bd:['7', '9', '13'], bVII:['maj', 'maj', 'add9'], sus:['7sus4', '7sus4', '9sus4'], lyd:['maj', '7', '13'], pic:['maj', 'maj7', '69'], nea:['maj', 'maj7', 'M7s11'], mM:['min', 'mM7', 'mM9'], DIV:['maj', '7', '13']};
+function cpStyle(list){ const lv = list.map(c => { const L = CHORDS[c.type].labels; return L.some(l => ['9', '11', '13', 'b9', '#9', '#11', 'b13'].includes(l)) ? 2 : L.some(l => ['b7', '7', 'bb7', '6'].includes(l)) ? 1 : 0; }); const m = lv.reduce((a, x) => a + x, 0) / (lv.length || 1); return m >= 1.3 ? 2 : m >= .5 ? 1 : 0; }
+function cpOptions(list, at, fixed){
+  const keys = cpKeys(list, fixed), key = keys[at], cur = list[at], next = list[at + 1] || null, st = cpStyle(list), c = mod(cur.root - key.root), ck = cpKind(cur.type), out = [];
+  const mk = (iv, t, k) => { k = k || key; const root = mod(k.root + iv), type = CP_T[t] ? CP_T[t][st] : t; return {root, type, name:cpName(k, root, type)}; };
+  const add = (g, chords, title, why) => {
+    chords = chords.slice(); while (chords.length && chords[0].root === cur.root && (chords[0].type === cur.type || (cpKind(chords[0].type) === ck && chords.length > 1))) chords.shift();
+    if (!chords.length || (next && chords.length === 1 && chords[0].root === next.root && chords[0].type === next.type)) return;
+    const id = chords.map(x => x.root + x.type).join('>'); if (out.some(o => o.id === id && o.g === g)) return;
+    out.push({g, id, chords, title, why});
+  };
+  const M = !key.minor, H = M ? 'maj' : 'min', homeN = cpName(key, key.root, 'maj');
+  // go home
+  if (M) {
+    add('home', [mk(7, 'V'), mk(0, 'maj')], 'V – I', 'The strongest way home: the leading note pulls up while the root drops a 5th.');
+    add('home', [mk(5, 'iv'), mk(0, 'maj')], 'iv – I', 'Minor plagal: the ♭6 falls a half step to the 5. Warm, a little sad.');
+    add('home', [mk(10, 'bd'), mk(0, 'maj')], '♭VII7 – I', 'The backdoor: up a whole step into home, softer than V.');
+    add('home', [mk(1, 'sub'), mk(0, 'maj')], 'subV – I', 'Tritone sub: V’s 3rd and 7th over a bass that slides down a half step.');
+    add('home', [mk(5, 'maj'), mk(0, 'maj')], 'IV – I', 'The “amen”: home with no pull.');
+  } else {
+    add('home', [mk(7, 'domb'), mk(0, 'min')], 'V – i', 'Harmonic minor’s V: the raised leading note does the pulling.');
+    add('home', [mk(10, 'bVII'), mk(0, 'min')], '♭VII – i', 'Up a whole step: modal, no leading note.');
+    add('home', [mk(5, 'mi'), mk(0, 'min')], 'iv – i', 'Plagal: home without a V.');
+    add('home', [mk(1, 'sub'), mk(0, 'min')], 'subV – i', 'Tritone sub: the bass slides down a half step into home.');
+    add('home', [mk(2, 'hdim'), mk(7, 'domb'), mk(0, 'min')], 'iiø – V – i', 'The full minor cadence.');
+  }
+  // carry on
+  const dia = M ? [[2, 'min'], [4, 'mi'], [5, 'maj'], [7, 'V'], [9, 'min']] : [[3, 'maj'], [5, 'min'], [7, 'mi'], [8, 'maj'], [10, 'bVII']], W = {5:4, 2:3, 1:3, 8:2.9, 9:3.1, 10:2.2, 11:2.1, 7:2.5, 3:1.5, 4:1.6, 6:1};
+  const MOVE = d => d === 5 ? 'Root up a 4th: the strongest step forward.' : d === 7 ? 'Root up a 5th: opens out instead of pulling.' : d === 1 || d === 2 ? 'Root up a step: everything moves.' : d === 10 || d === 11 ? 'Root down a step: relaxes.' : d === 8 || d === 9 ? 'Root down a third: keeps two notes and changes the mood.' : d === 3 || d === 4 ? 'Root up a third: keeps two notes, gentle.' : 'A tritone away: far, but still in the key.';
+  dia.filter(([iv]) => iv !== c).sort((a, b) => W[mod(b[0] - c)] - W[mod(a[0] - c)]).slice(0, 4).forEach(([iv, t]) => { const x = mk(iv, t), k = cpKind(x.type); add('on', [x], cpNum(iv, k === 'dom' ? 'maj' : k === 'min' ? 'min' : 'maj', k), MOVE(mod(iv - c))); });
+  // tension
+  add('tense', [mk(7, 'sus')], 'V sus', 'Dominant with the 3rd held back: pull you can stretch for bars.');
+  add('tense', [mk(7, 'alt')], 'V altered', 'Every tension on: ♯9 and ♭13 lean hard toward home.');
+  (M ? [[2, 'dom', 7, 'V'], [4, 'domb', 9, 'vi'], [9, 'domb', 2, 'ii'], [0, 'dom', 5, 'IV']] : [[0, 'domb', 5, 'iv'], [10, 'dom', 3, '♭III'], [5, 'dom', 10, '♭VII'], [2, 'dom', 7, 'V']])
+    .forEach(([iv, t, to, nm]) => { const tc2 = mk(to, M ? {7:'V', 9:'min', 2:'min', 5:'maj'}[to] : {5:'min', 3:'maj', 10:'bVII', 7:'domb'}[to]); add('tense', [mk(iv, t), tc2], `V/${nm} – ${nm}`, `A V borrowed from ${tc2.name}: makes ${tc2.name} feel earned.`); });
+  add('tense', [mk(11, 'dim')], 'vii°7', 'All tension, no root: it can slip home, or anywhere a half step up from its notes.');
+  { const up = dia.find(([iv]) => iv === mod(c + 2)); if (up && ck !== 'dim') add('tense', [mk(mod(c + 1), 'dim'), mk(up[0], up[1])], 'Passing °7', 'Fills the whole step with a half-step climb in the bass.'); }
+  // dark and light
+  if (M) {
+    add('dark', [mk(5, 'iv')], 'iv', 'Borrowed from the parallel minor. One note darker than IV.');
+    add('dark', [mk(8, 'maj')], '♭VI', 'Wide and dark. It leads on to ♭VII or V.');
+    add('dark', [mk(1, 'nea')], '♭II', 'Phrygian weight, a half step above home.');
+    add('dark', [mk(2, 'hdim'), mk(7, 'domb')], 'iiø – V', 'Sets up home as if it were minor. Landing on major afterwards is the payoff.');
+    add('dark', [mk(0, 'min')], 'i', 'Home itself turns minor.');
+    add('dark', [mk(7, 'mi')], 'v', 'Takes the leading note away: the pull goes slack.');
+    add('lift', [mk(5, 'maj')], 'IV', 'Opens up: the widest chord in the key.');
+    add('lift', [mk(2, 'lyd')], 'II', 'The Lydian ♯4: brighter than the key.');
+    add('lift', [mk(10, 'bVII'), mk(5, 'maj')], '♭VII – IV', 'Double plagal, the rock lift.');
+    add('lift', [mk(8, 'bVII'), mk(10, 'bVII'), mk(0, 'maj')], '♭VI – ♭VII – I', 'Climbs by whole steps into home: the big finish.');
+    add('lift', [mk(4, 'bVII')], 'III', 'A major chord where the ear expects minor.');
+  } else {
+    add('dark', [mk(1, 'nea')], '♭II', 'Phrygian weight, a half step above home.');
+    add('dark', [mk(2, 'hdim')], 'iiø', 'Minor with a ♭5: uneasy, and it sets up V.');
+    add('dark', [mk(0, 'mM')], 'i(maj7)', 'Home with a leading note inside: film-noir dark.');
+    add('dark', [mk(7, 'mi')], 'v', 'No leading note: bleak and modal.');
+    add('dark', [mk(8, 'maj')], '♭VI', 'Heavy and wide.');
+    add('lift', [mk(5, 'DIV')], 'IV', 'The Dorian IV: a raised 6th lets the light in.');
+    add('lift', [mk(3, 'maj')], '♭III', 'The relative major: same notes, sunnier center.');
+    add('lift', [mk(8, 'bVII'), mk(10, 'bVII'), mk(0, 'pic')], '♭VI – ♭VII – I', 'Climbs by whole steps into a major home: the big finish.');
+    add('lift', [mk(7, 'domb'), mk(0, 'pic')], 'V – I', 'Picardy: the cadence promises minor and lands on major.');
+  }
+  // surprise
+  const same = d => { const root = mod(cur.root + d); return {root, type:cur.type, name:cpName(key, root, cur.type)}; };
+  if (c === 7 && (ck === 'dom' || ck === 'maj')) { if (M) { add('surprise', [mk(9, 'min')], 'V – vi', 'Deceptive: they expect home.'); add('surprise', [mk(8, 'maj')], 'V – ♭VI', 'A bigger dodge, from the parallel minor.'); } else add('surprise', [mk(8, 'maj')], 'V – ♭VI', 'Deceptive: they expect home.'); }
+  add('surprise', [same(3)], 'Same chord, up a minor third', 'Parallel: one shape moved. The ear accepts it because the sound stays constant.');
+  add('surprise', [same(8)], 'Same chord, down a major third', 'Parallel, Coltrane distance.');
+  add('surprise', [same(1), same(0)], 'Side-slip', 'Up a half step and back: tension with no theory needed.');
+  { const a = ck === 'min' ? mk(mod(c + 8), 'min') : mk(mod(c + 4), 'maj'); if (cpKind(a.type) !== ck || a.type !== cur.type) add('surprise', [a], 'Chromatic third', 'A third away in the same color: one note stays, the rest shift.'); }
+  add('surprise', [mk(mod(c + 6), 'nea')], 'A tritone away', 'As far as you can go. Works best held for a while.');
+  // change key
+  const T = M ? [[9, 1], [5, 0], [7, 0], [0, 1], [1, 0], [2, 0], [3, 0], [8, 0]] : [[3, 0], [0, 0], [5, 1], [7, 1], [1, 1], [2, 1], [8, 0]];
+  T.map(([d, m]) => { const k = {root:mod(key.root + d), minor:!!m}, civ = mod(cur.root - k.root), piv = cpDiatonic(civ, cur.type, ck, k.minor);
+    return {k, piv, ch:k.minor ? [mk(2, 'hdim', k), mk(7, 'domb', k), mk(0, 'min', k)] : [mk(2, 'min', k), mk(7, 'dom', k), mk(0, 'maj', k)], why:piv ? `${cur.name} is already ${cpNum(civ, cur.type, ck)} of ${keyTitle(k)}, so the door is open.` : d === 1 || d === 2 ? 'Straight up: the classic last-chorus lift.' : d === 0 ? 'Same home note, other mood.' : 'No shared door: the ii – V announces it.'}; })
+    .sort((a, b) => b.piv - a.piv).slice(0, 6).forEach(o => add('key', o.ch, `To ${keyTitle(o.k)}`, o.why));
+  return {key, options:out};
+}
+function cpPlay(chords){
+  cpTimers.forEach(clearTimeout); cpTimers = [];
+  const a = getAudio(); if (!a) return; if (a.state !== 'running') a.resume().catch(() => {});
+  if (loop.on) loopStop();
+  const step = Math.max(700, Math.min(1300, 60000 / state.metro.bpm * 2));
+  chords.forEach((c, k) => cpTimers.push(setTimeout(() => strumMidis(voiceChord(c).midis, .03, true), k * step)));
+}
+const cpLane = () => state.lane.map(it => ({root:it.root, type:it.type, name:it.name, bars:it.bars || 1, shape:it.shape && (it.tuning || 'std') === state.tuning ? it.shape : null}));
+const cpPos = n => cpAt == null || cpAt >= n ? n - 1 : cpAt;
+function composeHtml(){
+  const list = cpLane(), S = state.compose, fixed = cpFixed();
+  if (!list.length) return `<div class="card compose"><b>Compose</b><span class="info">Put a chord in the Looper and this shows why your progression works and where it could go next.</span>${cpCanUndo() ? '<div class="row"><button type="button" class="btn" data-act="cpundo">↶ Undo</button></div>' : ''}</div>`;
+  const A = cpAnalyze(list, fixed), at = cpPos(list.length);
+  const keySel = `<select class="sel" id="cpKey" data-act="cpkey" aria-label="Key"><option value="auto"${fixed ? '' : ' selected'}>Auto: ${keyTitle(A.keys[at])}</option>${CP_KEYS.map(k => `<option value="${keyId(k)}"${fixed && keyId(fixed) === keyId(k) ? ' selected' : ''}>${keyTitle(k)}</option>`).join('')}</select>`;
+  const strip = `<div class="cpstrip">${A.rows.map((r, i) => `<button type="button" class="cpc${S.view === 'next' && i === at ? ' sel' : ''}" data-act="cpat" data-k="${i}" aria-pressed="${i === at}"><i style="height:${Math.round(6 + r.tension * 34)}px" title="Tension"></i><b>${esc(r.name)}</b><small>${r.num}</small></button>`).join('')}</div>`;
+  let body;
+  if (S.view === 'why') {
+    body = `<div class="cpnotes">${A.notes.map(x => `<p>${esc(x)}</p>`).join('')}</div>
+      <div class="lrows">${A.rows.map((r, i) => `${r.moved || (!i && A.rows.some(z => z.moved)) ? `<span class="rl">${keyTitle(r.key)}</span>` : ''}<button type="button" class="lrow cprow" data-act="cphear" data-k="${i}"><span class="it"><b>${i + 1}. ${esc(r.name)} <span class="cpnum">${r.num}</span></b><small>${esc(r.why)}</small>${list[i + 1] ? `<small class="cplead">→ ${esc(list[i + 1].name)}: ${esc(leadText(list[i], list[i + 1]))}</small>` : ''}</span><span class="lval">${{T:'home', S:'away', D:'pull'}[r.fn]}</span></button>`).join('')}</div>
+      <span class="opt-note">Tap a chord to hear it move to the next one. Bars above the chords show tension: taller pulls harder.</span>`;
+  } else {
+    const O = cpOptions(list, at, fixed), g = CP_GROUPS[S.open] ? S.open : 'home', nx = list[at + 1];
+    const rows = O.options.filter(o => o.g === g).map(o => `<div class="lrow cpopt"><button type="button" class="cpplay" data-act="cpplay" data-v="${o.id}" aria-label="Hear ${esc(o.chords.map(x => x.name).join(' '))}"><span class="it"><b>▶ ${o.chords.map(x => esc(x.name)).join(' → ')}</b><small><b>${esc(o.title)}</b> · ${esc(o.why)}</small><small class="cplead">${esc(leadText(list[at], o.chords[0]))}</small></span></button><button type="button" class="ib" data-act="cpadd" data-v="${o.id}" aria-label="Add after ${esc(list[at].name)}">＋</button></div>`).join('');
+    body = `<div class="row"><span>After <b>${at + 1}. ${esc(list[at].name)}</b>${nx ? `, before ${esc(nx.name)}` : ''}</span>${cpCanUndo() ? '<button type="button" class="btn" data-act="cpundo">↶ Undo</button>' : ''}</div>
+      <div class="row cpgs">${Object.entries(CP_GROUPS).map(([k, [t]]) => `<button type="button" class="chip${g === k ? ' sel' : ''}" data-act="cpgroup" data-v="${k}" aria-pressed="${g === k}">${t}</button>`).join('')}</div>
+      <div class="lrows">${rows || '<span class="info">Nothing new here from this chord. Try another group.</span>'}</div>
+      <span class="opt-note">Tap an idea to hear it after your chord${nx ? ', then on into the next one' : ''}. ＋ puts it in the Looper. Tap another chord above to branch from there.</span>`;
+  }
+  return `<div class="card compose"><div class="row" style="justify-content:space-between"><div class="seg"><button type="button" data-act="cpview" data-v="next" aria-pressed="${S.view !== 'why'}">Where can I go?</button><button type="button" data-act="cpview" data-v="why" aria-pressed="${S.view === 'why'}">Why does this work?</button></div>${keySel}</div>${strip}${body}</div>`;
+}
+function handleCompose(act, b){
+  const v = b.dataset.v, k = +b.dataset.k, list = cpLane(), opt = () => cpOptions(list, cpPos(list.length), cpFixed()).options.find(o => o.id === v);
+  switch (act) {
+    case 'cpview': state.compose.view = v; break;
+    case 'cpgroup': state.compose.open = v; break;
+    case 'cpat': cpAt = k; cpPlay([list[k]]); break;
+    case 'cphear': cpPlay(list.slice(k, k + 2)); return true;
+    case 'cpplay': { const o = opt(), at = cpPos(list.length); if (o) cpPlay([list[at], ...o.chords, ...(list[at + 1] ? [list[at + 1]] : [])]); return true; }
+    case 'cpadd': { const o = opt(), at = cpPos(list.length); if (!o) return true; const was = clone(state.lane), n = laneAdd(o.chords, at + 1); if (n) { cpUndo = {was, now:JSON.stringify(state.lane)}; cpAt = at + n; toast(`Added ${o.chords.slice(0, n).map(x => x.name).join(' → ')}`); } break; }
+    case 'cpundo': if (cpCanUndo()) { state.lane = cpUndo.was; cpUndo = null; cpAt = null; if (!state.lane.length && loop.on && state.backing.source === 'lane') loopStop(); else refreshLoop(); } break;
+    default: return false;
+  }
+  render(); return true;
+}
 
 /* ================= practice log (stored in this browser) ================= */
 const LOGKEY = 'fretboard-atlas-log-v1';
@@ -4907,6 +5185,7 @@ function handlePractice(act, b){
   const it = b.dataset.id ? items.find(x => x.id === +b.dataset.id) : null;
   // starting something whose card is in another section opens that section
   if (act[0] === 'g' && handleGuide(act, b)) return true;
+  if (act[0] === 'c' && act[1] === 'p' && handleCompose(act, b)) return true;
   if ((act[0] === 't' && (act[1] === 'c' || act[1] === 'k')) && handleTime(act, b)) return true;
   if (tc && ['ttstart', 'calstart', 'calself', 'tunstart', 'bstart', 'dstart', 'mtoggle', 'qstart', 'wdrill', 'sessstart', 'sessnext', 'sessprev', 'todaygo', 'todaystart'].includes(act)) tcEnd(true);
   if (rec && ['ttstart', 'calstart', 'calself', 'tunstart', 'tcstart'].includes(act)) { toast('Stop the recording first.'); return true; }
@@ -5234,7 +5513,7 @@ if (state.guideBack) guideRestore();      // the page closed in the middle of a 
 // small read-only hook for automated tests and the browser console
 window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
-  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
+  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
   micHelp, micSessionStart, micSessionEnd, openMic, get micUsers(){ return micUsers; }, get audioCtx(){ return ac; },
   detectPitch, tunerFeed, get tuner(){ return tuner; }, get tt(){ return tt; },
@@ -5253,6 +5532,7 @@ function render(){
   pvFollow();
   panel.innerHTML = state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'practice' ? renderPractice() : renderLayers();
   { const r = panel.querySelector('.ptabs'), b = r && r.querySelector('[aria-selected="true"]'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - r.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; }     // keep the open section in sight
+  { const r = panel.querySelector('.cpstrip'), b = r && r.querySelector('.sel'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - r.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; }
   tunerPaint();
   tickUI();
   save();
@@ -5590,6 +5870,7 @@ panel.addEventListener('change', e => {
   else if (act === 'maccent') state.metro.accent = el.checked;
   else if (act === 'bkey') { state.backing.key = +el.value; refreshLoop(); }
   else if (act === 'bprog') { state.backing.prog = +el.value; refreshLoop(); }
+  else if (act === 'cpkey') state.compose.key = el.value;
   else if (act === 'tkmix') state.tkCfg.mix = el.checked;
   else if (act === 'bdrums') state.backing.drums = el.checked;
   else if (act === 'bclick') state.backing.click = el.checked;
