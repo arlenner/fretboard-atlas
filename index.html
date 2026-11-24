@@ -643,7 +643,7 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 .quiz-types small{color:var(--muted); font-size:11px}
 .qres{font-variant-numeric:tabular-nums}
 /* pinboard */
-.pins{display:grid; grid-template-columns:repeat(auto-fill, minmax(168px, 1fr)); gap:10px}
+.pins{display:grid; grid-template-columns:repeat(auto-fill, minmax(154px, 1fr)); gap:10px}
 .pin{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:10px; display:grid; gap:8px; position:relative; min-width:0; align-content:start}
 .pin.active{outline:2px solid var(--accent); outline-offset:-1px}
 .pin.sel{background:var(--surface-2)}
@@ -662,6 +662,8 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 .diag text{fill:var(--muted); font-size:9px; font-family:var(--font); font-weight:600}
 .diag .od{fill:none; stroke:var(--muted); stroke-width:1.3}
 .diag .fd{stroke:rgba(0,0,0,.35); stroke-width:1}
+.pin-v{gap:6px; flex-wrap:nowrap}
+.pin .tabtxt{font-size:13px}
 .pin-notes{font-weight:650; letter-spacing:.02em}
 .toast{position:fixed; left:50%; bottom:calc(16px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); z-index:40; background:var(--sel-bg); color:var(--sel-ink); padding:8px 14px; border-radius:10px; font-weight:600; font-size:13px; box-shadow:0 8px 24px rgba(0,0,0,.25); max-width:calc(100vw - 32px); text-align:center}
 @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
@@ -2289,8 +2291,29 @@ function pinFromPicks(){
   if (top) return addPin({root:top.root, type:top.type, name:top.name, alt, shape, tuning:state.tuning});
   return addPin({root:pcs[0], type:null, name:[...new Set(pcs)].map(pc => pn(noteName(pc))).join(' '), shape, tuning:state.tuning});
 }
+/* every playable voicing of a pinned chord that has no shape of its own, low to high on the neck */
+function pinVoicings(p){
+  if (p.shape || !p.type) return [];
+  const find = no5 => rootPositions(p).map(q => { const v = findVoicing(p.root, p.type, q.s, q.f, no5); return v && {s:q.s, f:q.f, shape:v.shape, score:v.score, no5}; }).filter(Boolean);
+  const full = find(false);
+  return full.length ? full : CHORDS[p.type].labels.includes('5') ? find(true) : [];
+}
+/* the voicing a pin shows: the one the player stepped to, or else a full, easy one low on the neck */
+function pinVoicing(p, vs){
+  vs = vs || pinVoicings(p);
+  return vs.find(v => p.pos && v.s === p.pos.s && v.f === p.pos.f)
+    || vs.reduce((a, v) => !a || v.score - shapeCenter(v.shape) * .7 > a.score - shapeCenter(a.shape) * .7 ? v : a, null);
+}
+/* what the Looper and play-along use: a fixed shape, or a voicing the player chose on the card */
+function pinChosen(p){
+  if (p.shape) return {shape:p.shape, tuning:p.tuning};
+  const v = p.pos && pinVoicings(p).find(z => z.s === p.pos.s && z.f === p.pos.f);
+  return v ? {shape:v.shape, tuning:state.tuning} : {shape:null, tuning:null};
+}
 function pinMidis(p){
   if (p.shape) { const tun = TUNINGS[p.tuning || 'std'].midi; return p.shape.map(q => tun[q.s] + q.f); }
+  const v = pinVoicing(p);
+  if (v) return v.shape.map(q => TUNINGS[state.tuning].midi[q.s] + q.f);
   return p.type ? chordMidis(p.root, p.type) : [];
 }
 /* a small chord box: strings low to high, left to right; dots coloured by interval */
@@ -2342,7 +2365,7 @@ function laneAdd(items, at){
   refreshLoop();
   return add.length;
 }
-const pinToLane = p => ({root:p.root, type:p.type, name:p.name, shape:p.shape, tuning:p.tuning});
+const pinToLane = p => ({root:p.root, type:p.type, name:p.name, ...pinChosen(p)});
 function foundHtml(q){
   if (!String(q || '').trim()) return '<span class="info">Type a chord name: F♯m7♭5, Dmaj9♯11, B♭13, E7alt, Cø, A–7…</span>';
   const hits = findChords(q);
@@ -2383,12 +2406,14 @@ function renderPins(){
     const sub = p.shape
       ? (p.type ? CHORDS[p.type].name : 'Custom shape') + (p.tuning && p.tuning !== 'std' ? ' · ' + TUNINGS[p.tuning].name.split('  ')[0] : '')
       : CHORDS[p.type].name;
-    const body = p.shape ? diagram(p)
-      : `<span class="pin-notes">${CHORDS[p.type].labels.map(l => pn(spell(rootName(p.root, CHORDS[p.type].labels), l))).join(' ')}</span>`;
+    const vs = pinVoicings(p), v = pinVoicing(p, vs), at = vs.indexOf(v);
+    const body = p.shape ? `${diagram(p)}<span class="tabtxt">${tabText(p.shape)}</span>`
+      : `${v ? `${diagram({shape:v.shape, root:p.root, type:p.type, tuning:state.tuning})}<span class="tabtxt">${tabText(v.shape)}${v.no5 ? ' · no 5' : ''}</span>` : ''}<span class="pin-notes">${CHORDS[p.type].labels.map(l => pn(spell(rootName(p.root, CHORDS[p.type].labels), l))).join(' ')}</span>`;
     const ck = Array.isArray(state.compare) ? state.compare.indexOf(p.id) : -1;
     return `<div class="pin${state.pinView === p.id ? ' active' : ''}${p.sel ? ' sel' : ''}">
       <span class="pin-num pin-drag"${p.type ? ` data-drag="pin:${p.id}" title="Drag into the Looper"` : ''}>${ck >= 0 ? `<i style="--c:var(--l${ck})"></i>` : ''}${k + 1}</span>
       <button type="button" class="pin-main" data-act="pinshow" data-id="${p.id}" aria-label="Show ${p.name} on the neck"><b>${p.name}</b><small>${sub}</small>${p.alt && p.alt.length ? `<small>also ${p.alt.join(', ')}</small>` : ''}${body}</button>
+      ${vs.length > 1 ? `<div class="row pin-v"><button type="button" class="ib" data-act="pinvoice" data-id="${p.id}" data-v="-1" aria-label="Voicing lower on the neck"${at <= 0 ? ' disabled' : ''}>◀</button><span class="info" aria-label="Voicing ${at + 1} of ${vs.length}">${at + 1} of ${vs.length}</span><button type="button" class="ib" data-act="pinvoice" data-id="${p.id}" data-v="1" aria-label="Voicing higher on the neck"${at >= vs.length - 1 ? ' disabled' : ''}>▶</button></div>` : ''}
       <div class="pin-acts">
         <button type="button" class="ib" data-act="pinplay" data-id="${p.id}" aria-label="Play ${p.name}">▶</button>
         ${p.type ? `<button type="button" class="ib" data-act="pinlane1" data-id="${p.id}" aria-label="Add ${p.name} to the Looper" title="Add to the Looper">＋</button>` : ''}
@@ -2417,6 +2442,8 @@ function showPin(p){
     render(); revealNeck();
   } else {
     loadMain('chord', p.root, p.type);
+    const v = pinVoicing(p), L = state.layers[0];
+    if (v && !v.no5 && L && L.kind === 'chord') { L.pos = {s:v.s, f:v.f}; setAnchor(L); }
     state.pinView = p.id; render();
   }
 }
@@ -2902,7 +2929,7 @@ function rollProgression(minor, spice, sevenths){
 }
 function backingChords(){
   const b = state.backing;
-  if (b.source === 'pins') return state.pins.filter(p => p.type).map(p => ({root:p.root, type:p.type, name:p.name, shape:p.shape && (p.tuning || 'std') === state.tuning ? p.shape : null}));
+  if (b.source === 'pins') return state.pins.filter(p => p.type).map(p => ({root:p.root, type:p.type, name:p.name, shape:(c => c.shape && (c.tuning || 'std') === state.tuning ? c.shape : null)(pinChosen(p))}));
   if (b.source === 'lane') return state.lane.map(it => ({root:it.root, type:it.type, name:it.name, bars:it.bars || 1, shape:it.shape && (it.tuning || 'std') === state.tuning ? it.shape : null}));
   return progressionChords(b.key, b.minor, b.prog, backingStyle());
 }
@@ -4840,7 +4867,7 @@ if (state.guideBack) guideRestore();      // the page closed in the middle of a 
 // small read-only hook for automated tests and the browser console
 window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
-  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
+  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
   micHelp, micSessionStart, micSessionEnd, openMic, get micUsers(){ return micUsers; }, get audioCtx(){ return ac; },
   detectPitch, tunerFeed, get tuner(){ return tuner; }, get tt(){ return tt; },
@@ -5121,7 +5148,8 @@ panel.addEventListener('click', e => {
       if (n) toast(`Pinned ${chords.slice(0, n).map(c => pn(c.name) + CHORDS[c.type].sym).join(' – ')}`);
       break;
     }
-    case 'pinlayer': if (pinFromChord(L.root, L.type)) toast(`Pinned ${chordName(L.root, L.type)}`); break;
+    case 'pinlayer': if (L.kind === 'chord' && L.pos && (voicingFor(L) || {}).shape) { if (addPin({root:L.root, type:L.type, name:chordName(L.root, L.type), shape:voicingFor(L).shape.map(q => ({s:q.s, f:q.f})), tuning:state.tuning})) toast(`Pinned ${chordName(L.root, L.type)} (${tabText(voicingFor(L).shape)})`); }
+      else if (pinFromChord(L.root, L.type)) toast(`Pinned ${chordName(L.root, L.type)}`); break;
     case 'pinshape': if (pinFromPicks()) toast(`Pinned ${state.pins[state.pins.length - 1].name}`); break;
     case 'pinex': [[7,'maj'],[2,'maj'],[4,'min'],[0,'maj']].forEach(([r, t]) => pinFromChord(r, t)); break;
     case 'laneadd': { const r = +b.dataset.r, t = b.dataset.t, hit = findChords(state.laneQ).find(c => c.root === r && c.type === t); if (laneAdd([hit || {root:r, type:t, name:chordName(r, t)}])) strumMidis(chordMidis(r, t), .035, true); break; }
@@ -5139,6 +5167,14 @@ panel.addEventListener('click', e => {
     case 'pinlane': { const n = laneAdd(state.pins.filter(p => p.type).map(pinToLane)); if (n) toast(`Added ${n} chord${n > 1 ? 's' : ''} to the Looper`); break; }
     case 'proglane': { const ch = progCache[+b.dataset.p] || [], n = laneAdd(ch.map(c => ({root:c.root, type:c.type, name:pn(c.name) + CHORDS[c.type].sym}))); if (n) toast(`Added ${ch.slice(0, n).map(c => pn(c.name) + CHORDS[c.type].sym).join(' – ')} to the Looper (Pinboard tab)`); break; }
     case 'pinshow': { const p = state.pins.find(z => z.id === +b.dataset.id); if (p) { strumMidis(pinMidis(p)); showPin(p); } return; }
+    case 'pinvoice': {
+      const p = state.pins.find(z => z.id === +b.dataset.id); if (!p) return;
+      const vs = pinVoicings(p), v = vs[vs.indexOf(pinVoicing(p, vs)) + +b.dataset.v]; if (!v) return;
+      p.pos = {s:v.s, f:v.f}; strumMidis(pinMidis(p)); refreshLoop();
+      const M = state.layers[0];      // already on the neck: the neck follows
+      if (state.pinView === p.id && M && M.kind === 'chord' && M.root === p.root && M.type === p.type && !v.no5) { M.pos = {s:v.s, f:v.f}; setAnchor(M); }
+      break;
+    }
     case 'pinplay': { const p = state.pins.find(z => z.id === +b.dataset.id); if (p) strumMidis(pinMidis(p), .035, true); return; }
     case 'pinplayall': state.pins.forEach((p, k) => pinMidis(p).slice().sort((a, c) => a - c).forEach((m, j) => pluck(m, k * 0.9 + j * 0.03, true))); return;
     case 'pinmove': {
