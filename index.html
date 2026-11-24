@@ -339,6 +339,24 @@ body.pv-done .neck-wrap{display:none !important}
 .chg > span{display:grid; align-content:start; border:1px solid var(--line); border-radius:10px; padding:6px 8px; min-width:0}
 .chg small{color:var(--muted)}
 .chg .ld{color:var(--ink)}
+/* time check and takes */
+.tcnow{display:grid; gap:4px; padding:26px 14px; border-radius:12px; text-align:center; background:color-mix(in srgb, var(--sel-ink) 12%, transparent)}
+.tcnow b{font-size:40px; line-height:1; font-variation-settings:'wdth' 85}
+.tcnow.quiet{background:var(--accent); color:var(--on-accent)}
+.tcres{display:grid; gap:10px; grid-template-columns:minmax(0, 1fr); border:1px solid var(--line); border-radius:12px; padding:12px}
+.tcres .lstats{grid-template-columns:repeat(2, minmax(0, 1fr))}
+.tchead{font-size:30px; font-weight:800; line-height:1.05; font-variation-settings:'wdth' 85}
+.tcplot{width:100%; max-width:560px; height:auto; display:block}
+.tcplot .q{fill:color-mix(in srgb, var(--accent) 16%, transparent)}
+.tcplot .z{stroke:var(--muted); stroke-width:1}
+.tcplot text{fill:var(--muted); font-size:12px; font-family:var(--font)}
+.tcplot circle{fill:var(--ink)}
+.recdot{display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--bad); vertical-align:0}
+.tkgrp{display:grid; gap:6px; grid-template-columns:minmax(0, 1fr)}
+.tkgrp > .row b{overflow-wrap:anywhere; min-width:0}
+.tkrow .it{flex:1 1 auto}
+.tkrow.on{box-shadow:inset 0 0 0 2px var(--accent)}
+.tkacts{display:flex; gap:4px; flex:0 0 auto}
 /* guides */
 .gtitle{font-size:20px}
 .guide p{margin:0}
@@ -1202,7 +1220,7 @@ const swatch = (i, cls) => byIv()
   : `<${cls === 'sw' ? 'span' : 'i'} class="${cls === 'sw' ? 'sw' : ''}" style="--c:${colOf(i)}"></${cls === 'sw' ? 'span' : 'i'}>`;
 
 /* ================= audio (plucked string) ================= */
-let ac = null, master = null, unlocked = false, blockedWarned = false; const bufCache = {};
+let ac = null, master = null, bus = null, unlocked = false, blockedWarned = false; const bufCache = {};
 const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && 'ontouchend' in document);
 function getAudio(){
   if (!ac) {
@@ -1213,7 +1231,8 @@ function getAudio(){
     ac = new AC({latencyHint:'interactive'});
     master = ac.createDynamicsCompressor();            // keeps six-note strums from clipping
     master.threshold.value = -10; master.ratio.value = 4;
-    master.connect(ac.destination);
+    bus = ac.createGain(); bus.connect(ac.destination);
+    master.connect(bus);
   }
   return ac;
 }
@@ -2496,7 +2515,7 @@ function micClickData(sr, amp){
 function micClickBuf(sr, amp, a){ const data = micClickData(sr, amp), b = a.createBuffer(1, data.length, sr); b.getChannelData(0).set(data); return b; }
 function playClick(kind, when){
   const a = getAudio(), src = a.createBufferSource(), g = a.createGain();
-  src.buffer = clickBuf(micT.on ? 'mic-' + kind : kind); g.gain.value = state.metro.vol; src.connect(g); g.connect(a.destination); src.start(when);
+  src.buffer = clickBuf(micT.on && !(cal && cal.self) ? 'mic-' + kind : kind); g.gain.value = state.metro.vol; src.connect(g); g.connect(bus); src.start(when);
 }
 function flashBeat(n, rest){
   document.querySelectorAll('.beats').forEach(el => [...el.children].forEach((d, k) => { d.classList.toggle('on', k === n && !rest); d.classList.toggle('rest', k === n && !!rest); }));
@@ -2526,7 +2545,7 @@ function metroSchedule(){
       const b = ladderBpm(metro.ladderStart, Math.max(0, c.bar - (metro.ladderBar0 || 0)), m.ladder);
       if (b !== m.bpm) setBpm(b);
     }
-    if (c.kind && (!loop.on || state.backing.click)) playClick(c.kind, metro.next);
+    if (c.kind && (!loop.on || state.backing.click || (rec && c.bar < loop.bar0))) playClick(c.kind, metro.next);
     if (loop.on) loopTick(c, metro.next);
     metro.peak = Math.max(metro.peak || 0, m.bpm);
     if (c.isBeat) { const n = c.beatNo, rest = c.resting; setTimeout(() => { if (metro.on) flashBeat(n, rest); }, Math.max(0, (metro.next - a.currentTime) * 1000)); }
@@ -2576,7 +2595,7 @@ const tempoName = b => TEMPO_NAMES.find(([lim]) => b < lim)[1];
 /* screen wake lock while practicing (optional: refused on some browsers) */
 let wake = null;
 async function requestWake(){ try { if ('wakeLock' in navigator && !wake) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } } catch (e) {} }
-function releaseWake(){ try { if (wake && !metro.on && !(state.session && !state.session.done && !state.session.paused)) { wake.release(); wake = null; } } catch (e) {} }
+function releaseWake(){ try { if (wake && !metro.on && !rec && !tc && !(state.session && !state.session.done && !state.session.paused)) { wake.release(); wake = null; } } catch (e) {} }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (metro.on || (state.session && !state.session.done && !state.session.paused))) requestWake(); });
 
 /* ================= practice: fretboard quiz ================= */
@@ -3116,11 +3135,11 @@ function loopShowChord(k){
   state.pinView = null; state.compare = null; state.tap = null;
   render();
 }
-function loopStart(){
+function loopStart(countIn){
   const chords = backingChords();
   if (!chords.length) { toast(state.backing.source === 'pins' ? 'Pin some chords first: the loop plays your Pinboard in order.' : state.backing.source === 'lane' ? 'The Looper is empty. Add chords on the Pinboard tab.' : 'That progression has no chords.'); return; }
   loop.chords = chords; loop.voices = chords.map(voiceChord); loop.idx = -1; loop.preview = false; loop.guide = false; loop.on = true;
-  if (!metro.on) { metroStart(); metro.loopOwned = true; loop.bar0 = 0; }
+  if (!metro.on) { loop.bar0 = countIn ? 1 : 0; metroStart(); metro.loopOwned = true; }
   else loop.bar0 = Math.ceil(metro.tick / (state.metro.sub * state.metro.beats));
   render();
 }
@@ -3140,7 +3159,7 @@ function droneStart(){
   droneStop(true);
   const d = state.drone, g = a.createGain(), lp = a.createBiquadFilter();
   lp.type = 'lowpass'; lp.frequency.value = 1400; g.gain.setValueAtTime(0, a.currentTime); g.gain.linearRampToValueAtTime(d.vol * 0.5, a.currentTime + 0.6);
-  lp.connect(g); g.connect(a.destination);
+  lp.connect(g); g.connect(bus);
   const base = 36 + mod(d.root - 0);                       // C2..B2
   const notes = [base, base + 12].concat(d.fifth ? [base + 7, base + 19] : []);
   notes.forEach((m, k) => [-2, 2].forEach(cents => {      // a gentle chorus, centred on the exact pitch
@@ -3382,7 +3401,7 @@ function guideLayers(){
 function guideStart(type, root){
   if (!SCALES[type] || !GUIDE[type]) return;
   if (state.session && !state.session.done) { toast('Finish or stop the lesson you are in first.'); return; }
-  guideQuiet(); if (quiz) quizEnd(true); if (loop.on) loopStop();
+  if (tc) tcEnd(true); guideQuiet(); if (quiz) quizEnd(true); if (loop.on) loopStop();
   state.session = null;
   if (!state.guideBack) state.guideBack = {layers:clone(state.layers), drone:state.drone.root};
   guide = {type, root:mod(root), step:0, fret:5, t0:Date.now(), ear:{n:0, ok:0, q:null, pick:null}, mission:0, rating:null};
@@ -4064,11 +4083,11 @@ function micTimingStop(){
 }
 /* calibration run: 1 bar count-in, then 3 bars of quarter notes at 90 bpm */
 let cal = null;
-async function calStart(){
+async function calStart(self){
   if (tt) ttEnd(true);
   if (!(await micTimingStart())) return;
   if (metro.on) metroStop();
-  cal = {saved:clone(state.metro), t0:0, until:0, done:false, msg:''};
+  cal = {saved:clone(state.metro), t0:0, until:0, done:false, msg:'', self:!!self};
   Object.assign(state.metro, {bpm:90, beats:4, sub:1, accent:true, clickMode:'all', gap:{on:false, play:2, rest:2}, ladder:Object.assign({}, state.metro.ladder, {on:false})});
   metro.grid = []; micT.onsets = []; micT.peak = 0;
   metroStart();
@@ -4079,14 +4098,15 @@ function calTick(){
   if (!cal || cal.done || !ac) return;
   const beatsDone = (metro.grid || []).filter(g => g.isBeat && g.bar >= 1 && g.t < ac.currentTime - 0.15).length;
   const g0 = (metro.grid || []).find(g => g.isBeat && g.bar >= 1), heardNow = g0 ? micT.onsets.filter(o => o >= g0.t - 0.3).length : 0;
-  const el = $('#calProg'); if (el) el.textContent = `${Math.min(12, beatsDone)} of 12 clicks · ${heardNow} note${heardNow === 1 ? '' : 's'} heard${micT.peak < 1e-4 ? ' · no mic sound yet' : ''}`;
+  const prog = `${Math.min(12, beatsDone)} of 12 clicks · ${heardNow} note${heardNow === 1 ? '' : 's'} heard${micT.peak < 1e-4 ? ' · no mic sound yet' : ''}`;
+  document.querySelectorAll('.calprog').forEach(el => { el.textContent = prog; });
   if (ac.currentTime < cal.until + 0.3) return;                // a little extra so late-arriving notes still count
   const grid = metro.grid.filter(g => g.isBeat && g.bar >= 1 && g.bar <= 3).map(g => g.t);
   const r = calcLatency(grid, micT.onsets.slice(), {peak:micT.peak});
   metroStop(); Object.assign(state.metro, cal.saved); setBpm(cal.saved.bpm);
   micTimingStop();
-  if (r.ok) { state.micCal = {ms:r.ms, sd:r.sd, at:Date.now()}; toast(`Calibrated: your notes land ${Math.abs(r.ms)} ms ${r.ms >= 0 ? 'after' : 'before'} the click (±${r.sd} ms).`); cal = null; }
-  else { cal.done = true; cal.msg = r.why; }
+  if (r.ok) { state.micCal = {ms:r.ms, sd:r.sd, at:Date.now(), self:cal.self}; toast(`Calibrated: ${cal.self ? 'sound' : 'your notes'} land${cal.self ? 's' : ''} ${Math.abs(r.ms)} ms ${r.ms >= 0 ? 'after' : 'before'} the click (±${r.sd} ms).`); cal = null; }
+  else { cal.done = true; cal.msg = cal.self ? 'The mic could not pick out the clicks. Turn the volume up, unplug headphones, and keep the room quiet. Or calibrate by playing.' : r.why; }
   render();
 }
 setInterval(calTick, 200);
@@ -4110,6 +4130,318 @@ function ttAutoCheck(){
   tt.passBar = lastG.bar + 1 + (tt.bpm !== before ? 1 : 0);
 }
 setInterval(ttAutoCheck, 100);
+
+/* ================= Time Check: the click disappears, the mic measures what your time does without it ================= */
+const TC_WHAT = {quarters:['Quarters', 1], eighths:['8ths', 2], triplets:['Triplets', 3], sixteenths:['16ths', 4], backbeat:['2 & 4', 1], free:['Anything (16th grid)', 4]};
+const TC_PLANS = {grow:'1 → 2 → 4 → 8', 1:'1 bar', 2:'2 bars', 4:'4 bars', 8:'8 bars'};
+const TC_HELD = 0.04;                 // a silence counts as held if you come back within 40 ms
+const TIMEKEY = 'fretboard-atlas-time-v1';
+let timeLog = [];
+try { const t = JSON.parse(localStorage.getItem(TIMEKEY)); if (Array.isArray(t)) timeLog = t.filter(x => x && x.ts); } catch (e) {}
+function saveTimeLog(){ try { localStorage.setItem(TIMEKEY, JSON.stringify(timeLog.slice(-500))); } catch (e) {} }
+state.tcCfg = Object.assign({what:'quarters', plan:'grow'}, state.tcCfg || {});
+if (!TC_WHAT[state.tcCfg.what]) state.tcCfg.what = 'quarters';
+if (!TC_PLANS[state.tcCfg.plan]) state.tcCfg.plan = 'grow';
+let tc = null, tcLast = null; const tcOn = () => !!tc;
+/* the round as stretches of bars: a count-in, then click and silence in turn, ending on click */
+function tcSegs(plan){
+  const offs = plan === 'grow' ? [1, 2, 4, 8] : plan === '8' ? [8, 8] : [+plan, +plan, +plan];
+  const out = [{bars:1, on:true, count:true}, {bars:2, on:true}];
+  offs.forEach(n => out.push({bars:n, on:false}, {bars:2, on:true}));
+  let b = 0; out.forEach(s => { s.bar = b; b += s.bars; });
+  return out;
+}
+const tcBars = segs => segs.reduce((a, s) => a + s.bars, 0);
+const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+const sdOf = a => { if (a.length < 2) return 0; const m = avg(a); return Math.sqrt(a.reduce((s, x) => s + (x - m) * (x - m), 0) / (a.length - 1)); };
+/* spec: {t0, spb, beats, segs, what}. Every note is matched to the slot it was meant for, following gradual drift, so a
+   note 200 ms early after eight silent bars still counts as that note. */
+function analyzeTime(spec, onsets, lat){
+  const {t0, spb, beats, segs, what} = spec, sub = TC_WHAT[what][1], step = spb / sub, barT = spb * beats, slots = [];
+  segs.forEach((s, si) => { if (s.count) return;
+    for (let k = 0; k < s.bars * beats * sub; k++) {
+      const beat = Math.floor(k / sub) % beats, frac = k % sub;
+      if (what === 'backbeat' && beat % 2 === 0) continue;
+      slots.push({t:s.bar * barT + k * step, si, beat, frac, inSeg:k * step});
+    } });
+  const gap = what === 'backbeat' ? spb * 2 : step, tol = gap * (what === 'free' ? 0.5 : 0.4);
+  let phi = 0, cur = -1, extras = 0; const hit = new Map();
+  onsets.map(o => o - lat - t0).sort((a, b) => a - b).forEach(o => {
+    if (o < slots[0].t - tol || o > slots[slots.length - 1].t + gap) return;
+    let x = o - phi, bi = 0, bd = Infinity;
+    slots.forEach((s, k) => { const d = Math.abs(x - s.t); if (d < bd) { bd = d; bi = k; } });
+    if (slots[bi].si !== cur) {            // the click is back (or just went): forget the drift once it is audible again
+      cur = slots[bi].si;
+      if (segs[cur].on) { phi = 0; x = o; bd = Infinity; slots.forEach((s, k) => { const d = Math.abs(x - s.t); if (d < bd) { bd = d; bi = k; } }); }
+    }
+    if (bd > tol) { extras++; return; }
+    const err = o - slots[bi].t, had = hit.get(bi);
+    if (had != null && Math.abs(had - phi) <= Math.abs(err - phi)) { extras++; return; }
+    if (had != null) extras++;
+    hit.set(bi, err); phi += 0.3 * (err - phi);
+  });
+  const notes = [...hit.entries()].sort((a, b) => a[0] - b[0]).map(([k, err]) => Object.assign({k, err}, slots[k]));
+  const need = what === 'free' ? (tcBars(segs) - 1) * 1.5 : slots.length * 0.5;
+  if (notes.length < need) return {ok:false, n:notes.length, heard:onsets.length, why:onsets.length < need ? `Only ${onsets.length} note${onsets.length === 1 ? ' was' : 's were'} picked up. Play a little louder or sharper, close to the mic.` : `Heard ${onsets.length} notes, but only ${notes.length} of ${slots.length} lined up with ${TC_WHAT[what][0].toLowerCase()}. Check “What you play”, or choose Anything.`};
+  const settled = n => !(segs[n.si].on && n.si > 1 && n.inSeg < spb * 0.99);        // the first beat after a silence is the catch-up
+  const onNotes = notes.filter(n => segs[n.si].on && settled(n));
+  const place = onNotes.length ? avg(onNotes.map(n => n.err)) : 0;
+  // spread: how much neighbouring notes disagree. Slow drift cancels out of it.
+  const diffs = []; for (let i = 1; i < notes.length; i++) { const a = notes[i - 1], b = notes[i]; if (a.si === b.si && settled(a) && settled(b) && b.t - a.t < gap * 2.5) diffs.push(b.err - a.err); }
+  const spread = diffs.length >= 4 ? Math.sqrt(avg(diffs.map(d => d * d)) / 2) : null;
+  const silences = segs.map((s, si) => ({s, si})).filter(x => !x.s.on).map(({s, si}) => {
+    const ns = notes.filter(n => n.si === si), before = notes.filter(n => n.si === si - 1 && settled(n));
+    if (ns.length < Math.max(3, what === 'backbeat' || what === 'quarters' ? 2 : 3) && !(ns.length === 2 && what === 'backbeat' && s.bars === 1)) return {bars:s.bars, drift:null};
+    const base = before.length ? median(before.map(n => n.err)) : place;
+    // a straight line through the silence, read off where the click comes back
+    const mt = avg(ns.map(n => n.inSeg)), me = avg(ns.map(n => n.err)), vv = ns.reduce((a, n) => a + (n.inSeg - mt) ** 2, 0);
+    const slope = ns.length >= 6 && vv ? ns.reduce((a, n) => a + (n.inSeg - mt) * (n.err - me), 0) / vv : null;
+    const len = s.bars * barT, end = slope != null ? me + slope * (len - mt) : avg(ns.slice(-2).map(n => n.err)), drift = end - base;
+    return {bars:s.bars, drift, bpm:60 / spb / (1 + drift / len)};
+  });
+  // where it slips: one kind of note that sits away from its neighbours
+  const r = notes.filter(settled).map(n => { const near = notes.filter(m => m.si === n.si && m !== n && Math.abs(m.t - n.t) <= gap * 4.1); return near.length >= 3 ? Object.assign({r:n.err - avg(near.map(m => m.err))}, n) : null; }).filter(Boolean);
+  const groups = [];
+  for (let b = 0; b < beats; b++) groups.push([`beat ${b + 1}`, r.filter(n => n.beat === b && n.frac === 0)]);
+  if (sub > 1) groups.push(['the notes between the beats', r.filter(n => n.frac > 0)]);
+  groups.push(['the note after a rest', r.filter(n => { const i = notes.findIndex(m => m.k === n.k); return i > 0 && notes[i - 1].si === n.si && n.t - notes[i - 1].t > gap * 1.5; })]);
+  let where = null;
+  groups.forEach(([name, g]) => { if (g.length < 6) return; const m = avg(g.map(n => n.r)), se = sdOf(g.map(n => n.r)) / Math.sqrt(g.length); if (Math.abs(m) >= 0.01 && Math.abs(m) > 3 * se && (!where || Math.abs(m) > Math.abs(where.ms))) where = {name, ms:m}; });
+  const sizes = [...new Set(silences.map(x => x.bars))].sort((a, b) => a - b);
+  let held = 0; for (const n of sizes) { if (silences.filter(x => x.bars === n).every(x => x.drift != null && Math.abs(x.drift) <= TC_HELD)) held = n; else if (sizes.length > 1) break; }
+  return {ok:true, n:notes.length, total:slots.length, extras, place, spread, silences, where, held, max:sizes[sizes.length - 1], notes};
+}
+async function tcStart(){
+  if (!state.micCal) { toast('Calibrate mic timing first: it takes about 15 seconds.'); return; }
+  if (tt) ttEnd(true); if (tuner.on) tunerStop(); if (quiz) quizEnd(true); if (sp.on) scalePlayStop(true); if (drone.on) droneStop();
+  if (loop.on) loopStop(); if (metro.on) metroStop();
+  if (!(await micTimingStart())) return;
+  const m = state.metro, segs = tcSegs(state.tcCfg.plan), spb = 60 / m.bpm, beats = Math.max(2, m.beats), t0 = ac.currentTime + 0.4;
+  const clicks = []; segs.forEach(s => { if (s.on) for (let k = 0; k < s.bars * beats; k++) clicks.push({t:t0 + (s.bar * beats + k) * spb, acc:k % beats === 0}); });
+  micT.onsets = [];
+  tc = {spec:{t0, spb, beats, segs, what:state.tcCfg.what}, plan:state.tcCfg.plan, bpm:m.bpm, clicks, next:0, all:[], end:t0 + tcBars(segs) * beats * spb, began:Date.now(), seg:-1, timer:setInterval(tcTick, 30)};
+  requestWake(); tcTick(); render();
+}
+function tcTick(){
+  if (!tc || !ac) return;
+  const now = ac.currentTime, S = tc.spec;
+  while (tc.next < tc.clicks.length && tc.clicks[tc.next].t < now + 0.15) { const c = tc.clicks[tc.next++]; if (c.t > now - 0.02) playClick(c.acc ? 'acc' : 'beat', Math.max(now, c.t)); }
+  if (micT.onsets.length) { tc.all.push(...micT.onsets); micT.onsets = []; }
+  const bar = (now - S.t0) / (S.spb * S.beats), si = Math.max(0, S.segs.findIndex(s => bar < s.bar + s.bars));
+  if (si !== tc.seg && bar < tcBars(S.segs)) { tc.seg = si; tcPaint(); }
+  const el = $('#tcHeard'); if (el) el.textContent = `${tc.all.length} notes heard`;
+  if (now > tc.end + state.micCal.ms / 1000 + 0.35) tcEnd();
+}
+function tcSegText(){
+  const s = tc && tc.seg >= 0 ? tc.spec.segs[tc.seg] : null;
+  return !s || s.count ? ['Count-in', 'Come in on the next 1'] : s.on ? ['Click', 'Lock back in'] : ['Silence', `${s.bars} bar${s.bars > 1 ? 's' : ''}. Keep playing.`];
+}
+function tcPaint(){ const el = $('#tcNow'); if (!el || !tc) return; const [a, b] = tcSegText(); el.className = 'tcnow' + (a === 'Silence' ? ' quiet' : ''); el.innerHTML = `<b>${a}</b><span>${b}</span>`; }
+function tcEnd(cancel){
+  if (!tc) return;
+  const r = tc; tc = null; clearInterval(r.timer);
+  micTimingStop(); releaseWake();
+  if (!cancel) {
+    const x = analyzeTime(r.spec, r.all, state.micCal.ms / 1000); Object.assign(x, {bpm:r.bpm, what:r.spec.what, plan:r.plan, spec:r.spec});
+    tcLast = x;
+    if (x.ok) {
+      timeLog.push({ts:Date.now(), bpm:r.bpm, what:x.what, plan:r.plan, held:x.held, max:x.max, place:Math.round(x.place * 1000), spread:x.spread == null ? null : Math.round(x.spread * 1000), sil:x.silences.map(s => [s.bars, s.drift == null ? null : Math.round(s.drift * 1000)])});
+      saveTimeLog();
+      if (!(state.session && !state.session.done)) logEntry({kind:'time', key:'time', title:'Time Check', ms:Date.now() - r.began, bpm:null, clean:null});
+    }
+  }
+  render();
+}
+/* what to do next: the first silence that slipped, or the same thing slower, which is harder */
+function tcNext(x){
+  if (!x.ok) return null;
+  if (x.held < x.max) { const n = x.silences.map(s => s.bars).find(b => b > x.held) || x.max; return x.plan === String(n) ? (n > 1 ? {plan:String(n / 2), bpm:x.bpm, t:`Step back to ${n / 2}-bar silences`} : {plan:'1', bpm:x.bpm, t:'Again'}) : {plan:String(n), bpm:x.bpm, t:`Work on ${n}-bar silences`}; }
+  if (x.max < 8) return {plan:String(x.max * 2), bpm:x.bpm, t:`Move up to ${x.max * 2}-bar silences`};
+  return x.bpm > 50 ? {plan:x.plan, bpm:Math.max(40, x.bpm - 15), t:`Same again at ${Math.max(40, x.bpm - 15)} bpm (slower is harder)`} : {plan:x.plan, bpm:x.bpm, t:'Again'};
+}
+const msT = s => Math.abs(Math.round(s * 1000)) + ' ms';
+function tcPlot(x){
+  const W = 340, H = 170, S = x.spec, barT = S.spb * S.beats, T = tcBars(S.segs) * barT, t1 = S.segs[1].bar * barT;
+  const top = Math.max(60, Math.min(250, Math.ceil(Math.max(...x.notes.map(n => Math.abs(n.err * 1000))) / 20) * 20)), X = t => 34 + (t - t1) / (T - t1) * (W - 40), Y = ms => 14 + (H - 34) / 2 + Math.max(-top, Math.min(top, ms)) / top * (H - 34) / 2;
+  let g = S.segs.filter(s => !s.on).map(s => `<rect class="q" x="${X(s.bar * barT).toFixed(1)}" y="14" width="${(X((s.bar + s.bars) * barT) - X(s.bar * barT)).toFixed(1)}" height="${H - 34}"/><text x="${((X(s.bar * barT) + X((s.bar + s.bars) * barT)) / 2).toFixed(1)}" y="${H - 5}" text-anchor="middle">${s.bars}</text>`).join('');
+  g += `<line class="z" x1="34" x2="${W - 6}" y1="${Y(0)}" y2="${Y(0)}"/><text x="0" y="22">early</text><text x="0" y="${Y(0) + 4}">0</text><text x="0" y="${H - 22}">late</text>`;
+  g += x.notes.map(n => `<circle cx="${X(n.t).toFixed(1)}" cy="${Y(n.err * 1000).toFixed(1)}" r="2.6"><title>Bar ${Math.floor(n.t / barT)}, beat ${n.beat + 1}: ${msT(n.err)} ${n.err < 0 ? 'early' : 'late'}</title></circle>`).join('');
+  return `<svg class="tcplot" viewBox="0 0 ${W} ${H}" role="img" aria-label="Each note, early above the line and late below. Shaded: the silences, with their length in bars.">${g}</svg><small class="opt-note">Each dot is a note: early above the line, late below (edge = ${top} ms). Shaded parts had no click; the number is bars.</small>`;
+}
+function renderTimeCheck(){
+  const c = state.tcCfg, m = state.metro, M = state.micCal;
+  if (tc) { const [a, b] = tcSegText(); return `<div class="card"><div class="sess"><span class="rl" style="color:inherit;opacity:.7">Time Check · ${tc.bpm} bpm · ${TC_WHAT[tc.spec.what][0]}</span><div class="tcnow${a === 'Silence' ? ' quiet' : ''}" id="tcNow"><b>${a}</b><span>${b}</span></div><small id="tcHeard" style="opacity:.75">0 notes heard</small><div class="row"><button type="button" class="btn" data-act="tccancel">Stop</button></div></div></div>`; }
+  if (cal) return `<div class="card">${calPanel()}</div>`;
+  let res = '';
+  if (tcLast && !tcLast.ok) res = `<p class="mix-note warn" style="margin:0">${esc(tcLast.why)}</p>`;
+  else if (tcLast) {
+    const x = tcLast, nx = tcNext(x), rows = x.silences.map(s => `<div class="lrow"><span class="it"><b>${s.bars} bar${s.bars > 1 ? 's' : ''} of silence</b><small>${s.drift == null ? 'too few notes to tell' : Math.abs(s.drift) < 0.01 ? 'right with the click' : `${s.drift < 0 ? 'rushed' : 'dragged'}: played at about ${s.bpm.toFixed(1)} bpm`}</small></span><span class="lval">${s.drift == null ? '–' : `${Math.abs(s.drift) <= TC_HELD ? '✓ ' : '✕ '}<b>${msT(s.drift)}</b> ${s.drift < 0 ? 'early' : 'late'}`}</span></div>`).join('');
+    const pl = Math.abs(x.place) < 0.008 ? 'right on it' : `${msT(x.place)} ${x.place < 0 ? 'ahead of' : 'behind'} it`;
+    res = `<div class="tcres"><div class="tchead">${x.held ? `Held ${x.held} bar${x.held > 1 ? 's' : ''}` : 'Not held yet'}</div><span class="info">${x.bpm} bpm · ${TC_WHAT[x.what][0]} · held means you come back within 40 ms</span>
+      <div class="lstats"><span><b>${x.spread == null ? '–' : '±' + Math.round(x.spread * 1000) + ' ms'}</b><small>note to note</small></span><span><b>${pl}</b><small>where you sit on the click</small></span></div>
+      ${x.where ? `<p style="margin:0">Where it slips: <b>${x.where.name}</b> ${x.where.name.startsWith('the notes') ? 'land' : 'lands'} ${msT(x.where.ms)} ${x.where.ms < 0 ? 'early' : 'late'} against the notes around it.</p>` : ''}
+      <div class="lrows">${rows}</div>${tcPlot(x)}
+      ${M && M.self ? '' : '<small class="opt-note">“Where you sit” is measured from your own calibration, so a habit of playing early or late is partly hidden. Recalibrate with “Let it listen to itself” for a true reading.</small>'}
+      <div class="row"><button type="button" class="btn primary big-btn" data-act="tcnext">▶ ${nx.t}</button></div></div>`;
+  }
+  const hist = timeLog.slice(-8).reverse().map(e => `<div class="lrow"><span class="it"><b>${e.held ? `Held ${e.held} bar${e.held > 1 ? 's' : ''}` : 'Not held'}${e.held < e.max ? ` of ${e.max}` : ''}</b><small>${e.bpm} bpm · ${(TC_WHAT[e.what] || ['?'])[0]} · ${new Date(e.ts).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</small></span><span class="lval">${e.spread == null ? '' : `±<b>${e.spread}</b> ms`}</span></div>`).join('');
+  const len = Math.round(tcBars(tcSegs(c.plan)) * Math.max(2, m.beats) * 60 / m.bpm);
+  return `<div class="card"><div class="row" style="justify-content:space-between"><b>Time Check</b><span class="info">The click disappears. Keep going.</span></div>
+    ${res}
+    ${micT.err ? `<p class="mix-note warn" style="margin:0">${esc(micT.err)}</p>` : ''}
+    <div class="row"><span class="rl">Silences</span><div class="seg wrapseg">${['grow', '1', '2', '4', '8'].map(k => `<button type="button" data-act="tcplan" data-v="${k}" aria-pressed="${c.plan === k}">${TC_PLANS[k]}</button>`).join('')}</div></div>
+    <div class="row"><span class="rl">What you play</span>${Object.entries(TC_WHAT).map(([k, [t]]) => `<button type="button" class="chip${c.what === k ? ' sel' : ''}" data-act="tcwhat" data-v="${k}" aria-pressed="${c.what === k}">${t}</button>`).join('')}</div>
+    <div class="row"><span class="rl">Tempo</span><button type="button" class="ib" data-act="mbpm" data-v="-5">−5</button><span class="val"><span data-bpm-out>${m.bpm}</span> bpm</span><button type="button" class="ib" data-act="mbpm" data-v="5">+5</button><span class="info">about ${fmt(len * 1000)}</span></div>
+    <div class="row"><button type="button" class="btn${tcLast && tcLast.ok ? '' : ' primary'} big-btn" data-act="tcstart"${M ? '' : ' disabled'}>▶ Start round</button></div>
+    ${M ? `<span class="opt-note">Single notes or muted stabs, not ringing chords. Wired headphones or the speaker; Bluetooth delay varies too much.</span>` : '<span class="opt-note"><b>Calibrate first</b>, so your phone’s audio delay isn’t counted as your timing.</span>'}
+    <div class="row"><span class="opt-note">${M ? `Calibrated${M.self ? ' by listening to itself' : ' by you playing along'}: ${Math.abs(M.ms)} ms (±${M.sd}).` : ''}</span><button type="button" class="btn${M ? '' : ' primary'}" data-act="calself">Let it listen to itself</button><button type="button" class="btn" data-act="calstart">Calibrate by playing</button></div>
+    <span class="opt-note">Listening to itself is the more accurate of the two: use the speaker, volume up, hands off. It can’t hear its own clicks through headphones.</span>
+    ${hist ? `<div class="metro-opts"><b>Recent rounds</b><div class="lrows">${hist}</div></div>` : ''}</div>`;
+}
+function calPanel(){
+  return `<div class="sess"><span class="rl" style="color:inherit;opacity:.7">Calibrating mic timing</span>
+    ${cal.done ? `<span class="timeup">${esc(cal.msg)}</span><div class="row"><button type="button" class="btn primary" data-act="${cal.self ? 'calself' : 'calstart'}">Try again</button><button type="button" class="btn" data-act="calcancel">Cancel</button></div>`
+      : `<b style="font-size:18px">${cal.self ? 'Hands off: it’s listening to its own clicks' : 'Play a muted string on every click'}</b><small style="opacity:.75">${cal.self ? 'Speaker on, volume up, quiet room.' : 'One bar to get ready, then 12 clicks. Hold the phone near the guitar.'}</small><span class="time calprog" style="font-size:28px">0 of 12 clicks</span><div class="row"><button type="button" class="btn" data-act="calcancel">Cancel</button></div>`}</div>`;
+}
+
+/* ================= Takes: record yourself, keep it, listen back ================= */
+state.tkCfg = Object.assign({over:'loop', mix:false}, state.tkCfg || {});
+let takes = [], rec = null, recBusy = false, takeDb = null, takeArmed = null, takePlay = null;      // takePlay: {id, queue}
+const takeAudio = new Audio(); let takeUrl = null;
+function takeStore(){
+  if (!takeDb) takeDb = new Promise((res, rej) => { try { const q = indexedDB.open('fretboard-atlas-takes', 1); q.onupgradeneeded = () => { q.result.createObjectStore('meta', {keyPath:'id'}); q.result.createObjectStore('blob'); }; q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); } catch (e) { rej(e); } });
+  return takeDb;
+}
+async function takeTx(fn, mode){
+  const db = await takeStore();
+  return new Promise((res, rej) => { const t = db.transaction(['meta', 'blob'], mode || 'readonly'); let out; t.oncomplete = () => res(out && out.result); t.onerror = t.onabort = () => rej(t.error); out = fn(t.objectStore('meta'), t.objectStore('blob')); });
+}
+async function takesLoad(){ try { takes = (await takeTx(m => m.getAll())) || []; if (state.tab === 'practice' && (state.ptab === 'takes' || state.ptab === 'all')) render(); } catch (e) { } }
+function takeMime(){ return typeof MediaRecorder === 'undefined' ? null : ['audio/mp4;codecs=mp4a.40.2', 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find(t => MediaRecorder.isTypeSupported(t)) || ''; }
+async function takeStart(){
+  if (rec || recBusy) return;
+  const mime = takeMime(), c = state.tkCfg;
+  if (mime == null) { toast('This browser can’t record audio.'); return; }
+  if (c.over === 'loop' && !loop.on && !backingChords().length) { toast('The loop is empty. Set one up in Play along, or record with a click.'); return; }
+  const song = (($('#tkName') && $('#tkName').value.trim()) || '').slice(0, 60); c.name = song;
+  if (tt) ttEnd(true); if (tc) tcEnd(true); if (tuner.on) tunerStop(); takeStopPlay();
+  recBusy = true; let r;
+  try { r = await openMic(); } finally { recBusy = false; }
+  if (!r.stream) { state.tkErr = r.err; render(); return; }
+  state.tkErr = '';
+  try {
+    const a = await audioForMic(r.stream), R = {stream:r.stream, chunks:[], nodes:[], mime, owned:null};
+    let out = r.stream;
+    if (c.mix) {       // the mic arrives late, so the backing is held back by the same delay
+      const dest = a.createMediaStreamDestination(), src = a.createMediaStreamSource(r.stream), d = a.createDelay(1);
+      d.delayTime.value = Math.max(0, Math.min(0.9, (state.micCal ? state.micCal.ms : 0) / 1000));
+      src.connect(dest); bus.connect(d); d.connect(dest); R.nodes = [src, d]; R.bus = bus; out = dest.stream;
+    }
+    R.mr = new MediaRecorder(out, Object.assign({audioBitsPerSecond:128000}, mime ? {mimeType:mime} : {}));
+    R.mr.ondataavailable = e => { if (e.data && e.data.size) R.chunks.push(e.data); };
+    R.mr.onstop = () => takeSave(R);
+    R.mr.onerror = () => takeStop();
+    r.stream.getAudioTracks().forEach(t => { t.onended = () => { if (rec === R) takeStop(); }; });
+    R.mr.start(1000); R.t0 = Date.now(); rec = R;
+    if (c.over === 'loop') { if (!loop.on) { const had = metro.on; loopStart(true); R.owned = had ? 'loop' : 'both'; } R.song = song || loop.chords.slice(0, 8).map(x => x.name).join(' ') + (loop.chords.length > 8 ? ' …' : ''); }
+    else if (c.over === 'click') { if (!metro.on) { metroStart(); R.owned = 'metro'; } R.song = song || 'Over a click'; }
+    else R.song = song || 'Free take';
+    R.bpm = c.over === 'none' ? null : state.metro.bpm;
+  } catch (e) { if (rec) takeStop(); else closeMic(r.stream); state.tkErr = 'The recording could not start. Try again, or reload the page.'; }
+  requestWake(); render();
+}
+function takeStop(){
+  if (!rec) return;
+  const R = rec; rec = null; R.ms = Date.now() - R.t0;
+  if (R.owned === 'both' || R.owned === 'loop') { if (loop.on) loopStop(); } else if (R.owned === 'metro' && metro.on) metroStop();
+  try { if (R.mr.state !== 'inactive') R.mr.stop(); else takeSave(R); } catch (e) { takeSave(R); }
+  releaseWake(); render();
+}
+async function takeSave(R){
+  if (R.saved) return; R.saved = true; if (rec === R) { rec = null; R.ms = Date.now() - R.t0; }
+  try { if (R.bus) R.bus.disconnect(R.nodes[1]); R.nodes.forEach(n => n.disconnect()); } catch (e) {}
+  closeMic(R.stream);
+  const blob = new Blob(R.chunks, {type:(R.mr.mimeType || R.mime || 'audio/webm').split(';')[0]});
+  if (R.ms < 1000 || !blob.size) { toast('Too short to keep.'); render(); return; }
+  const meta = {id:Date.now(), ts:R.t0, ms:R.ms, song:R.song || 'Free take', bpm:R.bpm || null, star:false, size:blob.size, mime:blob.type};
+  try { await takeTx((m, b) => { m.put(meta); b.put(blob, meta.id); }, 'readwrite'); takes.push(meta); toast('Take saved'); }
+  catch (e) { meta.mem = blob; takes.push(meta); toast('This browser would not store the take. Download it before closing the page.'); }
+  if (R.ms >= 20000 && !(state.session && !state.session.done)) logEntry({kind:'take', key:'take|' + meta.song.toLowerCase(), title:'Take: ' + meta.song, ms:R.ms, bpm:null, clean:null});
+  render();
+}
+const takeBlob = async t => t.mem || takeTx((m, b) => b.get(t.id));
+function takeStopPlay(){ takeAudio.pause(); takePlay = null; if (takeUrl) { URL.revokeObjectURL(takeUrl); takeUrl = null; } }
+async function takePlayId(id, queue){
+  takeStopPlay();
+  const t = takes.find(x => x.id === id); if (!t) return;
+  if (loop.on) loopStop(); if (metro.on) metroStop(); if (drone.on) droneStop();
+  let bl = null; try { bl = await takeBlob(t); } catch (e) {}
+  if (!bl) { toast('That recording is no longer in this browser.'); return; }
+  takePlay = {id, queue:queue || []}; takeUrl = URL.createObjectURL(bl); takeAudio.src = takeUrl;
+  try { await takeAudio.play(); } catch (e) { if (takePlay && takePlay.id === id) { takeStopPlay(); toast('Tap play again.'); } }
+  render();
+}
+takeAudio.addEventListener('ended', () => { const q = takePlay ? takePlay.queue : []; if (q.length) takePlayId(q[0], q.slice(1)); else { takeStopPlay(); render(); } });
+setInterval(() => {
+  if (rec) document.querySelectorAll('[data-rec-time]').forEach(el => { el.textContent = fmt(Date.now() - rec.t0); });
+  if (takePlay) { const el = document.querySelector(`[data-tk-time="${takePlay.id}"]`); if (el) el.textContent = fmt(takeAudio.currentTime * 1000); }
+}, 250);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { if (tc) tcEnd(true); if (rec) { takeStop(); toast('Recording stopped when the app went to the background. The take is saved.'); } } });
+async function takeShare(t){
+  let bl = null; try { bl = await takeBlob(t); } catch (e) {}
+  if (!bl) { toast('That recording is no longer in this browser.'); return; }
+  const d = new Date(t.ts), ext = /mp4/.test(t.mime) ? 'm4a' : /ogg/.test(t.mime) ? 'ogg' : 'webm', name = `${t.song.replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 50) || 'take'} ${dayKey(t.ts)} ${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.${ext}`;
+  const file = new File([bl], name, {type:t.mime});
+  if (matchMedia('(pointer: coarse)').matches && navigator.canShare && navigator.canShare({files:[file]})) { try { await navigator.share({files:[file]}); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  const u = URL.createObjectURL(bl), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000);
+}
+async function takeMeta(t){ if (!t.mem) try { await takeTx(m => { m.put(t); }, 'readwrite'); } catch (e) {} }
+async function takeDelete(id){
+  if (takePlay && takePlay.id === id) takeStopPlay();
+  takes = takes.filter(x => x.id !== id); render();
+  try { await takeTx((m, b) => { m.delete(id); b.delete(id); }, 'readwrite'); } catch (e) {}
+}
+function renderTakes(){
+  const c = state.tkCfg, groups = {};
+  takes.slice().sort((a, b) => b.ts - a.ts).forEach(t => { (groups[t.song] = groups[t.song] || []).push(t); });
+  const ch = backingChords(), list = Object.entries(groups).map(([song, g]) => `<div class="tkgrp"><div class="row" style="justify-content:space-between"><b>${esc(song)}</b>${g.length > 1 ? `<button type="button" class="btn" data-act="tkcompare" data-id="${g[0].id}">▶ First, then latest</button>` : ''}</div>
+    <div class="lrows">${g.map(t => { const on = takePlay && takePlay.id === t.id; return `<div class="lrow tkrow${on ? ' on' : ''}"><button type="button" class="ib" data-act="tkplay" data-id="${t.id}" aria-label="${on ? 'Stop' : 'Play'} take">${on ? '■' : '▶'}</button><span class="it"><b>${new Date(t.ts).toLocaleString(undefined, {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'})}</b><small>${on ? `<span data-tk-time="${t.id}">${fmt(takeAudio.currentTime * 1000)}</span> of ` : ''}${fmt(t.ms)}${t.bpm ? ` · ${t.bpm} bpm` : ''}</small></span><span class="tkacts"><button type="button" class="ib" data-act="tkstar" data-id="${t.id}" aria-pressed="${!!t.star}" aria-label="Best take">${t.star ? '★' : '☆'}</button><button type="button" class="ib" data-act="tkshare" data-id="${t.id}" aria-label="Share or download">⤓</button><button type="button" class="ib" data-act="tkdel" data-id="${t.id}" aria-label="Delete take">${takeArmed === t.id ? 'Sure?' : '✕'}</button></span></div>`; }).join('')}</div></div>`).join('');
+  const mb = takes.reduce((a, t) => a + (t.size || 0), 0) / 1048576;
+  return `<div class="card"><div class="row" style="justify-content:space-between"><b>Takes</b><span class="info">${takes.length ? `${takes.length} kept · ${mb < 0.1 ? '<0.1' : mb.toFixed(1)} MB` : 'Record, then listen back'}</span></div>
+    ${rec ? `<div class="sess"><span class="rl" style="color:inherit;opacity:.7"><span class="recdot"></span> Recording · ${esc(rec.song || '')}</span><span class="time" data-rec-time>${fmt(Date.now() - rec.t0)}</span><div class="row"><button type="button" class="btn primary big-btn" data-act="tkstop">■ Stop and keep</button></div></div>`
+    : `<div class="row"><span class="rl">Over</span><div class="seg">${[['loop', 'My loop'], ['click', 'A click'], ['none', 'Nothing']].map(([k, t]) => `<button type="button" data-act="tkover" data-v="${k}" aria-pressed="${c.over === k}">${t}</button>`).join('')}</div></div>
+      ${c.over === 'loop' ? `<span class="opt-note">${ch.length ? `${ch.slice(0, 8).map(x => esc(x.name)).join(' → ')}${ch.length > 8 ? ' …' : ''} at ${state.metro.bpm} bpm, after a one-bar count-in. Change it in Play along or the Looper.` : 'The loop is empty. Set one up in Play along or the Looper.'}</span>` : ''}
+      ${c.over !== 'none' ? `<div class="row"><label class="chk"><input type="checkbox" id="tkMix" data-act="tkmix"${c.mix ? ' checked' : ''}> Add the ${c.over === 'loop' ? 'loop' : 'click'} to the recording</label><span class="opt-note">Turn on with headphones. On the speaker, the mic already hears it.${c.mix && !state.micCal ? ' Calibrate in Time first, or you will sound late against it.' : ''}</span></div>` : ''}
+      <div class="row"><input type="text" class="task-in" id="tkName" maxlength="60" value="${esc($('#tkName') ? $('#tkName').value : c.name || '')}" placeholder="Name (optional): takes with the same name are kept together" aria-label="Name for this take"></div>
+      ${state.tkErr ? `<p class="mix-note warn" style="margin:0">${esc(state.tkErr)}</p>` : ''}
+      <div class="row"><button type="button" class="btn primary big-btn" data-act="tkrec"><span class="recdot"></span> Record</button></div>`}
+    ${list || '<p class="opt-note" style="margin:0">One take today, one of the same thing in two weeks. Listening to both tells you more than any score.</p>'}
+    ${takes.length ? '<span class="opt-note">Takes live in this browser only. Use ⤓ to keep a copy anywhere else.</span>' : ''}</div>`;
+}
+function handleTime(act, b){
+  const v = b.dataset.v, id = +b.dataset.id, t = takes.find(x => x.id === id);
+  switch (act) {
+    case 'tcplan': state.tcCfg.plan = v; break;
+    case 'tcwhat': state.tcCfg.what = v; break;
+    case 'tcstart': case 'tcnext': {
+      if (rec) { toast('Stop the recording first.'); return true; }
+      const n = act === 'tcnext' && tcLast && tcNext(tcLast); if (n) { state.tcCfg.plan = n.plan; setBpm(n.bpm); }
+      if (state.ptab !== 'all') state.ptab = 'time'; tcStart(); return true;
+    }
+    case 'tccancel': tcEnd(true); return true;
+    case 'tkover': state.tkCfg.over = v; break;
+    case 'tkrec': takeStart(); return true;
+    case 'tkstop': takeStop(); return true;
+    case 'tkplay': if (takePlay && takePlay.id === id) { takeStopPlay(); break; } if (rec) { toast('Stop the recording first.'); return true; } takePlayId(id); return true;
+    case 'tkcompare': { if (rec) { toast('Stop the recording first.'); return true; } const g = takes.filter(x => t && x.song === t.song).sort((x, y) => x.ts - y.ts); if (g.length > 1) takePlayId(g[0].id, [g[g.length - 1].id]); return true; }
+    case 'tkstar': if (t) { t.star = !t.star; takeMeta(t); } break;
+    case 'tkshare': if (t) takeShare(t); return true;
+    case 'tkdel': if (takeArmed !== id) { takeArmed = id; setTimeout(() => { if (takeArmed === id) { takeArmed = null; if (state.tab === 'practice') render(); } }, 3000); break; } takeArmed = null; takeDelete(id); return true;
+    default: return false;
+  }
+  render(); return true;
+}
+takesLoad();
 
 /* ================= practice: lesson & session ================= */
 const rnd = a => a[Math.floor(Math.random() * a.length)];
@@ -4260,9 +4592,11 @@ function renderStrip(){
   const el = $('#strip'), s = state.session, items = state.lesson.items;
   const live = s && !s.done && items[s.idx];
   const pv = pvOn();        // practice view has its own timer and metronome, so the strip only carries the rest
-  el.hidden = !((!pv && (live || metro.on)) || quiz || drone.on || heatOn || tt || tuner.on || (pv && loop.on));
+  el.hidden = !((!pv && (live || metro.on)) || quiz || drone.on || heatOn || tt || tc || rec || tuner.on || (pv && loop.on));
   if (el.hidden) { el.innerHTML = ''; return; }
   let h = '';
+  if (rec) h += `<span class="st-item"><b><span class="recdot"></span> Recording</b><small data-rec-time>${fmt(Date.now() - rec.t0)}</small></span><button type="button" class="ib" data-act="tkstop">■ Stop and keep</button>`;
+  if (tc) h += `<span class="st-item"><b>Time Check</b></span><button type="button" class="ib" data-act="tccancel">■ Stop</button>`;
   if (tt) h += `<div class="qrow"><span class="st-item"><small>Tempo test</small><b>${tt.bpm} bpm</b><small>${tt.streak}/${state.ttCfg.need} clean</small></span>
     <button type="button" class="ib tt-ok" data-act="ttclean">✓ Clean</button><button type="button" class="ib tt-bad" data-act="ttslip">✕ Slipped</button><button type="button" class="ib" data-act="ttend">Finish</button></div>`;
   if (tuner.on) h += `<span class="st-item"><b>Tuner on</b><small>${tuner.reading ? pn(noteName(mod(tuner.reading.midi))) + ' ' + (tuner.reading.cents > 0 ? '+' : '') + tuner.reading.cents + '¢' : 'listening'}</small></span><button type="button" class="ib" data-act="tunstop">■ Mic off</button>`;
@@ -4280,7 +4614,7 @@ function renderStrip(){
       <button type="button" class="ib" data-act="sessnext">${s.idx === items.length - 1 ? 'Finish' : 'Next'}</button>
       <button type="button" class="ib" data-act="pvopen">Practice view</button>`;
   }
-  if (!pv) h += `<span class="st-metro"><span class="beats">${Array.from({length:state.metro.beats}, () => '<i></i>').join('')}</span>
+  if (!pv && !tc) h += `<span class="st-metro"><span class="beats">${Array.from({length:state.metro.beats}, () => '<i></i>').join('')}</span>
     <button type="button" class="ib" data-act="mtoggle" aria-label="${metro.on ? 'Stop' : 'Start'} metronome">${metro.on ? '■' : '▶'} <span data-bpm-out>${state.metro.bpm}</span> bpm</button></span>`;
   el.innerHTML = h;
 }
@@ -4542,9 +4876,7 @@ function renderPractice(){
           return `<div class="passrep"><span><b>${lp.clean ? '✓ Clean' : '✕ Slipped'}</b> · ${lp.hits}/${lp.total} notes${lp.extras ? ` · ${lp.extras} extra` : ''}${lp.hits ? ` · ${Math.abs(Math.round(lp.mean * 1000))} ms ${lp.mean >= 0 ? 'late' : 'early'} on average · spread ±${Math.round(lp.sd * 1000)} ms` : ''}</span>
             <span class="tline" title="Each dot is a note: above the line is early, below is late; red marks a missed click">${marks}</span></div>`;
         })() : `<small style="opacity:.75">Play the exercise once through, then tap how it went. ${tc.need} clean in a row raises the tempo by ${tc.step}; ${tc.slips} slips at one tempo end the test.</small>`}</div>`
-      : cal ? `<div class="sess"><span class="rl" style="color:inherit;opacity:.7">Calibrating mic timing</span>
-          ${cal.done ? `<span class="timeup">${esc(cal.msg)}</span><div class="row"><button type="button" class="btn primary" data-act="calstart">Try again</button><button type="button" class="btn" data-act="calcancel">Cancel</button></div>`
-            : `<b style="font-size:18px">Play a muted string on every click</b><small style="opacity:.75">One bar to get ready, then 12 clicks. Hold the phone near the guitar.</small><span class="time" id="calProg" style="font-size:28px">0 of 12 clicks</span><div class="row"><button type="button" class="btn" data-act="calcancel">Cancel</button></div>`}</div>`
+      : cal ? calPanel()
       : `<div class="row"><span class="rl">Who judges each pass</span><div class="seg">
           <button type="button" data-act="ttjudge" data-v="me" aria-pressed="${tc.judge !== 'mic'}">I do (tap)</button>
           <button type="button" data-act="ttjudge" data-v="mic" aria-pressed="${tc.judge === 'mic'}">Mic (timing)</button></div></div>
@@ -4562,12 +4894,12 @@ function renderPractice(){
         ${state.ttLast ? `<div class="info qres">Last test: <b>${esc(state.ttLast.title)}</b> · ${state.ttLast.best ? `clean at <b>${state.ttLast.best} bpm</b>` : 'no clean tempo'} · ${state.ttLast.passes} passes</div>` : ''}`}
   </div>`;
   // sections, so one thing at a time fills the screen; "All" is the old everything-at-once page for big screens
-  const PT = [['lesson', 'Lesson', s && !s.done], ['learn', 'Learn', !!guide], ['metro', 'Metronome', metro.on || !!tt], ['play', 'Play along', loop.on || drone.on], ['quiz', 'Quiz', !!quiz && quiz.mode !== 'session'], ['tuner', 'Tuner', tuner.on], ['log', 'Progress', false], ['all', 'All', false]];
+  const PT = [['lesson', 'Lesson', s && !s.done], ['learn', 'Learn', !!guide], ['metro', 'Metronome', metro.on || !!tt], ['time', 'Time', tcOn()], ['play', 'Play along', loop.on || drone.on], ['takes', 'Takes', !!rec], ['quiz', 'Quiz', !!quiz && quiz.mode !== 'session'], ['tuner', 'Tuner', tuner.on], ['log', 'Progress', false], ['all', 'All', false]];
   const pt = PT.some(p => p[0] === state.ptab) ? state.ptab : 'lesson';
   const nav = `<div class="ptabs" role="tablist" aria-label="Practice sections">${PT.map(([v, t, live]) => `<button type="button" role="tab" data-act="ptab" data-v="${v}" aria-selected="${pt === v}">${t}${live ? '<i class="live" title="Running"></i>' : ''}</button>`).join('')}</div>`;
   if (pt === 'learn') return `${guide ? '' : nav}<div class="practice one"><div class="pcol">${renderLearn()}</div></div>`;
-  if (pt === 'all') return `${nav}<div class="practice"><div class="pcol">${metroCard}${ttCard}${tunerCard}${playCard}${quizCard}</div><div class="pcol">${lessonCard}${weakCard}${revCard}${logCard}</div></div>`;
-  const body = {lesson:[lessonCard], metro:[metroCard, ttCard], play:[playCard], quiz:[quizCard, weakCard], tuner:[tunerCard], log:[revCard, logCard]}[pt];
+  if (pt === 'all') return `${nav}<div class="practice"><div class="pcol">${metroCard}${ttCard}${renderTimeCheck()}${tunerCard}${playCard}${renderTakes()}${quizCard}</div><div class="pcol">${lessonCard}${weakCard}${revCard}${logCard}</div></div>`;
+  const body = {lesson:[lessonCard], metro:[metroCard, ttCard], time:pt === 'time' ? [renderTimeCheck()] : [], takes:pt === 'takes' ? [renderTakes()] : [], play:[playCard], quiz:[quizCard, weakCard], tuner:[tunerCard], log:[revCard, logCard]}[pt];
   return `${nav}<div class="practice ${body.length > 1 ? 'two' : 'one'}">${body.map(c => `<div class="pcol">${c}</div>`).join('')}</div>`;
 }
 function handlePractice(act, b){
@@ -4575,7 +4907,10 @@ function handlePractice(act, b){
   const it = b.dataset.id ? items.find(x => x.id === +b.dataset.id) : null;
   // starting something whose card is in another section opens that section
   if (act[0] === 'g' && handleGuide(act, b)) return true;
-  const goTo = {calstart:'metro', ttstart:'metro', qstart:'quiz', wdrill:'quiz', tunstart:'tuner'}[act];
+  if ((act[0] === 't' && (act[1] === 'c' || act[1] === 'k')) && handleTime(act, b)) return true;
+  if (tc && ['ttstart', 'calstart', 'calself', 'tunstart', 'bstart', 'dstart', 'mtoggle', 'qstart', 'wdrill', 'sessstart', 'sessnext', 'sessprev', 'todaygo', 'todaystart'].includes(act)) tcEnd(true);
+  if (rec && ['ttstart', 'calstart', 'calself', 'tunstart', 'tcstart'].includes(act)) { toast('Stop the recording first.'); return true; }
+  const goTo = {calstart:state.ptab === 'time' ? 'time' : 'metro', calself:'time', ttstart:'metro', qstart:'quiz', wdrill:'quiz', tunstart:'tuner'}[act];
   if (goTo && state.ptab !== 'all') state.ptab = goTo;
   switch (act) {
     case 'ptab': state.ptab = v; render(); return true;
@@ -4605,9 +4940,9 @@ function handlePractice(act, b){
     case 'ttjudge': state.ttCfg.judge = v; render(); return true;
     case 'ttstrict': state.ttCfg.strict = v; render(); return true;
     case 'ttbars': state.ttCfg.bars = Math.max(1, Math.min(8, (state.ttCfg.bars || 2) + +v)); render(); return true;
-    case 'calstart':
+    case 'calstart': case 'calself':
       if (state.tab !== 'practice') { state.tab = 'practice'; const m = $('#menu'); if (m) m.open = false; }
-      calStart(); return true;
+      calStart(act === 'calself'); return true;
     case 'calcancel': if (cal) { metroStop(); Object.assign(state.metro, cal.saved); setBpm(cal.saved.bpm); micTimingStop(); cal = null; } render(); return true;
     case 'ttend': ttEnd(); return true;
     case 'ttcancel': ttEnd(true); toast('Tempo test cancelled, nothing logged'); return true;
@@ -4899,7 +5234,7 @@ if (state.guideBack) guideRestore();      // the page closed in the middle of a 
 // small read-only hook for automated tests and the browser console
 window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
-  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
+  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
   micHelp, micSessionStart, micSessionEnd, openMic, get micUsers(){ return micUsers; }, get audioCtx(){ return ac; },
   detectPitch, tunerFeed, get tuner(){ return tuner; }, get tt(){ return tt; },
@@ -4917,6 +5252,7 @@ function render(){
   renderStrip();
   pvFollow();
   panel.innerHTML = state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'practice' ? renderPractice() : renderLayers();
+  { const r = panel.querySelector('.ptabs'), b = r && r.querySelector('[aria-selected="true"]'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - r.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; }     // keep the open section in sight
   tunerPaint();
   tickUI();
   save();
@@ -5254,6 +5590,7 @@ panel.addEventListener('change', e => {
   else if (act === 'maccent') state.metro.accent = el.checked;
   else if (act === 'bkey') { state.backing.key = +el.value; refreshLoop(); }
   else if (act === 'bprog') { state.backing.prog = +el.value; refreshLoop(); }
+  else if (act === 'tkmix') state.tkCfg.mix = el.checked;
   else if (act === 'bdrums') state.backing.drums = el.checked;
   else if (act === 'bclick') state.backing.click = el.checked;
   else if (act === 'bfollow') state.backing.follow = el.checked;
