@@ -276,6 +276,61 @@ body{display:flex; flex-direction:column}
 .ptabs .live{width:7px; height:7px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 2px color-mix(in srgb, var(--ok) 30%, transparent)}
 .practice.one{display:block; max-width:860px}
 .practice.one > .pcol{display:grid; grid-template-columns:minmax(0, 1fr); gap:12px}
+/* Today, review levels, practice view */
+.card.today{border-color:color-mix(in srgb, var(--accent) 55%, var(--line))}
+.why2{font-style:normal; font-weight:700; color:var(--accent)}
+.lvl{display:inline-flex; gap:3px; flex:none}
+.lvl i{width:7px; height:7px; border-radius:50%; background:var(--line)}
+.lvl i.on{background:var(--ok)}
+.pview{background:var(--sel-bg); color:var(--sel-ink); border-radius:14px; padding:14px; display:grid; grid-template-columns:minmax(0, 1fr); gap:12px; margin-top:4px}
+.pv-top{display:flex; justify-content:space-between; align-items:center; gap:12px; min-width:0}
+.pv-t{display:grid; min-width:0}
+.pv-t b{font-size:24px; line-height:1.15; overflow-wrap:anywhere}
+.pv-t small{opacity:.75}
+.pv-time{font-size:44px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; font-variation-settings:'wdth' 80; flex:none}
+.pv-time.up{color:var(--l0)}
+.pv-rates{display:flex; gap:6px}
+.pv-r, .pv-b, .pv-s{border:1px solid color-mix(in srgb, var(--sel-ink) 35%, transparent); background:transparent; color:inherit; border-radius:12px; font-weight:700}
+.pv-r{flex:1 1 0; min-height:44px; padding:0 10px}
+.pv-r[aria-pressed="true"]{color:#fff; border-color:transparent; background:var(--ok)}
+.pv-r.again[aria-pressed="true"]{background:var(--bad)}
+.pv-btns{display:flex; gap:8px}
+.pv-b{min-height:60px; min-width:60px; font-size:17px; padding:0 14px}
+.pv-b.main{flex:1 1 0}
+.pv-b.main:last-child{background:var(--sel-ink); color:var(--sel-bg)}
+.pv-b:disabled{opacity:.35}
+.pv-tools{display:flex; flex-wrap:wrap; gap:5px}
+.pv-s{min-height:44px; min-width:38px; padding:0 6px; font-size:13px; flex:1 1 auto}
+.pv-next{opacity:.75}
+.pv-sum{display:grid; grid-template-columns:minmax(0, 1fr); gap:10px}
+.pv-h{font-size:24px}
+.pv-note{opacity:.75; font-size:13px}
+.pv-list{display:grid; gap:8px}
+.pv-rep{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px 12px; border-top:1px solid color-mix(in srgb, var(--sel-ink) 20%, transparent); padding-top:8px}
+.pv-rep > span:first-child{display:grid; min-width:0; flex:1 1 170px; overflow-wrap:anywhere}
+.pv-rep small{opacity:.7}
+.pv-rep .pv-rates{flex:1 1 180px; max-width:280px}
+.pv-rep .pv-r{min-height:38px}
+body.pv .menus, body.pv .rotate-hint, body.pv #neckHide, body.pv #menusOpen, body.pv .neck-bar{display:none !important}
+body.pv-done .neck-wrap{display:none !important}
+@media (orientation: landscape) and (max-height: 520px){
+  body.pv .neck-wrap{bottom:calc(74px + env(safe-area-inset-bottom, 0px)); padding-bottom:2px}
+  body.pv .legend{padding-right:8px}
+  body.pv .neck-wrap:has(.qrow) .legend{display:none}
+  body.pv .pview{position:fixed; z-index:2; left:0; right:0; bottom:0; height:calc(74px + env(safe-area-inset-bottom, 0px)); margin:0; border-radius:0; grid-template-columns:minmax(0, 1fr) auto auto auto; align-items:center; gap:10px;
+    padding:6px max(10px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left))}
+  body.pv .pview .bar-track{position:absolute; left:0; right:0; top:0; height:3px; border-radius:0}
+  .pview .pv-t b{font-size:16px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .pview .pv-t small{font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .pview .pv-time{font-size:28px}
+  .pview .pv-b{min-height:52px; min-width:76px; font-size:15px; padding:0 10px}
+  .pview .pv-b.prev, .pview .pv-tools .bpm, .pview .pv-tools .pl, .pview .pv-tools .cl, .pview > .pv-next{display:none}
+  .pview > .pv-rates{gap:4px}
+  .pview > .pv-rates .pv-r{min-height:52px; padding:0 8px; font-size:13px}
+  .pview .pv-tools{flex-wrap:nowrap; flex-direction:column; gap:3px}
+  .pview .pv-tools .pv-s{min-height:27px; font-size:12px; padding:0 8px; border-radius:8px}
+  body.pv-done .pview{inset:0; height:auto; overflow-y:auto; display:block; padding-top:14px}
+}
 /* lesson ingredient groups */
 .ing-grps{display:grid; grid-template-columns:minmax(0, 1fr); gap:6px; margin:-2px 0 6px}
 .ing-grp{border:1px solid var(--line); border-radius:10px; background:var(--surface)}
@@ -583,6 +638,8 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
   </div>
 </div>
 
+<section class="pview" id="pview" aria-label="Practice view" hidden></section>
+
 <aside class="menus" id="menus" aria-label="Menus">
   <div class="side-head">
     <b>Menus</b>
@@ -609,6 +666,7 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
       <button type="button" data-color="layer">By layer</button>
     </div>
   </div>
+  <span id="todayBtnWrap"><button type="button" class="btn primary" id="todayBtn" data-act="todaygo">▶ Today</button></span>
   <button type="button" class="sound-btn" id="soundBtn" aria-label="Sound" title="Sound on or off">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16 9.5a3.5 3.5 0 0 1 0 5M18.5 7a7 7 0 0 1 0 10"/><path class="off" d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></svg>
   </button>
@@ -1331,6 +1389,7 @@ const tuningSel = $('#setTuning');
 tuningSel.innerHTML = Object.entries(TUNINGS).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('');
 
 function renderToolbar(){
+  { const b = $('#todayBtn'), live = state.session && !state.session.done; b.dataset.act = live ? 'pvopen' : 'todaygo'; b.textContent = live ? '▶ Practice view' : '▶ Today'; b.title = live ? 'Back to the lesson you are in' : 'Start a ' + (state.lesson.todayMin || 20) + ' minute session'; }
   const pick = state.tab === 'finder';
   document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.mode === 'pick') === pick)));
   document.querySelectorAll('#labelSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.label === state.labelMode)));
@@ -1346,7 +1405,7 @@ function renderToolbar(){
   $('#setSound').checked = state.sound;
   $('#soundBtn').setAttribute('aria-pressed', String(!!state.sound));
   // collapsible neck
-  const hid = !!state.neckHidden && !landQ.matches;       // a sideways phone always shows the neck (the menus slide over it)
+  const hid = !!state.neckHidden && !landQ.matches && !pvOn();       // a sideways phone always shows the neck (the menus slide over it)
   applySide();
   neck.hidden = hid; $('#neckBar').hidden = !hid; $('.neck-wrap').classList.toggle('collapsed', hid);
   $('#neckBar').setAttribute('aria-expanded', 'false'); $('#neckHide').setAttribute('aria-expanded', 'true');
@@ -2523,6 +2582,7 @@ function quizEnd(silent){
   const r = quizResult(), fromLesson = quiz.mode === 'session';
   quiz = null;
   if (!fromLesson && r.n) logEntry({kind:'quiz', key:'quiz|' + r.type, title:QUIZ_TYPES[r.type].name, ms:r.secs * 1000, quiz:{acc:r.acc, n:r.n}});
+  if (!fromLesson && r.n >= 5) reviewGrade({kind:'quiz', quiz:r.type}, quizGrade(r));
   if (!fromLesson && r.n) {
     const key = r.type + '|' + r.length, best = state.quizBest[key];
     // timed runs: most questions answered wins; counted runs: best accuracy, then fastest
@@ -2904,6 +2964,185 @@ function logStats(){
 }
 const fmtMin = ms => { const m = Math.round(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; };
 const ago = ts => { const d = Math.floor((Date.now() - ts) / 86400000); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`; };
+
+/* ================= spaced review: everything practiced comes back, sooner if it was tough, later if it was easy ================= */
+const REVKEY = 'fretboard-atlas-review-v1', REV_DAYS = [1, 2, 4, 8, 16, 32, 64], REV_KNOWN = 4;
+let review = {seeded:false, items:{}};
+try { const r = JSON.parse(localStorage.getItem(REVKEY)); if (r && r.items && typeof r.items === 'object' && !Array.isArray(r.items)) review = {seeded:!!r.seeded, items:r.items}; } catch (e) {}
+function saveReview(){ try { localStorage.setItem(REVKEY, JSON.stringify(review)); } catch (e) {} }
+const dayStart = (ts, plus) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); if (plus) d.setDate(d.getDate() + plus); return d.getTime(); };
+const revItemOk = it => !!it && (it.kind === 'text' ? typeof it.text === 'string' && !!it.text : it.kind === 'quiz' ? !!QUIZ_TYPES[it.quiz] : it.root >= 0 && it.root < 12 && (it.kind === 'scale' ? !!SCALES[it.type] : it.kind === 'chord' && !!CHORDS[it.type]));
+const bareItem = it => it.kind === 'text' ? {kind:'text', text:it.text} : it.kind === 'quiz' ? {kind:'quiz', quiz:it.quiz} : {kind:it.kind, root:it.root, type:it.type, pos:it.pos ? Object.assign({}, it.pos) : null};
+/* grade: 'again' (tough), 'hold' (played, not rated), 'good' (OK) or 'easy'. Grading again on the same day replaces the earlier grade. */
+function reviewGrade(it, grade, now){
+  now = now || Date.now();
+  const key = itemKey(it), today = dayKey(now);
+  const r = review.items[key] || (review.items[key] = {item:bareItem(it), lvl:0, n:0, due:0});
+  if (r.day !== today) { r.base = r.n ? r.lvl : -1; r.early = r.n > 0 && r.due > dayStart(now); r.was = r.n ? r.due : 0; r.day = today; r.n++; r.graded = false; }
+  if (grade === 'hold' && r.graded) return r;
+  if (grade !== 'hold') r.graded = true;
+  const up = {again:-2, hold:0, good:r.early ? 0 : 1, easy:r.early ? 1 : 2}[grade];   // playing it ahead of time proves less
+  r.lvl = Math.max(0, Math.min(REV_DAYS.length - 1, r.base + up));
+  r.due = dayStart(now, REV_DAYS[r.lvl]);
+  if (r.early && grade !== 'again') r.due = Math.max(r.due, r.was);
+  r.last = now; r.grade = grade;
+  saveReview(); return r;
+}
+const quizGrade = r => r.n < 5 ? 'hold' : r.acc < 70 ? 'again' : r.acc >= 97 && r.n >= 10 ? 'easy' : r.acc >= 90 ? 'good' : 'hold';
+/* the first time, start from what the practice log already knows */
+function itemFromKey(key, title){
+  const a = key.split('|');
+  if (a[0] === 'text') return {kind:'text', text:title || a.slice(1).join('|')};
+  if (a[0] === 'quiz') return {kind:'quiz', quiz:a[1]};
+  if (a[0] !== 'scale' && a[0] !== 'chord') return null;
+  const it = {kind:a[0], root:+a[1], type:a[2], pos:null};
+  if (!revItemOk(it)) return null;
+  let m;
+  if (a[3] && it.kind === 'scale' && (m = /^f(\d+)([nb])$/.exec(a[3]))) { const q = scalePositions(itemLike(it)).find(z => z.f === +m[1]); if (q) it.pos = Object.assign({s:q.s || 0, f:q.f, style:m[2] === 'n' ? 'nps' : 'box'}, q.d ? {d:q.d} : {}); }
+  if (a[3] && it.kind === 'chord' && (m = /^s(\d)f(\d+)$/.exec(a[3]))) it.pos = {s:+m[1], f:+m[2]};
+  return it;
+}
+function reviewSeed(){
+  if (review.seeded) return;
+  review.seeded = true;
+  logStats().exercises.forEach(x => {
+    const it = itemFromKey(x.key, x.title);
+    if (!revItemOk(it) || review.items[x.key]) return;
+    const lvl = x.n >= 3 ? 2 : 1;
+    review.items[x.key] = {item:it, lvl, n:x.n, last:x.last, due:dayStart(x.last, REV_DAYS[lvl])};
+  });
+  saveReview();
+}
+function reviewList(){ reviewSeed(); return Object.entries(review.items).filter(([, r]) => r && revItemOk(r.item)).map(([key, r]) => Object.assign({key}, r)); }
+function reviewStats(now){
+  const t0 = dayStart(now || Date.now()), L = reviewList();
+  return {all:L.length, due:L.filter(r => r.due <= t0).length, tomorrow:L.filter(r => r.due > t0 && r.due <= dayStart(t0, 1)).length,
+    week:L.filter(r => r.due > t0 && r.due <= dayStart(t0, 7)).length, known:L.filter(r => r.lvl >= REV_KNOWN).length};
+}
+const dueText = (due, now) => { const d = Math.round((due - dayStart(now || Date.now())) / 86400000); return d < 0 ? `${-d} day${d === -1 ? '' : 's'} overdue` : d === 0 ? 'due today' : d === 1 ? 'tomorrow' : `in ${d} days`; };
+
+/* ================= Today: a session built from what's due, what's weak, and something new ================= */
+const TODAY = {10:[3, 4, 3], 20:[3, 5, 4, 4, 4], 30:[4, 6, 5, 5, 5, 5]};
+/* a remembered position may not exist in the current tuning: move it to one that does */
+function fitItem(it){
+  if (!it.pos) return it;
+  const L = itemLike(it);
+  if (it.kind === 'chord') { if (!rootPositions(L).some(q => q.s === it.pos.s && q.f === it.pos.f) || !findVoicing(it.root, it.type, it.pos.s, it.pos.f)) { adjustPos(L); it.pos = L.pos; } }
+  else if (it.kind === 'scale' && !scalePositions(L).some(q => q.f === it.pos.f && (!isArp(L) || (q.s === (it.pos.s || 0) && q.d === (it.pos.d || 1))))) { adjustPos(L); it.pos = L.pos; }
+  return it;
+}
+function weakestQuiz(){
+  const pool = state.lesson.cfg.quizzes ? state.lesson.cfg.quizPool.filter(q => QUIZ_TYPES[q]) : [];
+  if (!pool.length) return null;
+  const by = {}; answers.slice(-1500).forEach(a => { const b = by[a.q] || (by[a.q] = {n:0, ok:0, ms:[]}); b.n++; if (a.ok) b.ok++; });
+  const tried = pool.filter(q => by[q] && by[q].n >= 5);
+  if (!tried.length) return {quiz:rnd(pool), weak:false};
+  const worst = tried.map(q => [q, weakness(by[q], 0)]).sort((a, b) => b[1] - a[1])[0];
+  return worst[1] >= 0.15 ? {quiz:worst[0], weak:true} : {quiz:rnd(pool), weak:false};
+}
+function buildToday(mins, now){
+  now = now || Date.now();
+  const mm = TODAY[mins] || TODAY[20], t0 = dayStart(now), cfg = state.lesson.cfg, out = [], used = new Set();
+  const add = (it, why) => {
+    if (!it || out.length >= mm.length) return false;
+    const key = itemKey(it); if (used.has(key)) return false;
+    used.add(key);
+    const x = fitItem(bareItem(it)), tempo = x.kind === 'scale' || x.kind === 'chord' ? lastClean(key) : null;
+    used.add(itemKey(x));
+    out.push(Object.assign(x, {id:state.lesson.nextItem++, min:5, bpm:tempo || null, why}, x.kind === 'quiz' && answers.length >= 20 ? {focus:'weak'} : {}));
+    return true;
+  };
+  const list = reviewList(), known = new Set(list.map(r => r.key));
+  const due = list.filter(r => r.due <= t0 && r.day !== dayKey(now)).sort((a, b) => a.lvl - b.lvl || a.due - b.due);
+  const q = weakestQuiz();
+  if (q) add({kind:'quiz', quiz:q.quiz}, q.weak ? 'Weak spot' : 'Warm-up');
+  // something new keeps one place; if you've never played a scale or chord type, that comes first
+  const types = new Set(list.map(r => r.item.kind + r.item.type));
+  const fresh = () => {
+    let best = null;
+    for (let k = 0; k < 30; k++) {
+      const it = rollItem(Object.assign({}, cfg, {quizzes:false})); if (!it) return null;
+      state.lesson.nextItem--;
+      const key = itemKey(it); if (known.has(key) || used.has(key)) continue;
+      if (!types.has(it.kind + it.type)) return it;
+      best = best || it;
+    }
+    return best;
+  };
+  due.forEach(r => { if (out.length < mm.length - 1) add(r.item, r.due < t0 ? `Review · ${dueText(r.due, now)}` : 'Review · due today'); });
+  const nu = fresh(); if (nu) add(nu, 'New');
+  due.forEach(r => add(r.item, 'Review'));
+  // still room: the things you haven't played for longest, then more new ones
+  list.filter(r => r.last && now - r.last > 3 * 86400000).sort((a, b) => a.last - b.last).forEach(r => add(r.item, `Last played ${ago(r.last)}`));
+  for (let k = 0; k < 8 && out.length < mm.length; k++) { const it = fresh(); if (it) add(it, 'New'); else break; }
+  for (let k = 0; k < 8 && out.length < mm.length; k++) { const it = rollItem(cfg); if (it) add(it, 'Extra'); else break; }
+  // share out the minutes if there was less to play than places
+  const total = mm.reduce((a, x) => a + x, 0);
+  if (out.length === mm.length) out.forEach((it, k) => { it.min = mm[k]; });
+  else out.forEach((it, k) => { it.min = Math.floor(total / out.length) + (k < total % out.length ? 1 : 0); });
+  return out;
+}
+function setToday(start){
+  const items = buildToday(state.lesson.todayMin || 20);
+  if (!items.length) { toast('Pick at least one scale, chord or quiz under Lesson ingredients first.'); return; }
+  if (!state.lesson.today) state.lesson.mine = state.lesson.items.slice();     // your own lesson is kept to one side
+  state.lesson.items = items; state.lesson.today = true; state.session = null;
+  if (start) { pvOpen(); sessStart(0); } else render();
+}
+const pvOn = () => !!state.pview && !!state.session;
+function pvOpen(){
+  state.pview = true; state.tab = 'practice'; heatOn = false; side = 'closed';
+  ['#menu', '#savesMenu'].forEach(id => { $(id).open = false; });
+  scrollTo(0, 0);
+}
+const RATES = [['again', 'Tough'], ['good', 'OK'], ['easy', 'Easy']];
+const rateBtns = (act, cur, extra) => RATES.map(([v, l]) => `<button type="button" class="pv-r ${v}" data-act="${act}" data-v="${v}"${extra || ''} aria-pressed="${cur === v}">${l}</button>`).join('');
+function renderPview(){
+  const el = $('#pview'), s = state.session, items = state.lesson.items;
+  if (state.pview && !s) state.pview = false;
+  const on = pvOn();
+  document.body.classList.toggle('pv', on); document.body.classList.toggle('pv-done', on && !!s.done);
+  el.hidden = !on;
+  if (!on) { el.innerHTML = ''; return; }
+  if (s.done) {
+    const st = reviewStats(), reps = s.reps || [];
+    el.innerHTML = `<div class="pv-sum"><b class="pv-h">Done · ${s.ms != null ? (s.ms < 60000 ? 'under a minute' : fmtMin(s.ms)) : s.total + ' min'}</b>
+      ${reps.length ? `<span class="pv-note">How did each one go? Tough ones come back tomorrow.</span><div class="pv-list">${reps.map((x, k) => {
+        const r = review.items[x.key];
+        return `<div class="pv-rep"><span><b>${esc(x.title)}</b><small>${x.quiz ? `${x.quiz.acc}% of ${x.quiz.n} · ` : ''}${r ? 'back ' + dueText(r.due) : ''}</small></span><span class="pv-rates">${rateBtns('pvrerate', r && r.graded ? r.grade : '', ` data-k="${k}"`)}</span></div>`;
+      }).join('')}</div>` : '<span class="pv-note">Nothing was played long enough to log (20 seconds).</span>'}
+      <span class="pv-note">${st.tomorrow} due tomorrow · ${st.known} of ${st.all} known well</span>
+      <div class="pv-btns"><button type="button" class="pv-b main" data-act="sessstop">Close</button><button type="button" class="pv-b" data-act="sessstart" data-v="0">Run it again</button></div></div>`;
+    return;
+  }
+  const it = items[s.idx], nx = items[s.idx + 1];
+  el.innerHTML = `<div class="pv-top"><span class="pv-t"><small class="pv-k">${s.idx + 1} of ${items.length}${it.why ? ' · ' + esc(it.why) : ''}</small><b>${itemTitle(it)}</b><small class="pv-sub">${it.kind === 'quiz' ? 'Answer until time is up' : itemSub(it)}</small></span>
+      <span class="pv-time${s.timeUp ? ' up' : ''}" data-sess-time>${fmt(sessRemaining(s))}</span></div>
+    <div class="bar-track"><i data-sess-bar></i></div>
+    ${it.kind === 'quiz' ? '' : `<div class="pv-rates" role="group" aria-label="How is it going?">${rateBtns('pvrate', s.rating || '')}</div>`}
+    <div class="pv-btns"><button type="button" class="pv-b prev" data-act="sessprev" aria-label="Previous"${s.idx ? '' : ' disabled'}>◀</button>
+      <button type="button" class="pv-b main" data-act="sesspause">${s.paused ? (s.timeUp ? 'Keep going' : 'Resume') : 'Pause'}</button>
+      <button type="button" class="pv-b main" data-act="sessnext">${nx ? 'Next' : 'Finish'}</button></div>
+    <div class="pv-tools"><button type="button" class="pv-s bpm" data-act="mbpm" data-v="-5" aria-label="Slower">−</button><button type="button" class="pv-s" data-act="mtoggle" aria-label="${metro.on ? 'Stop' : 'Start'} metronome">${metro.on ? '■' : '▶'} <span data-bpm-out>${state.metro.bpm}</span> bpm</button><button type="button" class="pv-s bpm" data-act="mbpm" data-v="5" aria-label="Faster">+</button>
+      ${it.kind === 'quiz' ? '' : `<button type="button" class="pv-s cl" data-act="sessclean">${s.clean ? '✓ ' + s.clean : 'Clean'}</button>`}
+      <button type="button" class="pv-s pl" data-act="sessplus" aria-label="One more minute">+1</button><button type="button" class="pv-s" data-act="pvexit" aria-label="Show the whole app">Exit</button></div>
+    <small class="pv-next">${nx ? `Next: ${itemTitle(nx)}` : 'Last one'}</small>`;
+}
+
+/* practice view: bring the position (or the quiz's marked fret) into view when it changes, so you never have to swipe the neck */
+let pvSeen = null;
+function pvFollow(){
+  if (!pvOn() || state.session.done) { pvSeen = null; return; }
+  const q = quiz && quiz.q, key = state.session.idx + '|' + (q ? [q.cell, q.root && q.root.s != null ? q.root : 0, q.target].map(c => c ? c.s + ':' + c.f : '').join() : state.layers[0].pos ? state.layers[0].pos.s + ':' + state.layers[0].pos.f : '');
+  if (key === pvSeen) return;
+  pvSeen = key;
+  const bs = $('#boardScroll');
+  if (bs.scrollWidth <= bs.clientWidth + 4) return;
+  const at = q ? [q.cell, q.root && q.root.s != null ? q.root : null, q.target].filter(Boolean).map(c => board.querySelector(`.cell[data-s="${c.s}"][data-f="${c.f}"]`)) : state.layers[0].pos ? [...board.querySelectorAll('.cell:not(.dim)')] : [];
+  const rs = at.filter(Boolean).map(c => c.getBoundingClientRect()); if (!rs.length) return;
+  const mid = (Math.min(...rs.map(r => r.left)) + Math.max(...rs.map(r => r.right))) / 2, b = bs.getBoundingClientRect();
+  bs.scrollLeft += mid - (b.left + b.width / 2);
+}
 
 /* ================= microphone access (shared) ================= */
 const IS_ANDROID = /Android/i.test(navigator.userAgent);
@@ -3426,7 +3665,7 @@ function generateLesson(){
   const cfg = state.lesson.cfg, items = [];
   for (let k = 0; k < cfg.count; k++) { const it = rollItem(cfg, items[k - 1]); if (it) items.push(it); }
   if (!items.length) { toast('Pick at least one scale or chord type to build a lesson from.'); return false; }
-  state.lesson.items = items; state.session = null; return true;
+  state.lesson.items = items; state.lesson.today = false; state.session = null; return true;
 }
 function itemFromNeck(){
   const L = state.layers[0];
@@ -3435,7 +3674,7 @@ function itemFromNeck(){
 }
 function loadItem(it){
   if (it.bpm) setBpm(it.bpm);
-  if (it.kind === 'quiz') { quizStart({type:it.quiz, range:state.quizCfg.range, pool:state.quizCfg.pool, focus:state.quizCfg.focus || 'random', mode:'session'}); return; }
+  if (it.kind === 'quiz') { quizStart({type:it.quiz, range:state.quizCfg.range, pool:state.quizCfg.pool, focus:it.focus || state.quizCfg.focus || 'random', mode:'session'}); return; }
   if (it.kind === 'text') return;
   const L = state.layers[0];
   L.kind = it.kind; L.root = it.root; L.type = it.type; L.hidden = []; L.visible = true;
@@ -3461,7 +3700,7 @@ function sessStart(i){
   sessLog();             // log the item we are leaving
   if (quiz) quizEnd();   // a running quiz reports its score as you move on
   state.session = {idx:i, paused:false, endsAt:Date.now() + it.min * 60000, remaining:0, done:false, timeUp:false, startedAt,
-    planned:it.min * 60000, peak:metro.on ? state.metro.bpm : null, clean:null};
+    planned:it.min * 60000, peak:metro.on ? state.metro.bpm : null, clean:null, rating:null, reps:state.session && !state.session.done && state.session.reps || [], ms:state.session && !state.session.done && state.session.ms || 0};
   loadItem(it); requestWake(); render();
 }
 function sessPause(){ const s = state.session; if (!s || s.done) return; if (s.paused) { s.paused = false; s.timeUp = false; s.endsAt = Date.now() + Math.max(s.remaining, 0); requestWake(); } else { s.paused = true; s.remaining = Math.max(0, s.endsAt - Date.now()); releaseWake(); } render(); }
@@ -3476,7 +3715,7 @@ function sessFinish(){
   const total = state.lesson.items.reduce((a, it) => a + it.min, 0), n = state.lesson.items.length;
   sessLog();
   if (quiz && quiz.mode === 'session') quizEnd();
-  state.session = {done:true, total, n}; chime(true); releaseWake(); render();
+  state.session = {done:true, total, n, reps:state.session && state.session.reps || [], ms:state.session ? state.session.ms || 0 : 0}; chime(true); releaseWake(); render();
 }
 function sessStop(){ sessLog(); if (quiz && quiz.mode === 'session') quizEnd(); state.session = null; releaseWake(); render(); }
 function sessAddMinute(){ const s = state.session; if (!s || s.done) return; if (s.paused) s.remaining += 60000; else s.endsAt += 60000; s.planned = (s.planned || 0) + 60000; s.timeUp = false; tickUI(); }
@@ -3485,10 +3724,14 @@ function sessLog(){
   const s = state.session; if (!s || s.done || s.noLog) return;
   const it = state.lesson.items[s.idx]; if (!it) return;
   const spent = Math.max(0, (s.planned || it.min * 60000) - Math.max(0, sessRemaining(s)));
-  if (spent < 20000) return;                       // skipped straight past it
+  if (spent < 20000 && !s.rating) return;          // skipped straight past it
   const e = {kind:it.kind, key:itemKey(it), title:logTitleFor(it), ms:spent, bpm:s.peak || null, clean:s.clean || null};
   if (quiz && quiz.mode === 'session') { const r = quizResult(); if (r.n) e.quiz = {acc:r.acc, n:r.n}; }
-  logEntry(e);
+  if (spent >= 20000) logEntry(e);
+  s.ms = (s.ms || 0) + spent;
+  if (it.kind === 'quiz' && !e.quiz) return;       // nothing answered: nothing to schedule
+  reviewGrade(it, s.rating || (e.quiz ? quizGrade(e.quiz) : 'hold'));
+  s.reps = (s.reps || []).filter(x => x.key !== e.key).concat({key:e.key, title:e.title, item:bareItem(it), quiz:e.quiz || null});
 }
 function fmt(ms){ const t = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
 function tickUI(){
@@ -3514,7 +3757,8 @@ setInterval(tickUI, 250);
 function renderStrip(){
   const el = $('#strip'), s = state.session, items = state.lesson.items;
   const live = s && !s.done && items[s.idx];
-  el.hidden = !(live || metro.on || quiz || drone.on || heatOn || tt || tuner.on);
+  const pv = pvOn();        // practice view has its own timer and metronome, so the strip only carries the rest
+  el.hidden = !((!pv && (live || metro.on)) || quiz || drone.on || heatOn || tt || tuner.on || (pv && loop.on));
   if (el.hidden) { el.innerHTML = ''; return; }
   let h = '';
   if (tt) h += `<div class="qrow"><span class="st-item"><small>Tempo test</small><b>${tt.bpm} bpm</b><small>${tt.streak}/${state.ttCfg.need} clean</small></span>
@@ -3527,18 +3771,19 @@ function renderStrip(){
   }
   if (drone.on) h += `<button type="button" class="ib" data-act="dstart" aria-label="Stop drone">■ Drone ${pn(DEFAULT[state.drone.root])}</button>`;
   if (quiz) h += `<div class="qrow">${quizStripHtml()}</div>`;
-  if (live) {
+  if (live && !pv) {
     h += `<span class="st-item"><small>${s.idx + 1}/${items.length}</small><b>${itemTitle(items[s.idx])}</b></span>
       <span class="t" data-sess-time>${fmt(sessRemaining(s))}</span>
       <button type="button" class="ib" data-act="sesspause">${s.paused ? (s.timeUp ? 'Time’s up · Resume' : 'Resume') : 'Pause'}</button>
-      <button type="button" class="ib" data-act="sessnext">${s.idx === items.length - 1 ? 'Finish' : 'Next'}</button>`;
+      <button type="button" class="ib" data-act="sessnext">${s.idx === items.length - 1 ? 'Finish' : 'Next'}</button>
+      <button type="button" class="ib" data-act="pvopen">Practice view</button>`;
   }
-  h += `<span class="st-metro"><span class="beats">${Array.from({length:state.metro.beats}, () => '<i></i>').join('')}</span>
+  if (!pv) h += `<span class="st-metro"><span class="beats">${Array.from({length:state.metro.beats}, () => '<i></i>').join('')}</span>
     <button type="button" class="ib" data-act="mtoggle" aria-label="${metro.on ? 'Stop' : 'Start'} metronome">${metro.on ? '■' : '▶'} <span data-bpm-out>${state.metro.bpm}</span> bpm</button></span>`;
   el.innerHTML = h;
 }
 
-let lessonArmed = false, lessonTimer = null;
+let lessonArmed = false, lessonTimer = null, revArmed = false, revTimer = null;
 function stepper(act, val, label, step){
   return `<span class="stepper"><button type="button" class="ib" data-act="${act}" data-v="-${step || 1}" aria-label="Less: ${label}">−</button><span class="val">${val}</span><button type="button" class="ib" data-act="${act}" data-v="${step || 1}" aria-label="More: ${label}">+</button></span>`;
 }
@@ -3597,7 +3842,7 @@ function renderPractice(){
     const cur = s && !s.done && s.idx === k, past = s && !s.done && k < s.idx;
     return `<div class="item${cur ? ' cur' : ''}${past ? ' past' : ''}">
       <span class="n">${k + 1}</span>
-      <span class="it"><b>${itemTitle(it)}</b><small>${itemSub(it)}</small></span>
+      <span class="it"><b>${itemTitle(it)}</b><small>${it.why ? `<em class="why2">${esc(it.why)}</em> ` : ''}${itemSub(it)}</small></span>
       <span class="ctl2">
         <button type="button" class="ib" data-act="imin" data-id="${it.id}" data-v="-1" aria-label="One minute less">−</button>
         <span class="dur">${it.min} min</span>
@@ -3642,8 +3887,18 @@ function renderPractice(){
       <button type="button" class="btn primary" data-act="lgen">${lessonArmed ? 'Tap again to replace your lesson' : items.length ? 'Generate a new lesson' : 'Generate lesson'}</button></div>
   </div></details>`;
 
-  const lessonCard = `<div class="card">
-    <div class="row" style="justify-content:space-between"><b>Lesson</b><span class="info">${items.length ? `${items.length} item${items.length > 1 ? 's' : ''} · ${total} min total` : 'Empty'}</span></div>
+  const rs = reviewStats(), tmin = Ls.todayMin || 20, liveS = s && !s.done;
+  const todayCard = liveS ? '' : `<div class="card today"><div class="row" style="justify-content:space-between"><b>Today</b><span class="info">${rs.due ? `${rs.due} due for review` : rs.all ? 'nothing due: something new' : 'your first session'}</span></div>
+    <span class="info">What’s due, what you miss in quizzes, and one new thing. Rate each item and it comes back when you need it.</span>
+    <div class="row"><div class="seg">${[10, 20, 30].map(x => `<button type="button" data-act="todaymin" data-v="${x}" aria-pressed="${tmin === x}">${x} min</button>`).join('')}</div>
+      <button type="button" class="btn primary big-btn" data-act="todaygo">▶ Start today</button><button type="button" class="btn" data-act="todaysee">${Ls.today ? 'Shuffle' : 'See it first'}</button>
+      ${Ls.today && Ls.mine && Ls.mine.length ? `<button type="button" class="btn" data-act="todaymine">Back to my lesson (${Ls.mine.length})</button>` : ''}</div></div>`;
+  const revRows = reviewList().sort((a, b) => a.due - b.due).slice(0, 8).map(r => `<div class="lrow"><span class="it"><b>${esc(logTitleFor(r.item))}</b><small>${dueText(r.due)}</small></span><span class="lvl" title="Level ${r.lvl + 1} of 7" aria-label="Level ${r.lvl + 1} of 7">${REV_DAYS.map((_, k) => `<i class="${k <= r.lvl ? 'on' : ''}"></i>`).join('')}</span></div>`).join('');
+  const revCard = `<div class="card"><div class="row" style="justify-content:space-between"><b>Review</b><span class="info">Spaced by how it went</span></div>
+    <div class="lstats"><span><b>${rs.due}</b><small>due now</small></span><span><b>${rs.week}</b><small>due in the next 7 days</small></span><span><b>${rs.known}</b><small>of ${rs.all} known well</small></span></div>
+    ${revRows ? `<span class="rl">Coming up</span><div class="lrows">${revRows}</div><div class="row"><button type="button" class="btn" data-act="revreset">${revArmed ? 'Tap again to clear the schedule' : 'Clear schedule'}</button></div>` : '<p class="info" style="margin:0">Finish a lesson item and it gets scheduled here.</p>'}</div>`;
+  const lessonCard = `${todayCard}<div class="card">
+    <div class="row" style="justify-content:space-between"><b>${Ls.today ? 'Today’s lesson' : 'Lesson'}</b><span class="info">${items.length ? `${items.length} item${items.length > 1 ? 's' : ''} · ${total} min total` : 'Empty'}</span></div>
     ${sess}
     ${items.length ? `<div class="items">${itemRows}</div>` : `<p class="info" style="margin:0">Roll a random lesson from the ingredients below, or add what's on the neck and your own tasks. Each item gets its own timer.</p>`}
     <div class="row">
@@ -3802,8 +4057,8 @@ function renderPractice(){
   const PT = [['lesson', 'Lesson', s && !s.done], ['metro', 'Metronome', metro.on || !!tt], ['play', 'Play along', loop.on || drone.on], ['quiz', 'Quiz', !!quiz && quiz.mode !== 'session'], ['tuner', 'Tuner', tuner.on], ['log', 'Progress', false], ['all', 'All', false]];
   const pt = PT.some(p => p[0] === state.ptab) ? state.ptab : 'lesson';
   const nav = `<div class="ptabs" role="tablist" aria-label="Practice sections">${PT.map(([v, t, live]) => `<button type="button" role="tab" data-act="ptab" data-v="${v}" aria-selected="${pt === v}">${t}${live ? '<i class="live" title="Running"></i>' : ''}</button>`).join('')}</div>`;
-  if (pt === 'all') return `${nav}<div class="practice"><div class="pcol">${metroCard}${ttCard}${tunerCard}${playCard}${quizCard}</div><div class="pcol">${lessonCard}${weakCard}${logCard}</div></div>`;
-  const body = {lesson:[lessonCard], metro:[metroCard, ttCard], play:[playCard], quiz:[quizCard, weakCard], tuner:[tunerCard], log:[logCard]}[pt];
+  if (pt === 'all') return `${nav}<div class="practice"><div class="pcol">${metroCard}${ttCard}${tunerCard}${playCard}${quizCard}</div><div class="pcol">${lessonCard}${weakCard}${revCard}${logCard}</div></div>`;
+  const body = {lesson:[lessonCard], metro:[metroCard, ttCard], play:[playCard], quiz:[quizCard, weakCard], tuner:[tunerCard], log:[revCard, logCard]}[pt];
   return `${nav}<div class="practice ${body.length > 1 ? 'two' : 'one'}">${body.map(c => `<div class="pcol">${c}</div>`).join('')}</div>`;
 }
 function handlePractice(act, b){
@@ -3875,7 +4130,7 @@ function handlePractice(act, b){
     case 'sessclean': if (state.session && !state.session.done) { state.session.clean = state.metro.bpm; toast(`Marked clean at ${state.metro.bpm} bpm`); render(); } return true;
     case 'logall': logShowAll = !logShowAll; render(); return true;
     case 'logcopy': {
-      const text = JSON.stringify({app:'fretboard-atlas', version:2, exported:new Date().toISOString(), log:practiceLog, answers});
+      const text = JSON.stringify({app:'fretboard-atlas', version:2, exported:new Date().toISOString(), log:practiceLog, answers, review});
       const done = () => toast(`Backup copied: ${practiceLog.length} log entries and ${answers.length} quiz answers. Paste it somewhere safe.`);
       const fallback = () => { const row = $('#restoreRow'), ta = $('#restoreText'); if (row && ta) { row.hidden = false; ta.value = text; ta.select(); } toast('Copying was blocked. The backup is selected in the box below. Copy it from there.'); };
       try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
@@ -3895,6 +4150,10 @@ function handlePractice(act, b){
         const k = a => [a.t, a.q, a.s, a.f, a.iv, a.ci, a.ok].join('|'), have = new Set(answers.map(k));
         data.answers.forEach(a => { if (a && a.t && a.q && !have.has(k(a))) { answers.push(a); addedAns++; } });
         answers.sort((a, b) => a.t - b.t); saveAnswers();
+      }
+      if (data && data.review && data.review.items && typeof data.review.items === 'object') {
+        Object.entries(data.review.items).forEach(([k, r]) => { const cur = review.items[k]; if (r && revItemOk(r.item) && Number.isFinite(r.due) && Number.isInteger(r.lvl) && r.lvl >= 0 && r.lvl < REV_DAYS.length && (!cur || (r.last || 0) > (cur.last || 0))) review.items[k] = r; });
+        review.seeded = true; saveReview();
       }
       toast(`Restored ${added} log entr${added === 1 ? 'y' : 'ies'}${addedAns ? ` and ${addedAns} quiz answers` : ''}${entries.length - added ? `, skipped ${entries.length - added} already here` : ''}.`); render(); return true;
     }
@@ -3945,7 +4204,18 @@ function handlePractice(act, b){
     case 'sessprev': sessStep(-1); return true;
     case 'sessplus': sessAddMinute(); return true;
     case 'sessstop': sessStop(); return true;
-    case 'sessstart': if (items.length) sessStart(+v || 0); return true;
+    case 'sessstart': if (items.length) { pvOpen(); sessStart(+v || 0); } return true;
+    case 'todaygo': setToday(true); return true;
+    case 'todaysee': setToday(false); return true;
+    case 'todaymin': state.lesson.todayMin = +v; if (state.lesson.today && !state.session) setToday(false); else render(); return true;
+    case 'todaymine': state.lesson.items = (state.lesson.mine || []).filter(x => x.kind === 'text' || revItemOk(x)); state.lesson.mine = null; state.lesson.today = false; render(); return true;
+    case 'pvopen': if (state.session) { pvOpen(); render(); } return true;
+    case 'pvexit': state.pview = false; render(); return true;
+    case 'pvrate': { const s = state.session; if (s && !s.done) { s.rating = s.rating === v ? null : v; render(); } return true; }
+    case 'pvrerate': { const x = state.session && (state.session.reps || [])[+b.dataset.k]; if (x && revItemOk(x.item)) { reviewGrade(x.item, v); render(); } return true; }
+    case 'revreset':
+      if (!revArmed) { revArmed = true; clearTimeout(revTimer); revTimer = setTimeout(() => { revArmed = false; if (state.tab === 'practice') render(); }, 3000); render(); return true; }
+      revArmed = false; review = {seeded:true, items:{}}; saveReview(); toast('Review schedule cleared. Your practice log is untouched.'); render(); return true;
     case 'imin': if (it) it.min = Math.max(1, Math.min(90, it.min + +v)); render(); return true;
     case 'ibpm': if (it) it.bpm = it.bpm ? null : state.metro.bpm; render(); return true;
     case 'iroll': {
@@ -3987,6 +4257,17 @@ function handlePractice(act, b){
   }
   return false;
 }
+['#pview', '#todayBtnWrap'].forEach(id => $(id).addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) handlePractice(b.dataset.act, b); }));
+// keyboards and page-turner pedals: → / Page Down next, ← / Page Up previous, space pause, Esc exit
+document.addEventListener('keydown', e => {
+  if (!pvOn() || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+  const onCtl = e.target.closest && e.target.closest('input, textarea, select');
+  if (onCtl) return;
+  const go = {ArrowRight:'sessnext', PageDown:'sessnext', ArrowLeft:'sessprev', PageUp:'sessprev', ' ':'sesspause', Escape:'pvexit'}[e.key];
+  if (!go || (state.session.done && go !== 'pvexit')) return;
+  e.preventDefault(); handlePractice(state.session.done ? 'sessstop' : go, {dataset:{}});
+});
+document.addEventListener('keyup', e => { if (e.key === ' ' && pvOn() && !(e.target.closest && e.target.closest('input, textarea, select'))) e.preventDefault(); });   // and not also the focused button
 $('#strip').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) handlePractice(b.dataset.act, b); });
 $('#neckHide').addEventListener('click', () => { setNeckHidden(true); toast('Neck hidden. Tap “Show neck” to bring it back.'); });
 $('#menusOpen').addEventListener('click', () => setSide('open'));
@@ -4005,6 +4286,7 @@ function syncOrient(){
     ['#menu', '#savesMenu'].forEach(id => { $(id).open = false; });
     clearTimeout(animT); $('#menus').classList.remove('anim');
     if (land) side = 'closed';                     // sideways starts on the neck
+    pvSeen = null;                                 // practice view centers the position again
     render();
     if (!land) requestAnimationFrame(() => scrollTo(0, portraitY));
   } else applySide();
@@ -4096,7 +4378,7 @@ document.addEventListener('click', e => { if (eatClick) { eatClick = false; e.st
 // small read-only hook for automated tests and the browser console
 window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
-  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick,
+  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, logStats, loopTick, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
   micHelp, micSessionStart, micSessionEnd, openMic, get micUsers(){ return micUsers; }, get audioCtx(){ return ac; },
   detectPitch, tunerFeed, get tuner(){ return tuner; }, get tt(){ return tt; },
@@ -4110,7 +4392,9 @@ function render(){
   if (sp.on) { const pl = state.layers.find(x => x.id === sp.layerId); if (!pl || pl.kind !== 'scale' || !pl.pos) scalePlayStop(true); }
   renderToolbar();
   renderBoard();
+  renderPview();
   renderStrip();
+  pvFollow();
   panel.innerHTML = state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'practice' ? renderPractice() : renderLayers();
   tunerPaint();
   tickUI();
@@ -4160,6 +4444,7 @@ board.addEventListener('click', e => {
   const s = +cell.dataset.s, f = +cell.dataset.f;
   const tun = TUNINGS[state.tuning].midi, midi = tun[s] + f, pc = mod(midi);
   if (quiz) { quizTap(s, f); return; }
+  if (pvOn()) { pluck(midi); return; }     // practicing: tapping the neck only sounds the note
   if (heatOn) {     // the heatmap view explains a fret instead of changing the root
     const b = quizAgg(state.heatFam || 'all').cells.get(s + ':' + f);
     toast(b ? `${STRING_ORD[s]} string, ${f ? 'fret ' + f : 'open'} · ${pn(noteName(pc))} · ${b.ok} of ${b.n} right${b.ms.length ? ` · avg ${(median(b.ms) / 1000).toFixed(1)} s` : ''}` : `${STRING_ORD[s]} string, ${f ? 'fret ' + f : 'open'} · ${pn(noteName(pc))} · no answers here yet`);
