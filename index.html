@@ -2476,7 +2476,7 @@ function laneHtml(){
   const A = L.length ? cpAnalyze(cpLane(), cpFixed()) : null, view = state.compose.view, at = cpPos(L.length);
   const slots = L.map((it, k) => `<div class="slot${view === 'next' && k === at ? ' sel' : ''}${playing && loop.idx === k ? ' on' : ''}" data-drag="lane:${k}" data-k="${k}" style="--bars:${it.bars || 1}">
       <button type="button" class="slot-main" data-act="laneshow" data-k="${k}" aria-label="Show ${esc(it.name)} on the neck"><small>${k + 1}</small><b>${esc(it.name)}</b><em title="Its place in ${keyTitle(A.rows[k].key)}">${A.rows[k].num}</em></button>
-      ${view ? `<i class="ten" style="width:${Math.round(10 + A.rows[k].tension * 90)}%" title="Tension"></i>` : ''}
+      <i class="ten" style="width:${Math.round(10 + A.rows[k].tension * 90)}%${view ? '' : '; visibility:hidden'}" title="Tension"></i>
       <span class="slot-acts"><button type="button" class="ib" data-act="lanebars" data-k="${k}" aria-label="Length ${barsLabel(it.bars || 1)}, tap to change">${barsLabel(it.bars || 1)}</button><button type="button" class="ib" data-act="lanedel" data-k="${k}" aria-label="Remove ${esc(it.name)}">✕</button></span></div>`).join('');
   return `<div class="card looper">
     <div class="row" style="justify-content:space-between"><b>Looper</b><span class="info">${L.length ? `${L.length} chord${L.length > 1 ? 's' : ''} · ${total % 1 ? total.toFixed(1) : total} bar${total === 1 ? '' : 's'} a loop` : 'Build a progression and loop it'}</span></div>
@@ -5235,8 +5235,14 @@ function handlePractice(act, b){
   const goTo = {calstart:state.ptab === 'time' ? 'time' : 'metro', calself:'time', ttstart:'metro', qstart:'quiz', wdrill:'quiz', tunstart:'tuner'}[act];
   if (goTo && state.ptab !== 'all') state.ptab = goTo;
   switch (act) {
-    case 'fold': state.folds = Object.assign({}, state.folds, {[v]:!foldOpen(v, !!b.dataset.d)}); render(); { const n = panel.querySelector(`[data-act="fold"][data-v="${v}"]`); if (n) n.focus({preventScroll:true}); } return true;
-    case 'progopen': circOpen = circOpen === +b.dataset.p ? null : +b.dataset.p; render(); { const n = panel.querySelector(`[data-act="progopen"][data-p="${b.dataset.p}"]`); if (n) n.focus({preventScroll:true}); } return true;
+    case 'fold': state.folds = Object.assign({}, state.folds, {[v]:!foldOpen(v, !!b.dataset.d)});
+      if (!b.classList.contains('fold-h')) { render(); return true; }
+      // open in place: rebuilding the panel can lose a phone's scroll position
+      panel.querySelectorAll(`.fold-h[data-v="${v}"]`).forEach(h => { const on = foldOpen(v, !!h.dataset.d); h.parentNode.classList.toggle('shut', !on); h.setAttribute('aria-expanded', String(on)); h.lastElementChild.textContent = on ? '▴' : '▾'; });
+      save(); return true;
+    case 'progopen': circOpen = circOpen === +b.dataset.p ? null : +b.dataset.p;
+      panel.querySelectorAll('.prog-h').forEach(h => { const on = circOpen === +h.dataset.p; h.parentNode.classList.toggle('open', on); h.setAttribute('aria-expanded', String(on)); h.lastElementChild.textContent = on ? '▴' : '▾'; });
+      return true;
     case 'ptab': state.ptab = v; render(); return true;
     case 'mtoggle': if (metro.on) metroStop(); else metroStart(); render(); return true;
     case 'mbpm': setBpm(state.metro.bpm + +v); return true;
@@ -5567,7 +5573,12 @@ window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions,
   ttBeginSim:(bpm) => { tt = {key:'free', title:'Sim', bpm, start:bpm, streak:0, slips:0, best:null, passes:[], t0:Date.now(), prev:null, auto:true, lastPass:null, passBar:0}; metro.grid = []; micT.onsets = []; render(); }};
 
 /* ================= main render ================= */
+let lastView = '';
 function render(){
+  // rebuilding the same screen must not move it: hold the panel's height meanwhile and put the scroll back
+  const view = state.tab + '|' + (state.tab === 'practice' ? state.ptab : ''), hold = view === lastView; lastView = view;
+  const mm = $('#menus'), y0 = window.scrollY, m0 = mm.scrollTop;
+  if (hold) panel.style.minHeight = panel.offsetHeight + 'px';
   // the scale player stops when its layer no longer has a scale position to play (changed, cleared or removed)
   if (sp.on) { const pl = state.layers.find(x => x.id === sp.layerId); if (!pl || pl.kind !== 'scale' || !pl.pos) scalePlayStop(true); }
   renderToolbar();
@@ -5578,6 +5589,7 @@ function render(){
   panel.innerHTML = state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'practice' ? renderPractice() : renderLayers();
   { const r = panel.querySelector('.ptabs'), b = r && r.querySelector('[aria-selected="true"]'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - r.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; }     // keep the open section in sight
 
+  if (hold) { panel.style.minHeight = ''; if (mm.scrollTop !== m0) mm.scrollTop = m0; if (Math.abs(window.scrollY - y0) > 1 && !landQ.matches) scrollTo({top:y0, behavior:'instant'}); }
   tunerPaint();
   tickUI();
   save();
