@@ -1431,6 +1431,8 @@ function phrLoad(){
 const PHR_TECH = {1:['Single', 'one hammer, one pluck'], 2:['Double', 'two hammers, two plucks'], 3:['Triple', 'three hammers, three plucks'], mix:['Combos', 'one to three of each, mixed']};
 const PHR_PLUCK = {open:'Open strings', held:'Held note', rot:'Rotating note'};
 function seeded(str){ let h = 2166136261; for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296; }; }
+/* a hammer onto the fret you just plucked (still held, still ringing: the last note on that string) can't be played */
+function phrHeldHammer(seq){ const at = {}; for (const x of seq) { if (x.h && x.f && at[x.s] === x.f) return true; at[x.s] = x.h ? -1 : x.f; } return false; }
 /* the cells of one bar of len units. tri: in straight time a group of three is a triplet in the space of two, starting on an even unit. */
 function phrCells(tech, len, rnd, tri){
   if (tri) {
@@ -1447,11 +1449,23 @@ function phrCells(tech, len, rnd, tri){
   }
   return out;
 }
+/* a phrase, tried again (the same way each time) if it can't be fingered, or if looping round would hammer a fret just plucked */
 function phraseFor(L){
+  let keep = null;
+  for (let salt = 0; salt < 6; salt++) {
+    const r = phraseTry(L, salt); if (!r) return r;
+    if (!r.notes.length) { keep = keep || r; continue; }
+    const lc = r.notes[r.notes.length - 1].cell;
+    if (!phrHeldHammer(r.notes.concat(r.notes.filter(x => x.cell < lc)))) return r;
+    if (!keep || !keep.notes.length) keep = r;
+  }
+  return keep;
+}
+function phraseTry(L, salt){
   const P = PHR, fp = scalePosFor(L); if (!fp) return null;
   const c = phrInfo(L), tri = c.v === 3;
   const tun = TUNINGS[state.tuning].midi, labels = layerLabels(L), pcs = labels.map(l => mod(L.root + semi(l)));
-  const rnd = seeded([P.tech, P.pluck, P.n, L.root, L.type, fp.lo, c.per, state.tuning].join('|')), pick = a => a[Math.floor(rnd() * a.length)];
+  const rnd = seeded([P.tech, P.pluck, P.n, L.root, L.type, fp.lo, c.per, state.tuning].join('|') + (salt ? '|' + salt : '')), pick = a => a[Math.floor(rnd() * a.length)];
   for (let i = 0; i < 5; i++) rnd();
   const win = []; for (let s = 0; s < 6; s++) for (let f = Math.max(1, fp.lo); f <= fp.hi; f++) { const m = tun[s] + f; if (pcs.includes(mod(m))) win.push({s, f, m}); }
   win.sort((a, b) => a.m - b.m || a.s - b.s);
@@ -1477,7 +1491,8 @@ function phraseFor(L){
       if (v2 && at != null && rnd() < .12) dir = -dir;
       const fall = v2 && (rnd() < .85 ? dir < 0 : dir > 0);       // this cell falls: hammered from a higher string to a lower one
       const ss = same && rnd() < .3;      // this cell plucks a string it hammered on
-      for (let h = Math.min(h0, A.length); h >= 1 && !done; h--) for (const dn of fall && h > 1 ? [true, false] : [fall]) {
+      // every cell would rather not clash with the start when the phrase loops round, but will if nothing else fits
+      for (const wrap of [true, false]) for (let h = Math.min(h0, A.length); h >= 1 && !done; h--) for (const dn of fall && h > 1 ? [true, false] : [fall]) {
         if (done) break;
         const p = total - h, starts = A.map((_, k) => k).filter(k => k + h <= A.length);
         // walk on from where the last cell was, turning round at the ends
@@ -1504,6 +1519,8 @@ function phraseFor(L){
           }
           if (!X.length) continue;
           done = [...H.map(n => Object.assign({h:true}, n)), ...Array.from({length:p}, (_, j) => Object.assign({h:false}, X[j % X.length]))];
+          // nor across cells, nor from the end of the phrase back round to its start when it loops
+          if (phrHeldHammer(notes.concat(done, wrap ? notes : []))) { done = null; continue; }
           if (at != null && k < at && dir > 0 || k >= A.length - h) dir = -1; else if (k <= 0 || v2 && at != null && k > at) dir = 1;
           at = k; last = X[0].m; break;
         }
