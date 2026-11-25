@@ -1417,14 +1417,14 @@ const sp = {on:false, layerId:null, srcs:[], events:[], timer:0, raf:0, lit:null
 const PER_NAMES = {1:'quarter notes', 2:'8ths', 3:'triplets', 4:'16ths', 6:'sextuplets'};
 /* ---- hard-mode phrases: fret-hand hammers (from nowhere) answered by plucks, built from the layer's own notes ----
    A phrase is two bars of cells. A cell is h hammered arpeggio notes, then p plucked ones. Both bars share a rhythm of cells.
-   Each cell has to be playable: hammers and plucks on different strings, a hand span of 4 frets (3 down low), 4 fingers. */
+   Each cell has to be playable: hammers and plucks on different strings (with Same string on, now and then a pluck is on a hammered string, at another fret), a hand span of 4 frets (3 down low), 4 fingers. */
 const PHR = {};
 /* settings can come from a saved setup or a shared link, so only known values get in */
 const PHR_MAX = 999999, num = (x, lo, hi, d) => Number.isInteger(x) && x >= lo && x <= hi ? x : d;
 function phrLoad(){
   const x = state.playCfg.phr || {}, c = x.bpm === undefined && x.seen ? state.playCfg : x;       // before phrases had their own tempo they shared the scale's
   Object.keys(PHR).forEach(k => delete PHR[k]);
-  Object.assign(PHR, {tech:['1', '2', '3', 'mix'].includes(x.tech) ? x.tech : '1', pluck:['open', 'held', 'rot'].includes(x.pluck) ? x.pluck : 'open', n:num(x.n, 1, PHR_MAX, 1), turn:!!x.turn, old:typeof x.old === 'string' ? x.old : '', oldV:num(x.oldV, 1, 3, 1), trip:x.trip === 6 ? 6 : 3,
+  Object.assign(PHR, {tech:['1', '2', '3', 'mix'].includes(x.tech) ? x.tech : '1', pluck:['open', 'held', 'rot'].includes(x.pluck) ? x.pluck : 'open', n:num(x.n, 1, PHR_MAX, 1), turn:!!x.turn, old:typeof x.old === 'string' ? x.old : '', oldV:num(x.oldV, 1, 3, 1), trip:x.trip === 6 ? 6 : 3, same:x.same !== false,
     bpm:num(c.bpm, 30, 300, 60), per:num(c.per, 1, 4, 4), tone:['ring', 'stacc', 'mute'].includes(c.tone) ? c.tone : 'ring', loop:c.loop === undefined ? true : !!c.loop});
   state.playCfg.phr = PHR;
 }phrLoad();
@@ -1457,6 +1457,7 @@ function phraseFor(L){
   win.sort((a, b) => a.m - b.m || a.s - b.s);
   const open = tun.map((m, s) => ({s, f:0, m})).filter(n => pcs.includes(mod(n.m)));
   let src = P.pluck, note = '';
+  const same = !!P.same && src !== 'held';      // only asks the random numbers for anything when it's on, so phrases without it stay as they were
   if (src === 'open' && !open.length) { src = 'held'; note = 'No open string is in this ' + (isArp(L) ? 'arpeggio' : 'scale') + ', so a held note is plucked instead.'; }
   const held = src === 'held' ? pick(win.filter(n => n.s >= 3).length ? win.filter(n => n.s >= 3) : win) : null;
   const seven = labels.length === 7 && !isArp(L), D = seven ? chordsInScale(L) : null, degs = seven ? [0, pick([1, 2, 3, 4, 5])] : [0, 0];
@@ -1475,6 +1476,7 @@ function phraseFor(L){
       const total = h0 + p0; let done = null;
       if (v2 && at != null && rnd() < .12) dir = -dir;
       const fall = v2 && (rnd() < .85 ? dir < 0 : dir > 0);       // this cell falls: hammered from a higher string to a lower one
+      const ss = same && rnd() < .3;      // this cell plucks a string it hammered on
       for (let h = Math.min(h0, A.length); h >= 1 && !done; h--) for (const dn of fall && h > 1 ? [true, false] : [fall]) {
         if (done) break;
         const p = total - h, starts = A.map((_, k) => k).filter(k => k + h <= A.length);
@@ -1490,9 +1492,10 @@ function phraseFor(L){
           let X = [];
           if (src === 'held') { if (!fits([...H, held])) continue; X = [held]; }
           else {
-            const pool = (src === 'open' ? open : win).filter(n => !hs.has(n.s) && (src === 'open' || fits([...H, n])) && !H.some(q => q.m === n.m));
-            const hi = pool.filter(n => n.s > top), use = (hi.length ? hi : pool).slice();
-            const max = src === 'open' ? 3 : 4 - h, first = use.length ? (src === 'open' ? oi++ % use.length : Math.floor(rnd() * use.length)) : 0;
+            const pool = (src === 'open' ? open : win).filter(n => (ss || !hs.has(n.s)) && (src === 'open' || fits([...H, n])) && !H.some(q => q.m === n.m));
+            const sm = ss ? pool.filter(n => hs.has(n.s)) : [], hi = pool.filter(n => n.s > top), rest = (hi.length ? hi : pool).filter(n => !hs.has(n.s));
+            const use = sm.length ? sm.concat(rest) : (hi.length ? hi : pool).slice(), from = sm.length || use.length;      // a same-string cell starts its plucks on one
+            const max = src === 'open' ? 3 : 4 - h, first = use.length ? (src === 'open' ? oi++ % from : Math.floor(rnd() * from)) : 0;
             for (let j = 0; j < use.length && X.length < Math.min(p, max); j++) { const n = use[(first + j) % use.length]; if (!X.some(q => q.s === n.s) && (src === 'open' || fits([...H, ...X, n]))) X.push(n); }
             if (src === 'rot' && X.length === 1 && last === X[0].m) { const o = use.filter(n => n.m !== last); if (o.length) X = [pick(o)]; }
             X.sort((a, b) => dn ? b.s - a.s : a.s - b.s);
@@ -1544,7 +1547,7 @@ function scalePlayStart(L, ph){
     const phx = ph && lay && lay.pos ? phraseFor(lay) : null, run = lay && lay.pos ? (ph ? (phx || {notes:[]}).notes : scaleRun(lay)) : [];
     if (!sp.on || !run.length) { scalePlayStop(); return; }
     const spb = 60 / cfg.bpm, dt0 = spb / cfg.per, span = ph ? 8 * spb : run.length * dt0;
-    const tone = cfg.tone || 'ring', turn = ph && PHR.turn;
+    const tone = cfg.tone || 'ring', turn = ph && PHR.turn, onStr = [];
     run.forEach((n, k) => {
       const dt = ph ? n.d * spb : dt0, when = t0 + (ph ? n.t * spb : k * dt0), src = a.createBufferSource(), g = a.createGain();
       let stopAt = 0;
@@ -1564,6 +1567,8 @@ function scalePlayStart(L, ph){
         g.gain.setValueAtTime(0.5, when); g.gain.setTargetAtTime(0, when + len, 0.04);
         g.connect(lp); lp.connect(master); stopAt = when + len + 0.3;
       }
+      if (ph && onStr[n.s]) { const o = onStr[n.s]; if (!o.stop || o.stop > when) { o.g.gain.setTargetAtTime(0, when, 0.012); try { o.src.stop(when + 0.08); } catch (e) {} } }
+      onStr[n.s] = {src, g, stop:stopAt};
       src.start(when); if (stopAt) src.stop(stopAt);
       sp.srcs.push(src); sp.events.push({t:when, s:n.s, f:n.f, k});
     });
@@ -1600,13 +1605,13 @@ function scalePlayRestart(){ if (!sp.on) return; const L = state.layers.find(x =
 /* ---- favorite phrases: everything that makes the phrase (notes, spot, settings) and the tempo you last had it at ---- */
 const PHRKEY = 'fretboard-atlas-phrases-v1';
 const phrFavOk = f => f && typeof f === 'object' && SCALES[f.type] && f.type !== 'chromatic' && TUNINGS[f.tuning] && num(f.root, 0, 11, -1) >= 0 && PHR_TECH[f.tech] && PHR_PLUCK[f.pluck]
-  && num(f.n, 1, PHR_MAX, 0) && [1, 2, 3, 4, 6].includes(f.per) && num(f.bpm, 30, 300, 0) && [undefined, 1, 2, 3].includes(f.v) && f.pos && num(f.pos.f, 0, 24, -1) >= 0 && num(f.pos.s, 0, 5, -1) >= 0 && ['box', 'nps'].includes(f.pos.style) && [undefined, 1, -1].includes(f.pos.d);
+  && num(f.n, 1, PHR_MAX, 0) && [1, 2, 3, 4, 6].includes(f.per) && num(f.bpm, 30, 300, 0) && [undefined, 1, 2, 3].includes(f.v) && [undefined, true, false].includes(f.same) && f.pos && num(f.pos.f, 0, 24, -1) >= 0 && num(f.pos.s, 0, 5, -1) >= 0 && ['box', 'nps'].includes(f.pos.style) && [undefined, 1, -1].includes(f.pos.d);
 let phrFavs = [];
 try { const x = JSON.parse(localStorage.getItem(PHRKEY)); if (Array.isArray(x)) phrFavs = x.filter(phrFavOk); } catch (e) {}
 function storePhr(){ try { localStorage.setItem(PHRKEY, JSON.stringify(phrFavs)); } catch (e) { toast('Could not save: the browser storage is full.'); } }
-const phrBase = f => [f.root, f.type, f.pos.s || 0, f.pos.f, f.pos.d || 0, f.pos.style === 'nps' ? 'nps' : 'box', f.tuning, f.tech, f.pluck, f.n, f.per].join('|');
+const phrBase = f => [f.root, f.type, f.pos.s || 0, f.pos.f, f.pos.d || 0, f.pos.style === 'nps' ? 'nps' : 'box', f.tuning, f.tech, f.pluck, f.n, f.per].join('|') + (f.same ? '|s' : '');
 const phrKey = f => phrBase(f) + (f.v >= 2 ? '|' + f.v : '');
-const phrSpot = L => ({root:L.root, type:L.type, pos:Object.assign({s:L.pos.s || 0, f:L.pos.f, style:L.pos.style === 'nps' ? 'nps' : 'box'}, L.pos.d ? {d:L.pos.d} : {}), tuning:state.tuning, tech:PHR.tech, pluck:PHR.pluck, n:PHR.n, per:PHR.per, bpm:PHR.bpm});
+const phrSpot = L => ({root:L.root, type:L.type, pos:Object.assign({s:L.pos.s || 0, f:L.pos.f, style:L.pos.style === 'nps' ? 'nps' : 'box'}, L.pos.d ? {d:L.pos.d} : {}), tuning:state.tuning, tech:PHR.tech, pluck:PHR.pluck, n:PHR.n, per:PHR.per, bpm:PHR.bpm, same:!!PHR.same});
 /* the note value and the generator in use. Triples are always triplets (or sextuplets); in combos, straight time with triplets inside.
    A favorite from before that keeps the rhythm and the notes it was saved with. */
 const phrNewest = (tech, per) => tech === 'mix' && per % 3 ? 3 : 2;
@@ -1657,7 +1662,8 @@ function scalePlayHtml(i, L, arp){
   const s = playCtl(i, L, '', arp ? 'arpeggio' : 'scale'), p = playCtl(i, L, 'ph', 'phrase');
   const phUi = !ph ? '' : fold('phr', 'Hammer and pluck phrases', `#${PHR.n} · ${PHR_TECH[PHR.tech][0]} · ${PHR.bpm} bpm`, `<div class="phr">
     <div class="row"><div class="seg wrapseg" aria-label="Technique">${Object.entries(PHR_TECH).map(([k, [t, h]]) => sg('sptech', k, t, PHR.tech === k, h)).join('')}</div>
-      <div class="seg wrapseg" aria-label="What is plucked">${Object.entries(PHR_PLUCK).map(([k, t]) => sg('sppluck', k, t, PHR.pluck === k)).join('')}</div></div>
+      <div class="seg wrapseg" aria-label="What is plucked">${Object.entries(PHR_PLUCK).map(([k, t]) => sg('sppluck', k, t, PHR.pluck === k)).join('')}</div>
+      ${PHR.pluck === 'held' ? '' : `<button type="button" class="chip${PHR.same ? ' sel' : ''}" data-act="spsame" data-i="${i}" aria-pressed="${!!PHR.same}" title="Now and then, pluck a string you just hammered on">Same string sometimes</button>`}</div>
     <div class="row"><span class="phn">Phrase <button type="button" class="ib" data-act="spn" data-i="${i}" data-v="-1" aria-label="Previous phrase"${PHR.n <= 1 ? ' disabled' : ''}>◀</button><input class="task-in" id="phn-${L.id}" data-act="spnum" data-i="${i}" type="text" inputmode="numeric" enterkeyhint="done" maxlength="6" autocomplete="off" aria-label="Phrase number" value="${PHR.n}"><button type="button" class="ib" data-act="spn" data-i="${i}" data-v="1" aria-label="Next phrase"${PHR.n >= PHR_MAX ? ' disabled' : ''}>▶</button></span>
       <span class="phstar">${phrStar(L, i, ph)}</span></div>
     <div class="row">${p.top}
@@ -6132,6 +6138,7 @@ panel.addEventListener('click', e => {
     case 'sstyle': if (L.pos) { L.pos = Object.assign({}, L.pos, {style:v}); setAnchor(L); } break;
     case 'sptech': PHR.tech = v; if (sp.ph) scalePlayRestart(); break;
     case 'sppluck': PHR.pluck = v; if (sp.ph) scalePlayRestart(); break;
+    case 'spsame': PHR.same = !PHR.same; if (sp.ph) scalePlayRestart(); break;
     case 'spn': PHR.n = Math.max(1, Math.min(PHR_MAX, PHR.n + +v)); if (sp.ph) scalePlayRestart(); break;
     case 'spturn': PHR.turn = !PHR.turn; if (PHR.turn) PHR.loop = true; if (sp.ph) scalePlayRestart(); break;
     case 'spphr': {       // straight into phrases: a position in the middle of the neck
@@ -6150,7 +6157,7 @@ panel.addEventListener('click', e => {
       if (f.tuning !== state.tuning) { state.tuning = f.tuning; state.layers.forEach(x => { if (x !== L) adjustPos(x); }); toast('Tuning set to ' + TUNINGS[f.tuning].name); }
       if (L.type !== f.type) L.hidden = [];
       Object.assign(L, {root:f.root, type:f.type, pos:Object.assign({}, f.pos), visible:true}); setAnchor(L); state.tap = null;
-      ['tech', 'pluck', 'n', 'bpm'].forEach(k => PHR[k] = f[k]); if (f.tech === '3' && f.per % 3 === 0) PHR.trip = f.per; else PHR.per = f.per; PHR.old = phrBase(f); PHR.oldV = f.v || 1;
+      ['tech', 'pluck', 'n', 'bpm'].forEach(k => PHR[k] = f[k]); PHR.same = f.same === true; if (f.tech === '3' && f.per % 3 === 0) PHR.trip = f.per; else PHR.per = f.per; PHR.old = phrBase(f); PHR.oldV = f.v || 1;
       if (was) scalePlayStart(L, true); break;
     }
     case 'splay': { const ph = b.dataset.k === 'ph'; if (sp.on && sp.layerId === L.id && sp.ph === ph) scalePlayStop(); else if (L.pos) scalePlayStart(L, ph); return; }
