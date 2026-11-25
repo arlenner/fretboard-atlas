@@ -414,7 +414,7 @@ body.pv-done .neck-wrap{display:none !important}
 .phtab.turn{box-shadow:inset 0 0 0 2px var(--accent)}
 .phbar{flex:0 0 auto} .phbar > small{font-weight:700}
 .phcols{display:flex}
-.phc{display:grid; width:24px; justify-items:center; position:relative}
+.phc{display:grid; box-sizing:border-box; width:calc(var(--pw, 20px) + var(--pl, 0px) + var(--pr, 0px)); justify-items:center; position:relative}
 .phc em{font-style:normal; font-size:11px; font-weight:700; color:var(--muted)}
 .phc.h em{color:var(--accent)}
 .phc.st:not(:first-child){border-left:1px dashed var(--line)}
@@ -423,7 +423,17 @@ body.pv-done .neck-wrap{display:none !important}
 .phc.h i b{background:var(--accent); color:var(--surface)}
 .phc.p i b{box-shadow:inset 0 0 0 1px var(--muted)}
 .phc u{text-decoration:none; font-size:10px; color:var(--muted); min-height:14px}
-.phc u .tr3{display:block; background:none; height:auto; font-size:10px; font-style:italic; color:var(--accent); font-weight:700}
+/* groups: singles stand apart and round, pairs sit together under a thin bar, threes touch under a thick one */
+.phc > *{box-sizing:border-box; width:100%; text-align:center; padding:0 var(--pr, 0px) 0 var(--pl, 0px)}
+.phc.gs{--pl:4px} .phc.ge{--pr:4px}
+.phc.g3{--pw:18px}
+.phc.g3.gs{--pl:5px} .phc.g3.ge{--pr:5px}
+.phc.g1 i b{border-radius:9px}
+.phc.g3 i b{border-radius:3px}
+.phc::before{content:''; box-sizing:border-box; height:4px; justify-self:stretch; margin:0 var(--pr, 0px) 0 var(--pl, 0px)}
+.phc.g2::before{border-bottom:1px solid var(--muted)} .phc.g3::before{border-bottom:3px solid var(--muted)}
+.phc.h.g2::before, .phc.h.g3::before{border-color:var(--accent)}
+.phc u .tr3{padding:0; display:block; background:none; height:auto; font-size:10px; font-style:italic; color:var(--accent); font-weight:700}
 .phc.on{background:color-mix(in srgb, var(--accent) 22%, transparent)}
 /* folded sections: a row that names the section and shows what it is set to */
 .fold{display:grid; grid-template-columns:minmax(0, 1fr)}
@@ -1489,7 +1499,7 @@ function phraseFor(L){
       if (!done) return {notes:[], note:'No playable phrase here. Try another position or plucked note.'};
       done.forEach((n, j) => {
         const run = j < h0 ? h0 : p0, jj = j < h0 ? j : j - h0, t3 = tri && run === 3, d = t3 ? 2 / 3 : 1, whole = c.per % 3 === 0;
-        notes.push(Object.assign(n, {cell:cn, start:j === 0, bar, t:un / c.per, d:d / c.per, tri:t3 ? jj : whole ? Math.round(un) % 3 : -1})); un = t3 && jj === 2 ? Math.round(un + d) : un + d;
+        notes.push(Object.assign(n, {cell:cn, start:j === 0, bar, gi:jj, gn:run, t:un / c.per, d:d / c.per, tri:t3 ? jj : whole ? Math.round(un) % 3 : -1})); un = t3 && jj === 2 ? Math.round(un + d) : un + d;
       }); cn++;
     }
   }
@@ -1498,7 +1508,7 @@ function phraseFor(L){
 /* the phrase as tab: one column a note, H or P above it */
 function phraseTab(ph){
   return `<div class="phtab" tabindex="0" role="img" aria-label="Tab: ${ph.notes.map(n => `${n.h ? 'hammer' : 'pluck'} string ${6 - n.s} fret ${n.f}`).join(', ')}">${[0, 1].map(b => { const ns = ph.notes.map((n, k) => Object.assign({k}, n)).filter(n => n.bar === b);
-    return `<div class="phbar"><small>${ph.chords[b]}</small><div class="phcols">${ns.map(n => `<span class="phc${n.h ? ' h' : ' p'}${n.start ? ' st' : ''}" data-phk="${n.k}"><em>${n.h ? 'H' : 'P'}</em>${[5, 4, 3, 2, 1, 0].map(s => `<i>${n.s === s ? `<b>${n.f}</b>` : ''}</i>`).join('')}<u>${Math.abs(n.t - Math.round(n.t)) < 1e-6 ? Math.round(n.t) - b * 4 + 1 : n.tri === 1 ? '<i class="tr3" title="Triplet">3</i>' : ''}</u></span>`).join('')}</div></div>`; }).join('')}</div>`;
+    return `<div class="phbar"><small>${ph.chords[b]}</small><div class="phcols">${ns.map(n => `<span class="phc${n.h ? ' h' : ' p'}${n.start ? ' st' : ''} g${n.gn}${n.gi ? '' : ' gs'}${n.gi === n.gn - 1 ? ' ge' : ''}" data-phk="${n.k}"><em>${n.h ? 'H' : 'P'}</em>${[5, 4, 3, 2, 1, 0].map(s => `<i>${n.s === s ? `<b>${n.f}</b>` : ''}</i>`).join('')}<u>${Math.abs(n.t - Math.round(n.t)) < 1e-6 ? Math.round(n.t) - b * 4 + 1 : n.tri === 1 ? '<i class="tr3" title="Triplet">3</i>' : ''}</u></span>`).join('')}</div></div>`; }).join('')}</div>`;
 }
 function scaleRun(L){
   const fp = scalePosFor(L); if (!fp) return [];
