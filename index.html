@@ -964,6 +964,9 @@ const SCALES = {
 };
 const MODES = ['ionian','dorian','phrygian','lydian','mixolydian','aeolian','locrian'];
 const MODE_OFF = [0, 2, 4, 5, 7, 9, 11];
+const MODE_CHAR = ['The plain major scale.', 'Minor with a natural 6.', 'Minor with a ♭2.', 'Major with a ♯4.', 'Major with a ♭7.', 'The plain minor scale.', 'Minor with a ♭2 and ♭5.'];
+/* the major scale a layer's relative modes come from: its own if it is a mode, else the major or natural minor on its root */
+const modeParent = L => { const k = MODES.indexOf(L.type); return mod(L.root - MODE_OFF[k >= 0 ? k : SCALES[L.type].labels.includes('b3') ? 5 : 0]); };
 const OTHER_SCALES = [
   ['Pentatonic & blues', ['majPent','minPent','blues','majBlues','domPent','m6Pent']],
   ['World pentatonics', ['hirajoshi','inSen','iwato','kumoi','yo','egyptian','pelog']],
@@ -1869,7 +1872,9 @@ function layerCard(L, i){
     }
   }
   if (L.kind === 'scale') {
-    h += `${sec('type')}<div class="row"><span class="rl">Mode</span>${MODES.map((m, k) => `<button type="button" class="chip${L.type === m ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="${m}">${pn(rootName(L.root, SCALES[m].labels))} ${SCALES[m].short}</button>`).join('')}</div>
+    h += `${sec('type')}<div class="row"><span class="rl">Modes</span><div class="seg" aria-label="Which modes"><button type="button" data-act="modeby" data-v="" aria-pressed="${!state.modeRel}">Same root (parallel)</button><button type="button" data-act="modeby" data-v="1" aria-pressed="${!!state.modeRel}">Same notes (relative)</button></div></div>
+      <div class="row">${MODES.map((m, k) => { const r = state.modeRel ? mod(modeParent(L) + MODE_OFF[k]) : L.root; return `<button type="button" class="chip${L.type === m ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="${m}" data-r="${r}">${pn(rootName(r, SCALES[m].labels))} ${SCALES[m].short}</button>`; }).join('')}</div>
+      ${state.modeRel ? `<span class="info">All from ${pn(rootName(modeParent(L), SCALES.ionian.labels))} major: the notes stay, the root moves.</span>` : MODES.includes(L.type) ? `<span class="info"><b>${SCALES[L.type].short}:</b> ${MODE_CHAR[MODES.indexOf(L.type)].replace(/^./, c => c.toLowerCase())}</span>` : ''}
       ${fold('arps', 'Other scales and arpeggios', MODES.includes(L.type) ? '' : SCALES[L.type].name, `<div class="row"><span class="rl">Arpeggio</span>${QUICK_ARPS.map(c => `<button type="button" class="chip${L.type === 'arp_' + c ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="arp_${c}">${pn(rootName(L.root, CHORDS[c].labels))}${CHORDS[c].sym}</button>`).join('')}</div>
       <div class="row"><span class="rl">Other scales</span><select class="sel" id="stype-${L.id}" data-act="stype-sel" data-i="${i}" aria-label="Other scales">
         <option value="">${MODES.includes(L.type) || QUICK_ARPS.includes((SCALES[L.type].chord || '')) && SCALES[L.type].arp ? 'Choose a scale…' : ''}</option>
@@ -2086,6 +2091,8 @@ function renderCircle(){
     addS(rel.pc, 'minPent', 'Works over the whole key');
     addS(rel.pc, 'blues', 'Minor pentatonic plus ♭5');
     [1, 2, 3, 4, 6].forEach(d => addS(mod(kpc + MODE_OFF[d]), MODES[d], 'Same notes, centred on ' + NUM[d]));
+    addS(kpc, 'lydian', 'Brighter major, ♯4');
+    addS(kpc, 'mixolydian', 'Bluesier major, ♭7');
   } else {
     addS(kpc, 'aeolian', 'The key itself');
     addS(kpc, 'harmMin', 'Raised 7th for a strong V–i');
@@ -2096,10 +2103,12 @@ function renderCircle(){
     addS(kpc, 'phrygian', 'Darker minor, ♭2');
     addS(rel.pc, rel.t, rel.what + ', same notes');
   }
-  const scaleHtml = scaleRows.map(s => {
+  const keyPcs = sc.labels.map(l => mod(kpc + semi(l))), inKey = s => SCALES[s.t].labels.every(l => keyPcs.includes(mod(s.pc + semi(l))));
+  const sclGroup = (title, rows) => rows.length ? `<span class="rl">${title}</span><div class="scl">${rows.map(s => {
     const S = SCALES[s.t];
     return `<button type="button" data-act="cscale" data-r="${s.pc}" data-t="${s.t}"><b>${pn(rootName(s.pc, S.labels))} ${S.short || scaleNameLc(S.name)}</b><small>${s.sub}</small></button>`;
-  }).join('');
+  }).join('')}</div>` : '';
+  const scaleHtml = sclGroup('All notes in the key', scaleRows.filter(inKey)) + sclGroup('Other colors: notes outside the key', scaleRows.filter(s => !inKey(s)));
   return `<div class="circle-wrap">
     <svg class="cof" viewBox="0 0 320 320" role="group" aria-label="Circle of fifths">${svg}</svg>
     <div class="kinfo">
@@ -2116,7 +2125,7 @@ function renderCircle(){
           return areas.map(([v, t]) => `<button type="button" data-act="carea" data-v="${v}" aria-pressed="${on === v}">${t}</button>`).join('');
         })()}</div>
         <span class="info tip">Chords and scales you tap stay in this area of the neck.</span></div>`)}
-      ${fold('cscl', 'Suggested scales', `${scaleRows.length} that fit the key`, `<div class="scl">${scaleHtml}</div>`)}
+      ${fold('cscl', 'Suggested scales', `in the key, and other colors`, scaleHtml)}
       <div>${fold('cprog', 'Common progressions', progStyle === 'color' ? 'colorful' : 'plain', `<div class="row">
         <div class="seg"><button type="button" data-act="ccolor" data-v="0" aria-pressed="${progStyle !== 'color'}" title="Every chord a ${sevenths ? '7th' : 'triad'}, as set above">Plain</button><button type="button" data-act="ccolor" data-v="1" aria-pressed="${progStyle === 'color'}" title="Mixed qualities, the way each progression is usually played">Colorful</button></div>
         <span class="info tip">${progStyle === 'color' ? 'Mixed chord colors: add9s and maj7s, a dominant 7 pulling home, 9ths and 13ths for jazz.' : `All ${sevenths ? '7th chords' : 'triads'}, following the Diatonic chords setting.`}</span></div>
@@ -5786,7 +5795,8 @@ panel.addEventListener('click', e => {
     case 'fitmulti': state.fitMulti = !!v; break;
     case 'fitall': state.fitAll = !state.fitAll; break;
     case 'ctype': L.type = v; L.hidden = []; break;
-    case 'stype': L.type = v; L.hidden = []; adjustPos(L); break;
+    case 'modeby': state.modeRel = !!v; break;
+    case 'stype': if (b.dataset.r && L.root !== +b.dataset.r) { L.root = +b.dataset.r; if (i === 0) state.tap = null; } L.type = v; L.hidden = []; adjustPos(L); break;
     case 'note': { const pc = +v, k = L.notes.indexOf(pc); if (k >= 0) L.notes.splice(k, 1); else L.notes.push(pc); break; }
     case 'flt': { const k = L.hidden.indexOf(v); if (k >= 0) L.hidden.splice(k, 1); else L.hidden.push(v); break; }
     case 'fall': L.hidden = []; break;
