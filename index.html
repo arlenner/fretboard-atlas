@@ -169,8 +169,8 @@ h2,h3{margin:0; text-wrap:balance}
 .voicing .diag{width:84px}
 .vinfo{display:grid; gap:6px; min-width:0}
 .splay{display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px}
-.splay .sp-tempo{display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--muted)}
-.splay .sp-tempo b{color:var(--ink); font-size:16px; font-variant-numeric:tabular-nums; min-width:2.2em; text-align:center}
+.sp-tempo{display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--muted)}
+.sp-tempo b{color:var(--ink); font-size:16px; font-variant-numeric:tabular-nums; min-width:2.2em; text-align:center}
 .splay .seg button{padding:5px 9px}
 .splay .hint{flex-basis:100%; font-size:12px; color:var(--muted)}
 /* chords that fit the scale */
@@ -401,6 +401,15 @@ body.pv-done .neck-wrap{display:none !important}
 .bar > .ctl{display:none}
 .bar.showview > .ctl{display:flex; order:5}
 .phr{display:grid; gap:8px; grid-template-columns:minmax(0, 1fr); flex:1 1 100%; min-width:0}
+.phn{display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--muted)}
+.phn input{width:5.5em; flex:none; text-align:center; font-weight:700; font-variant-numeric:tabular-nums}
+.phout{display:grid; gap:8px; grid-template-columns:minmax(0, 1fr)}
+.phfavs{display:grid; gap:6px; grid-template-columns:minmax(0, 1fr)}
+.phfav{display:flex; gap:6px; align-items:stretch}
+.phfav .btn{flex:1; min-width:0; display:grid; gap:2px; text-align:left; justify-items:start; white-space:normal}
+.phfav .btn.sel{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+.phfav small{color:var(--muted)}
+.phfav .ib{height:auto; min-width:40px}
 .phtab{display:flex; flex-wrap:nowrap; gap:14px; overflow-x:auto; padding:8px; border:1px solid var(--line); border-radius:10px; background:var(--surface)}
 .phtab.turn{box-shadow:inset 0 0 0 2px var(--accent)}
 .phbar{flex:0 0 auto} .phbar > small{font-weight:700}
@@ -1380,8 +1389,14 @@ const PER_NAMES = {1:'quarter notes', 2:'8ths', 3:'triplets', 4:'16ths'};
    Each cell has to be playable: hammers and plucks on different strings, a hand span of 4 frets (3 down low), 4 fingers. */
 const PHR = {};
 /* settings can come from a saved setup or a shared link, so only known values get in */
-function phrLoad(){ const x = state.playCfg.phr || {}; Object.assign(PHR, {on:!!x.on, tech:['1', '2', '3', 'mix'].includes(x.tech) ? x.tech : '1', pluck:['open', 'held', 'rot'].includes(x.pluck) ? x.pluck : 'open', n:Number.isInteger(x.n) && x.n > 0 ? x.n : 1, turn:!!x.turn, seen:!!x.seen}); state.playCfg.phr = PHR; }
-phrLoad();
+const PHR_MAX = 999999, num = (x, lo, hi, d) => Number.isInteger(x) && x >= lo && x <= hi ? x : d;
+function phrLoad(){
+  const x = state.playCfg.phr || {}, c = x.bpm === undefined && x.seen ? state.playCfg : x;       // before phrases had their own tempo they shared the scale's
+  Object.keys(PHR).forEach(k => delete PHR[k]);
+  Object.assign(PHR, {tech:['1', '2', '3', 'mix'].includes(x.tech) ? x.tech : '1', pluck:['open', 'held', 'rot'].includes(x.pluck) ? x.pluck : 'open', n:num(x.n, 1, PHR_MAX, 1), turn:!!x.turn,
+    bpm:num(c.bpm, 30, 300, 60), per:num(c.per, 1, 4, 4), tone:['ring', 'stacc', 'mute'].includes(c.tone) ? c.tone : 'ring', loop:c.loop === undefined ? true : !!c.loop});
+  state.playCfg.phr = PHR;
+}phrLoad();
 const PHR_TECH = {1:['Single', 'one hammer, one pluck'], 2:['Double', 'two hammers, two plucks'], 3:['Triple', 'three hammers, three plucks'], mix:['Combos', 'one to three of each, mixed']};
 const PHR_PLUCK = {open:'Open strings', held:'Held note', rot:'Rotating note'};
 function seeded(str){ let h = 2166136261; for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296; }; }
@@ -1397,7 +1412,7 @@ function phrCells(tech, len, rnd){
   return out;
 }
 function phraseFor(L){
-  const c = state.playCfg, P = c.phr, fp = scalePosFor(L); if (!fp) return null;
+  const c = PHR, P = PHR, fp = scalePosFor(L); if (!fp) return null;
   const tun = TUNINGS[state.tuning].midi, labels = layerLabels(L), pcs = labels.map(l => mod(L.root + semi(l)));
   const rnd = seeded([P.tech, P.pluck, P.n, L.root, L.type, fp.lo, c.per, state.tuning].join('|')), pick = a => a[Math.floor(rnd() * a.length)];
   for (let i = 0; i < 5; i++) rnd();
@@ -1454,7 +1469,6 @@ function phraseTab(ph, per){
     return `<div class="phbar"><small>${ph.chords[b]}</small><div class="phcols">${ns.map((n, k) => `<span class="phc${n.h ? ' h' : ' p'}${n.start ? ' st' : ''}" data-phk="${off + k}"><em>${n.h ? 'H' : 'P'}</em>${[5, 4, 3, 2, 1, 0].map(s => `<i>${n.s === s ? `<b>${n.f}</b>` : ''}</i>`).join('')}<u>${k % per ? '' : k / per + 1}</u></span>`).join('')}</div></div>`; }).join('')}</div>`;
 }
 function scaleRun(L){
-  if (PHR.on) { const ph = phraseFor(L); return ph ? ph.notes : []; }
   const fp = scalePosFor(L); if (!fp) return [];
   const tun = TUNINGS[state.tuning].midi, seen = new Set(), up = [];
   fp.shape.map(q => ({s:q.s, f:q.f, m:tun[q.s] + q.f})).sort((a, b) => a.m - b.m || a.s - b.s)
@@ -1467,21 +1481,21 @@ function scaleRun(L){
 function scalePlayStop(quiet){
   clearTimeout(sp.timer); cancelAnimationFrame(sp.raf);
   sp.srcs.forEach(s => { try { s.stop(); } catch (e) {} });
-  Object.assign(sp, {on:false, layerId:null, srcs:[], events:[]});
+  Object.assign(sp, {on:false, ph:false, layerId:null, srcs:[], events:[]});
   if (sp.lit) { sp.lit.classList.remove('playing'); sp.lit = null; }
   if (!quiet) render();
 }
-function scalePlayStart(L){
+function scalePlayStart(L, ph){
   scalePlayStop(true);
   const a = getAudio(); if (!a) return;
   if (a.state !== 'running') a.resume().catch(() => {});
-  Object.assign(sp, {on:true, layerId:L.id});
+  Object.assign(sp, {on:true, ph:!!ph, layerId:L.id}); const cfg = ph ? PHR : state.playCfg;
   const cycle = t0 => {
     const lay = state.layers.find(x => x.id === sp.layerId);
-    const run = lay && lay.pos ? scaleRun(lay) : [];
+    const run = lay && lay.pos ? (ph ? (phraseFor(lay) || {notes:[]}).notes : scaleRun(lay)) : [];
     if (!sp.on || !run.length) { scalePlayStop(); return; }
-    const dt = 60 / state.playCfg.bpm / state.playCfg.per;
-    const tone = state.playCfg.tone || 'ring', turn = PHR.on && PHR.turn;
+    const dt = 60 / cfg.bpm / cfg.per;
+    const tone = cfg.tone || 'ring', turn = ph && PHR.turn;
     run.forEach((n, k) => {
       const when = t0 + k * dt, src = a.createBufferSource(), g = a.createGain();
       let stopAt = 0;
@@ -1506,12 +1520,12 @@ function scalePlayStart(L){
     });
     if (turn) {       // the same length again, with only a click: your turn
       const t1 = t0 + run.length * dt; sp.events.push({t:t1, s:-1, f:-1, k:-1});
-      for (let k = 0; k < run.length; k += state.playCfg.per) { const cs = a.createBufferSource(), g = a.createGain(); cs.buffer = clickBuf(k % (4 * state.playCfg.per) ? 'beat' : 'acc'); g.gain.value = 0.25; cs.connect(g); g.connect(master); cs.start(t1 + k * dt); sp.srcs.push(cs); }
+      for (let k = 0; k < run.length; k += cfg.per) { const cs = a.createBufferSource(), g = a.createGain(); cs.buffer = clickBuf(k % (4 * cfg.per) ? 'beat' : 'acc'); g.gain.value = 0.25; cs.connect(g); g.connect(master); cs.start(t1 + k * dt); sp.srcs.push(cs); }
     }
     const end = t0 + run.length * dt * (turn ? 2 : 1);
     sp.srcs = sp.srcs.slice(-200); sp.events = sp.events.filter(e => e.t > a.currentTime - 1);
     // queue the next pass shortly before this one ends, or finish
-    sp.timer = setTimeout(() => { if (!sp.on) return; if (state.playCfg.loop) cycle(end); else sp.timer = setTimeout(() => scalePlayStop(), 400); }, Math.max(0, (end - a.currentTime - 0.25) * 1000));
+    sp.timer = setTimeout(() => { if (!sp.on) return; if (cfg.loop) cycle(end); else sp.timer = setTimeout(() => scalePlayStop(), 400); }, Math.max(0, (end - a.currentTime - 0.25) * 1000));
   };
   cycle(a.currentTime + 0.06);
   // light up the note being played
@@ -1522,7 +1536,7 @@ function scalePlayStart(L){
     const el = cur ? document.querySelector(`.cell[data-s="${cur.s}"][data-f="${cur.f}"]`) : null;
     if (el !== sp.lit) { if (sp.lit) sp.lit.classList.remove('playing'); if (el) el.classList.add('playing'); sp.lit = el; }
     else if (el && !el.classList.contains('playing')) el.classList.add('playing');   // the neck was redrawn
-    if (PHR.on) {
+    if (ph) {
       const k = cur ? cur.k : -2, was = document.querySelector('.phc.on'), col = document.querySelector(`.phc[data-phk="${k}"]`), tab = document.querySelector('.phtab');
       if (was !== col) { if (was) was.classList.remove('on'); if (col) { col.classList.add('on'); if (tab.scrollWidth > tab.clientWidth) tab.scrollLeft = col.getBoundingClientRect().left - tab.getBoundingClientRect().left + tab.scrollLeft - tab.clientWidth / 3; } }
       if (tab) tab.classList.toggle('turn', k === -1);
@@ -1533,35 +1547,68 @@ function scalePlayStart(L){
   render();
 }
 /* changing speed, note value or direction while playing: start again from the bottom with the new settings */
-function scalePlayRestart(){ if (!sp.on) return; const L = state.layers.find(x => x.id === sp.layerId); if (L) scalePlayStart(L); }
+function scalePlayRestart(){ if (!sp.on) return; const L = state.layers.find(x => x.id === sp.layerId); if (L) scalePlayStart(L, sp.ph); }
+/* ---- favorite phrases: everything that makes the phrase (notes, spot, settings) and the tempo you last had it at ---- */
+const PHRKEY = 'fretboard-atlas-phrases-v1';
+const phrFavOk = f => f && typeof f === 'object' && SCALES[f.type] && f.type !== 'chromatic' && TUNINGS[f.tuning] && num(f.root, 0, 11, -1) >= 0 && PHR_TECH[f.tech] && PHR_PLUCK[f.pluck]
+  && num(f.n, 1, PHR_MAX, 0) && num(f.per, 1, 4, 0) && num(f.bpm, 30, 300, 0) && f.pos && num(f.pos.f, 0, 24, -1) >= 0 && num(f.pos.s, 0, 5, -1) >= 0 && ['box', 'nps'].includes(f.pos.style) && [undefined, 1, -1].includes(f.pos.d);
+let phrFavs = [];
+try { const x = JSON.parse(localStorage.getItem(PHRKEY)); if (Array.isArray(x)) phrFavs = x.filter(phrFavOk); } catch (e) {}
+function storePhr(){ try { localStorage.setItem(PHRKEY, JSON.stringify(phrFavs)); } catch (e) { toast('Could not save: the browser storage is full.'); } }
+const phrKey = f => [f.root, f.type, f.pos.s || 0, f.pos.f, f.pos.d || 0, f.pos.style === 'nps' ? 'nps' : 'box', f.tuning, f.tech, f.pluck, f.n, f.per].join('|');
+const phrNow = L => ({root:L.root, type:L.type, pos:Object.assign({s:L.pos.s || 0, f:L.pos.f, style:L.pos.style === 'nps' ? 'nps' : 'box'}, L.pos.d ? {d:L.pos.d} : {}), tuning:state.tuning, tech:PHR.tech, pluck:PHR.pluck, n:PHR.n, per:PHR.per, bpm:PHR.bpm});
+const phrFavOf = L => { const k = phrKey(phrNow(L)); return phrFavs.find(f => phrKey(f) === k); };
+function phrFavTempo(L){ const f = L.pos && phrFavOf(L); if (f && f.bpm !== PHR.bpm) { f.bpm = PHR.bpm; storePhr(); } }
+const phrFavName = f => `${scaleTitle(f.root, f.type).replace(/<[^>]+>/g, '')} · fret ${f.pos.f}`;
+function phrFavHtml(L, i){
+  const cur = phrFavOf(L);
+  return phrFavs.length ? phrFavs.map((f, k) => `<div class="phfav"><button type="button" class="btn${f === cur ? ' sel' : ''}" data-act="spfavgo" data-i="${i}" data-v="${k}" aria-pressed="${f === cur}"><b>#${f.n} · ${PHR_TECH[f.tech][0]} · ${PHR_PLUCK[f.pluck]}</b><small>${phrFavName(f)} · ${PER_NAMES[f.per]} at ${f.bpm} bpm${f.tuning === state.tuning ? '' : ' · ' + TUNINGS[f.tuning].name}</small></button><button type="button" class="ib" data-act="spfavdel" data-i="${i}" data-v="${k}" aria-label="Remove phrase ${f.n} from favorites">✕</button></div>`).join('')
+    : '<span class="info">Tap ☆ beside a phrase number to keep it here.</span>';
+}
+/* the parts that follow the phrase number, redrawn on their own while it is being typed */
+const phrOut = (L, ph) => `${ph.note ? `<span class="info">${ph.note}</span>` : ''}${ph.notes.length ? phraseTab(ph, PHR.per) : ''}`;
+const phrStar = (L, i, ph) => { const on = !!phrFavOf(L); return `<button type="button" class="chip${on ? ' sel' : ''}" data-act="spfav" data-i="${i}" aria-pressed="${on}" aria-label="${on ? 'Remove from favorites' : 'Add to favorites'}"${ph.notes.length ? '' : ' disabled'}>${on ? '★ Favorite' : '☆ Favorite'}</button>`; };
+let phrResume = false;       // it was playing when you started typing a number
+function phrTyped(el){
+  const L = state.layers[+el.dataset.i], n = parseInt(el.value.replace(/\D/g, ''), 10); if (!L || !L.pos || !(n >= 1)) return;
+  if (sp.on && sp.ph) { phrResume = true; scalePlayStop(true); const p = panel.querySelector('[data-act="splay"][data-k="ph"][aria-pressed="true"]'); if (p) { p.textContent = '▶ Play the phrase'; p.classList.remove('primary'); p.setAttribute('aria-pressed', 'false'); } }
+  PHR.n = Math.min(PHR_MAX, n); save();
+  const box = el.closest('.phr'), ph = phraseFor(L); if (!box || !ph) return;
+  box.querySelector('.phout').innerHTML = phrOut(L, ph); box.querySelector('.phstar').innerHTML = phrStar(L, +el.dataset.i, ph); box.querySelector('[data-act="spn"][data-v="-1"]').disabled = PHR.n <= 1; box.querySelector('[data-act="splay"]').disabled = !ph.notes.length;
+  const fl = box.querySelector('.phfavs'); if (fl) fl.innerHTML = phrFavHtml(L, +el.dataset.i);
+}
+/* play, tempo and settings for one player: the scale (k '') or the phrase (k 'ph'). Each keeps its own. */
+function playCtl(i, L, k, what){
+  const c = k ? PHR : state.playCfg, on = sp.on && sp.ph === !!k && sp.layerId === L.id, at = `data-i="${i}" data-k="${k}"`;
+  const nps = (c.bpm * c.per / 60).toFixed(1).replace(/\.0$/, '');
+  const top = `<button type="button" class="btn${on ? ' primary' : ''}" data-act="splay" ${at} aria-pressed="${on}">${on ? '■ Stop' : `▶ Play the ${what}`}</button>
+    <span class="sp-tempo"><button type="button" class="ib" data-act="spbpm" ${at} data-v="-5" aria-label="${what}: 5 bpm slower">−5</button>
+      <b>${c.bpm}</b> bpm
+      <button type="button" class="ib" data-act="spbpm" ${at} data-v="5" aria-label="${what}: 5 bpm faster">+5</button></span>`;
+  const adj = `${fold(k ? 'phset' : 'splay', 'Adjust', `${PER_NAMES[c.per]} · ${k ? '' : (c.dir === 'updown' ? 'up and down' : c.dir === 'down' ? 'down' : 'up') + ' · '}${{ring:'ring', stacc:'staccato', mute:'muted'}[c.tone || 'ring']}${c.loop ? ' · loop' : ''}`, `<div class="row"><div class="seg" aria-label="Note value">${[1, 2, 3, 4].map(p => `<button type="button" data-act="spper" ${at} data-v="${p}" aria-pressed="${c.per === p}" title="${PER_NAMES[p]}">${['♩', '♪', '3', '16'][p - 1]}</button>`).join('')}</div>
+    ${k ? '' : `<div class="seg" aria-label="Direction"><button type="button" data-act="spdir" data-i="${i}" data-v="up" aria-pressed="${c.dir !== 'updown' && c.dir !== 'down'}">Up</button><button type="button" data-act="spdir" data-i="${i}" data-v="down" aria-pressed="${c.dir === 'down'}">Down</button><button type="button" data-act="spdir" data-i="${i}" data-v="updown" aria-pressed="${c.dir === 'updown'}">Up &amp; down</button></div>`}
+    <div class="seg" aria-label="Sound">${[['ring', 'Ring', 'Let each note ring'], ['stacc', 'Staccato', 'Short, separated notes'], ['mute', 'Muted', 'Palm-muted: dull and short']].map(([v, t, h]) => `<button type="button" data-act="sptone" ${at} data-v="${v}" aria-pressed="${(c.tone || 'ring') === v}" title="${h}">${t}</button>`).join('')}</div>
+    <button type="button" class="chip${c.loop ? ' sel' : ''}" data-act="sploop" ${at} aria-pressed="${c.loop}">↻ Loop</button>
+    <button type="button" class="chip" data-act="spmetro" ${at} title="Use the metronome's tempo">= metronome (${state.metro.bpm})</button></div>`)}
+    <span class="hint tip">${PER_NAMES[c.per]} at ${c.bpm} bpm · ${nps} notes a second</span>`;
+  return {top, adj};
+}
 function scalePlayHtml(i, L, arp){
-  const c = state.playCfg, on = sp.on && sp.layerId === L.id;
-  const nps = (c.bpm * c.per / 60).toFixed(1).replace(/\.0$/, ''), ph = PHR.on ? phraseFor(L) : null, sg = (k, v, t, on2, h) => `<button type="button" data-act="${k}" data-i="${i}" data-v="${v}" aria-pressed="${on2}"${h ? ` title="${h}"` : ''}>${t}</button>`;
-  const phUi = !ph ? '' : `<div class="phr">
+  const ph = phraseFor(L), sg = (k, v, t, on2, h) => `<button type="button" data-act="${k}" data-i="${i}" data-v="${v}" aria-pressed="${on2}"${h ? ` title="${h}"` : ''}>${t}</button>`;
+  const s = playCtl(i, L, '', arp ? 'arpeggio' : 'scale'), p = playCtl(i, L, 'ph', 'phrase');
+  const phUi = !ph ? '' : fold('phr', 'Hammer and pluck phrases', `#${PHR.n} · ${PHR_TECH[PHR.tech][0]} · ${PHR.bpm} bpm`, `<div class="phr">
     <div class="row"><div class="seg wrapseg" aria-label="Technique">${Object.entries(PHR_TECH).map(([k, [t, h]]) => sg('sptech', k, t, PHR.tech === k, h)).join('')}</div>
       <div class="seg wrapseg" aria-label="What is plucked">${Object.entries(PHR_PLUCK).map(([k, t]) => sg('sppluck', k, t, PHR.pluck === k)).join('')}</div></div>
-    <div class="row"><button type="button" class="ib" data-act="spn" data-i="${i}" data-v="-1" aria-label="Previous phrase"${PHR.n <= 1 ? ' disabled' : ''}>◀</button><span>Phrase <b>${PHR.n}</b></span><button type="button" class="ib" data-act="spn" data-i="${i}" data-v="1" aria-label="Next phrase">▶</button>
-      <button type="button" class="chip${PHR.turn ? ' sel' : ''}" data-act="spturn" data-i="${i}" aria-pressed="${PHR.turn}" title="After each phrase, the same length with only a click">Your turn</button>
-      <span class="info">${PHR_TECH[PHR.tech][1]}</span></div>
-    ${ph.note ? `<span class="info">${ph.note}</span>` : ''}
-    ${ph.notes.length ? phraseTab(ph, c.per) : ''}
-    <span class="hint tip">H: hammer it with the fretting hand alone, no pick. P: pluck it. Start slow enough that every hammer is as loud as the pluck. A phrase number always gives the same phrase in this spot.</span></div>`;
-  return `<div class="splay">
-    <div class="seg" aria-label="What to play">${sg('spmode', '', arp ? 'Arpeggio' : 'Scale', !PHR.on)}${sg('spmode', '1', 'Phrases', PHR.on, 'Hard mode: hammer and pluck phrases')}</div>
-    <button type="button" class="btn${on ? ' primary' : ''}" data-act="splay" data-i="${i}" aria-pressed="${on}">${on ? '■ Stop' : `▶ Play the ${PHR.on ? 'phrase' : arp ? 'arpeggio' : 'scale'}`}</button>
-    <span class="sp-tempo"><button type="button" class="ib" data-act="spbpm" data-i="${i}" data-v="-5" aria-label="5 bpm slower">−5</button>
-      <b>${c.bpm}</b> bpm
-      <button type="button" class="ib" data-act="spbpm" data-i="${i}" data-v="5" aria-label="5 bpm faster">+5</button></span>
-    ${phUi}
-    ${fold('splay', 'Adjust', `${PER_NAMES[c.per]} · ${PHR.on ? '' : c.dir === 'updown' ? 'up and down' : c.dir === 'down' ? 'down' : 'up'}${PHR.on ? '' : ' · '}${{ring:'ring', stacc:'staccato', mute:'muted'}[c.tone || 'ring']}${c.loop ? ' · loop' : ''}`, `<div class="row"><div class="seg" aria-label="Note value">${[1, 2, 3, 4].map(p => `<button type="button" data-act="spper" data-i="${i}" data-v="${p}" aria-pressed="${c.per === p}" title="${PER_NAMES[p]}">${['♩', '♪', '3', '16'][p - 1]}</button>`).join('')}</div>
-    <div class="seg" aria-label="Direction"${PHR.on ? ' hidden' : ''}><button type="button" data-act="spdir" data-i="${i}" data-v="up" aria-pressed="${c.dir !== 'updown' && c.dir !== 'down'}">Up</button><button type="button" data-act="spdir" data-i="${i}" data-v="down" aria-pressed="${c.dir === 'down'}">Down</button><button type="button" data-act="spdir" data-i="${i}" data-v="updown" aria-pressed="${c.dir === 'updown'}">Up &amp; down</button></div>
-    <div class="seg" aria-label="Sound">${[['ring', 'Ring', 'Let each note ring'], ['stacc', 'Staccato', 'Short, separated notes'], ['mute', 'Muted', 'Palm-muted: dull and short']].map(([v, t, h]) => `<button type="button" data-act="sptone" data-i="${i}" data-v="${v}" aria-pressed="${(c.tone || 'ring') === v}" title="${h}">${t}</button>`).join('')}</div>
-    <button type="button" class="chip${c.loop ? ' sel' : ''}" data-act="sploop" data-i="${i}" aria-pressed="${c.loop}">↻ Loop</button>
-    <button type="button" class="chip" data-act="spmetro" data-i="${i}" title="Use the metronome's tempo">= metronome (${state.metro.bpm})</button></div>`)}
-    <span class="hint tip">${PER_NAMES[c.per]} at ${c.bpm} bpm · ${nps} notes a second</span>
-  </div>`;
-}
-function strumMidis(midis, gap = .035, force){ midis.slice().sort((a, b) => a - b).forEach((m, k) => pluck(m, k * gap, force)); }
+    <div class="row"><span class="phn">Phrase <button type="button" class="ib" data-act="spn" data-i="${i}" data-v="-1" aria-label="Previous phrase"${PHR.n <= 1 ? ' disabled' : ''}>◀</button><input class="task-in" id="phn-${L.id}" data-act="spnum" data-i="${i}" type="text" inputmode="numeric" enterkeyhint="done" maxlength="6" autocomplete="off" aria-label="Phrase number" value="${PHR.n}"><button type="button" class="ib" data-act="spn" data-i="${i}" data-v="1" aria-label="Next phrase"${PHR.n >= PHR_MAX ? ' disabled' : ''}>▶</button></span>
+      <span class="phstar">${phrStar(L, i, ph)}</span></div>
+    <div class="row">${p.top}
+      <button type="button" class="chip${PHR.turn ? ' sel' : ''}" data-act="spturn" data-i="${i}" aria-pressed="${PHR.turn}" title="After each phrase, the same length with only a click">Your turn</button></div>
+    <div class="phout">${phrOut(L, ph)}</div>
+    <span class="hint tip">H: hammer it with the fretting hand alone, no pick. P: pluck it. Start slow enough that every hammer is as loud as the pluck. A phrase number always gives the same phrase in this spot. ${PHR_TECH[PHR.tech][1].replace(/^./, c => c.toUpperCase())}.</span>
+    ${p.adj}
+    ${fold('phfav', 'Favorites', phrFavs.length || '', `<div class="phfavs">${phrFavHtml(L, i)}</div>`)}</div>`);
+  return `<div class="splay">${s.top}${s.adj}</div>${phUi}`;
+}function strumMidis(midis, gap = .035, force){ midis.slice().sort((a, b) => a - b).forEach((m, k) => pluck(m, k * gap, force)); }
 function chordMidis(rootPc, type){ const base = 48 + mod(rootPc); return CHORDS[type].labels.map(l => base + lab(l).semi); }
 
 /* ================= chord identification ================= */
@@ -5433,7 +5480,7 @@ function handlePractice(act, b){
     case 'sessclean': if (state.session && !state.session.done) { state.session.clean = state.metro.bpm; toast(`Marked clean at ${state.metro.bpm} bpm`); render(); } return true;
     case 'logall': logShowAll = !logShowAll; render(); return true;
     case 'logcopy': {
-      const text = JSON.stringify({app:'fretboard-atlas', version:2, exported:new Date().toISOString(), log:practiceLog, answers, review});
+      const text = JSON.stringify({app:'fretboard-atlas', version:2, exported:new Date().toISOString(), log:practiceLog, answers, review, phrases:phrFavs});
       const done = () => toast(`Backup copied: ${practiceLog.length} log entries and ${answers.length} quiz answers. Paste it somewhere safe.`);
       const fallback = () => { const row = $('#restoreRow'), ta = $('#restoreText'); if (row && ta) { row.hidden = false; ta.value = text; ta.select(); } toast('Copying was blocked. The backup is selected in the box below. Copy it from there.'); };
       try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
@@ -5458,6 +5505,7 @@ function handlePractice(act, b){
         Object.entries(data.review.items).forEach(([k, r]) => { const cur = review.items[k]; if (r && revItemOk(r.item) && Number.isFinite(r.due) && Number.isInteger(r.lvl) && r.lvl >= 0 && r.lvl < REV_DAYS.length && (!cur || (r.last || 0) > (cur.last || 0))) review.items[k] = r; });
         review.seeded = true; saveReview();
       }
+      if (data && Array.isArray(data.phrases)) { const have = new Set(phrFavs.map(phrKey)); data.phrases.filter(phrFavOk).forEach(f => { if (!have.has(phrKey(f))) { have.add(phrKey(f)); phrFavs.push(f); } }); storePhr(); }
       toast(`Restored ${added} log entr${added === 1 ? 'y' : 'ies'}${addedAns ? ` and ${addedAns} quiz answers` : ''}${entries.length - added ? `, skipped ${entries.length - added} already here` : ''}.`); render(); return true;
     }
     case 'logclear':
@@ -5614,6 +5662,11 @@ panel.addEventListener('input', e => {
   else if (el.dataset.act === 'bvol') { state.backing.vol = +el.value; save(); }
   else if (el.dataset.act === 'dvol') { state.drone.vol = +el.value; droneVolume(); save(); }
 });
+/* phrase number: the tab follows as you type; typing stops the phrase, and Enter (or leaving the box) picks up again */
+panel.addEventListener('input', e => { if (e.target.dataset.act === 'spnum') phrTyped(e.target); });
+panel.addEventListener('focusin', e => { if (e.target.dataset.act === 'spnum') e.target.select(); });
+panel.addEventListener('focusout', e => { if (e.target.dataset.act === 'spnum') { e.target.value = PHR.n; const L = state.layers[+e.target.dataset.i]; if (phrResume) { phrResume = false; if (L && L.pos && e.target.isConnected) setTimeout(() => { if (!sp.on && L.pos && phraseFor(L).notes.length) scalePlayStart(L, true); }, 250); } } });
+panel.addEventListener('keydown', e => { if (e.target.dataset.act !== 'spnum') return; const d = {ArrowUp:1, ArrowDown:-1}[e.key]; if (d) { e.preventDefault(); e.target.value = Math.max(1, Math.min(PHR_MAX, PHR.n + d)); phrTyped(e.target); } else if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
 panel.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'newTask') { e.preventDefault(); handlePractice('iaddtask', e.target); } });
 /* Looper chord search: update the results only, so the box keeps focus while typing; Enter adds the top match */
 panel.addEventListener('input', e => { if (e.target.id !== 'laneFind') return; state.laneQ = e.target.value; const f = $('#laneFound'); if (f) f.innerHTML = foundHtml(state.laneQ); });
@@ -5689,7 +5742,7 @@ if (state.guideBack) guideRestore();      // the page closed in the middle of a 
 // small read-only hook for automated tests and the browser console
 window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
-  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
+  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, get phrFavs(){ return phrFavs; }, phrFavOk, get sp(){ return sp; }, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
   micHelp, micSessionStart, micSessionEnd, openMic, get micUsers(){ return micUsers; }, get audioCtx(){ return ac; },
   detectPitch, tunerFeed, get tuner(){ return tuner; }, get tt(){ return tt; },
@@ -5880,25 +5933,41 @@ panel.addEventListener('click', e => {
       L.pos = Object.assign({s:ps[k].s || 0, f:ps[k].f, style:(L.pos && L.pos.style) || 'box'}, ps[k].d ? {d:ps[k].d} : {}); setAnchor(L); state.tap = null; break;
     }
     case 'sstyle': if (L.pos) { L.pos = Object.assign({}, L.pos, {style:v}); setAnchor(L); } break;
-    case 'spmode': PHR.on = !!v; scalePlayRestart(); break;
-    case 'sptech': PHR.tech = v; scalePlayRestart(); break;
-    case 'sppluck': PHR.pluck = v; scalePlayRestart(); break;
-    case 'spn': PHR.n = Math.max(1, PHR.n + +v); scalePlayRestart(); break;
-    case 'spturn': PHR.turn = !PHR.turn; if (PHR.turn) state.playCfg.loop = true; scalePlayRestart(); break;
-    case 'spphr': {       // straight into phrases: a position in the middle of the neck, at a learning tempo the first time
-      PHR.on = true; const ps = scalePositions(L), near = ps.slice().sort((x, y) => Math.abs(x.f - 5) - Math.abs(y.f - 5))[0]; if (!near) return;
-      L.pos = Object.assign({s:near.s || 0, f:near.f, style:'box'}, near.d ? {d:near.d} : {}); setAnchor(L); state.tap = null;
-      if (!PHR.seen) { PHR.seen = true; state.playCfg.bpm = Math.min(state.playCfg.bpm, 60); state.playCfg.per = 4; state.playCfg.loop = true; }
-      break;
+    case 'sptech': PHR.tech = v; if (sp.ph) scalePlayRestart(); break;
+    case 'sppluck': PHR.pluck = v; if (sp.ph) scalePlayRestart(); break;
+    case 'spn': PHR.n = Math.max(1, Math.min(PHR_MAX, PHR.n + +v)); if (sp.ph) scalePlayRestart(); break;
+    case 'spturn': PHR.turn = !PHR.turn; if (PHR.turn) PHR.loop = true; if (sp.ph) scalePlayRestart(); break;
+    case 'spphr': {       // straight into phrases: a position in the middle of the neck
+      const ps = scalePositions(L), near = ps.slice().sort((x, y) => Math.abs(x.f - 5) - Math.abs(y.f - 5))[0]; if (!near) return;
+      state.folds = Object.assign({}, state.folds, {phr:true});
+      L.pos = Object.assign({s:near.s || 0, f:near.f, style:'box'}, near.d ? {d:near.d} : {}); setAnchor(L); state.tap = null; break;
     }
-    case 'splay': if (sp.on && sp.layerId === L.id) scalePlayStop(); else if (L.pos) scalePlayStart(L); return;
-    case 'spbpm': state.playCfg.bpm = Math.max(30, Math.min(300, state.playCfg.bpm + +v)); scalePlayRestart(); break;
-    case 'spper': state.playCfg.per = +v; scalePlayRestart(); break;
-    case 'spdir': state.playCfg.dir = v; scalePlayRestart(); break;
-    case 'sptone': state.playCfg.tone = v; scalePlayRestart(); break;
-    case 'sploop': state.playCfg.loop = !state.playCfg.loop; if (sp.on && !state.playCfg.loop) { /* finishes this pass */ } break;
-    case 'spmetro': state.playCfg.bpm = state.metro.bpm; scalePlayRestart(); break;
-    case 'vplay': { const vv = voicingFor(L); if (vv && vv.shape) strumMidis(vv.shape.map(q => TUNINGS[state.tuning].midi[q.s] + q.f), .035, true); return; }
+    case 'spfav': {
+      const f = L.pos && phrFavOf(L); if (!L.pos) return;
+      if (f) phrFavs = phrFavs.filter(x => x !== f); else phrFavs.unshift(phrNow(L));
+      storePhr(); toast(f ? 'Removed from favorites' : `Phrase ${PHR.n} is in your favorites`); break;
+    }
+    case 'spfavdel': phrFavs.splice(+v, 1); storePhr(); break;
+    case 'spfavgo': {
+      const f = phrFavs[+v]; if (!f) return; const was = sp.on && sp.ph; if (sp.on) scalePlayStop(true);
+      if (f.tuning !== state.tuning) { state.tuning = f.tuning; state.layers.forEach(x => { if (x !== L) adjustPos(x); }); toast('Tuning set to ' + TUNINGS[f.tuning].name); }
+      if (L.type !== f.type) L.hidden = [];
+      Object.assign(L, {root:f.root, type:f.type, pos:Object.assign({}, f.pos), visible:true}); setAnchor(L); state.tap = null;
+      ['tech', 'pluck', 'n', 'per', 'bpm'].forEach(k => PHR[k] = f[k]);
+      if (was) scalePlayStart(L, true); break;
+    }
+    case 'splay': { const ph = b.dataset.k === 'ph'; if (sp.on && sp.layerId === L.id && sp.ph === ph) scalePlayStop(); else if (L.pos) scalePlayStart(L, ph); return; }
+    case 'spbpm': case 'spper': case 'sptone': case 'sploop': case 'spmetro': {
+      const ph = b.dataset.k === 'ph', c = ph ? PHR : state.playCfg;
+      if (act === 'spbpm') c.bpm = Math.max(30, Math.min(300, c.bpm + +v));
+      else if (act === 'spper') c.per = +v;
+      else if (act === 'sptone') c.tone = v;
+      else if (act === 'spmetro') c.bpm = Math.max(30, Math.min(300, state.metro.bpm));
+      else c.loop = !c.loop;       // switched off mid-run: finishes this pass
+      if (ph && (act === 'spbpm' || act === 'spmetro')) phrFavTempo(L);
+      if (act !== 'sploop' && sp.on && sp.ph === ph) scalePlayRestart(); break;
+    }
+    case 'spdir': state.playCfg.dir = v; if (!sp.ph) scalePlayRestart(); break;    case 'vplay': { const vv = voicingFor(L); if (vv && vv.shape) strumMidis(vv.shape.map(q => TUNINGS[state.tuning].midi[q.s] + q.f), .035, true); return; }
     case 'vpin': {
       const vv = voicingFor(L); if (!vv || !vv.shape) return;
       if (addPin({root:L.root, type:L.type, name:chordName(L.root, L.type), shape:vv.shape.map(q => ({s:q.s, f:q.f})), tuning:state.tuning}))
