@@ -1417,7 +1417,7 @@ const sp = {on:false, layerId:null, srcs:[], events:[], timer:0, raf:0, lit:null
 const PER_NAMES = {1:'quarter notes', 2:'8ths', 3:'triplets', 4:'16ths', 6:'sextuplets'};
 /* ---- hard-mode phrases: fret-hand hammers (from nowhere) answered by plucks, built from the layer's own notes ----
    A phrase is two bars of cells. A cell is h hammered arpeggio notes, then p plucked ones. Both bars share a rhythm of cells.
-   Each cell has to be playable: hammers and plucks on different strings (with Same string on, now and then a pluck is on a hammered string, at another fret), a hand span of 4 frets (3 down low), 4 fingers. */
+   Each cell has to be playable: hammers and plucks on different strings (with Same string on, now and then a pluck is on a hammered string: another fret, or the note still held there), a hand span of 4 frets (3 down low), 4 fingers. */
 const PHR = {};
 /* settings can come from a saved setup or a shared link, so only known values get in */
 const PHR_MAX = 999999, num = (x, lo, hi, d) => Number.isInteger(x) && x >= lo && x <= hi ? x : d;
@@ -1490,9 +1490,11 @@ function phraseFor(L){
           const hs = new Set(H.map(n => n.s)), top = Math.max(...hs);
           if (new Set(H.map(n => n.m)).size < h || !fits(H)) continue;
           let X = [];
+          // the last note hammered on each string is still held, so it can be picked again
+          const held2 = new Set(ss && src !== 'open' ? H.filter((q, j) => !H.slice(j + 1).some(r => r.s === q.s)).map(q => q.s + ':' + q.f) : []);
           if (src === 'held') { if (!fits([...H, held])) continue; X = [held]; }
           else {
-            const pool = (src === 'open' ? open : win).filter(n => (ss || !hs.has(n.s)) && (src === 'open' || fits([...H, n])) && !H.some(q => q.m === n.m));
+            const pool = (src === 'open' ? open : win).filter(n => (ss || !hs.has(n.s)) && (src === 'open' || fits([...H, n])) && (!H.some(q => q.m === n.m) || held2.has(n.s + ':' + n.f)));
             const sm = ss ? pool.filter(n => hs.has(n.s)) : [], hi = pool.filter(n => n.s > top), rest = (hi.length ? hi : pool).filter(n => !hs.has(n.s));
             const use = sm.length ? sm.concat(rest) : (hi.length ? hi : pool).slice(), from = sm.length || use.length;      // a same-string cell starts its plucks on one
             const max = src === 'open' ? 3 : 4 - h, first = use.length ? (src === 'open' ? oi++ % from : Math.floor(rnd() * from)) : 0;
