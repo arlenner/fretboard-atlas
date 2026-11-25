@@ -341,12 +341,9 @@ body.pv-done .neck-wrap{display:none !important}
 .chg .ld{color:var(--ink)}
 /* compose */
 .compose{display:grid; gap:10px; grid-template-columns:minmax(0, 1fr); margin-bottom:12px}
-.cpstrip{display:flex; gap:4px; overflow-x:auto; padding:2px; align-items:flex-end}
-.cpc{flex:1 0 auto; min-width:52px; max-width:110px; border:1px solid var(--line); border-radius:10px; background:var(--surface-2); padding:6px 6px 5px; display:grid; justify-items:center; align-content:end; gap:2px; min-height:88px}
-.cpc.sel{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
-.cpc i{display:block; width:14px; border-radius:4px 4px 0 0; background:var(--accent)}
-.cpc b{font-size:13px; white-space:nowrap}
-.cpc small{font-size:11px; color:var(--muted); white-space:nowrap}
+.slot.sel{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+.slot .ten{display:block; height:4px; border-radius:2px; background:var(--accent)}
+.slot-main em{font-style:normal; font-size:11px; font-weight:600; color:var(--muted)}
 .cpnotes{display:grid; gap:6px}
 .cpnotes p{margin:0}
 .cprow{border:0; text-align:left; width:100%; color:inherit}
@@ -400,7 +397,34 @@ body.pv-done .neck-wrap{display:none !important}
 .grate .btn, .gans .btn{flex:1 1 0; min-height:44px}
 /* phones: one section of a layer card at a time */
 .sec{display:contents}
-.lsum, .ti, .view-btn{display:none}
+.lsum, .ti{display:none}
+.bar > .ctl{display:none}
+.bar.showview > .ctl{display:flex; order:5}
+/* folded sections: a row that names the section and shows what it is set to */
+.fold{display:grid; grid-template-columns:minmax(0, 1fr)}
+.fold-h{display:flex; align-items:baseline; gap:8px; width:100%; min-height:40px; padding:9px 12px; border:1px solid var(--line); border-radius:10px; background:var(--surface-2); color:var(--ink); text-align:left}
+.fold-h b{font-size:13px; white-space:nowrap}
+.fold-h small{flex:1 1 auto; min-width:0; font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.fold-h i{font-style:normal; color:var(--muted); font-size:12px; margin-left:auto}
+.fold-b{display:grid; gap:10px; grid-template-columns:minmax(0, 1fr); padding:10px 2px 4px}
+.fold.shut > .fold-b{display:none}
+body:not(.tips) .tip{display:none}
+.help-btn{border:1px solid var(--line); background:var(--surface); color:var(--ink); border-radius:8px; width:36px; height:31px; font-weight:700; padding:0}
+.help-btn[aria-pressed="true"]{background:var(--sel-bg); color:var(--sel-ink)}
+.prog-h{flex:1 1 100%; display:flex; flex-wrap:wrap; gap:2px 12px; align-items:baseline; border:0; background:transparent; color:var(--ink); text-align:left; padding:4px 2px; min-height:36px}
+.prog-h .pn{width:auto !important; flex:0 0 190px}
+.prog-h .pc{flex:1 1 200px; font-weight:650}
+.prog-h i{font-style:normal; color:var(--muted); font-size:12px}
+.prog:not(.open) > .prog-b{display:none}
+.prog-b{display:flex; flex-wrap:wrap; align-items:center; gap:6px}
+.roll > .prog > .prog-b{display:flex}
+.prog:has(> .prog-h){padding:0; gap:0}
+.prog.open > .prog-b{padding-bottom:8px}
+.fold-h i, .prog-h i{font-size:15px}
+.found:not(:has(> :not(.tip))){min-height:0}
+body:not(.tips) .found:not(:has(> :not(.tip))){display:none}
+#viewBtn{order:1} #tipsBtn{order:2} #soundBtn{order:3} #savesMenu{order:4} #menu{order:4}
+.items:not(.edit) .ctl2, .pins:not(.edit) .pin-edit{display:none !important}
 .lsum{flex-wrap:wrap; gap:6px}
 .lsum button{flex:1 1 auto; min-width:60px; min-height:44px; display:grid; justify-items:start; align-content:center; border:1px solid var(--line); background:var(--surface-2); border-radius:10px; padding:3px 9px; text-align:left}
 .lsum button[aria-expanded="true"]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
@@ -410,6 +434,8 @@ body.pv-done .neck-wrap{display:none !important}
   .lsum{display:flex}
   .toolbar2 [data-act="example"]{display:none}
   .sec:not(.open){display:none}
+  .fold.insec > .fold-h{display:none}
+  .fold.insec > .fold-b{display:grid; padding:0}
 }
 @media (pointer: coarse){
   .chip, .btn, .panel .seg button{min-height:38px}
@@ -782,6 +808,7 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
     </div>
   </div>
   <span id="todayBtnWrap"><button type="button" class="btn primary" id="todayBtn" data-act="todaygo">▶ Today</button></span>
+  <button type="button" class="help-btn" id="tipsBtn" aria-label="Explanations" title="Show or hide explanations">?</button>
   <button type="button" class="sound-btn" id="soundBtn" aria-label="Sound" title="Sound on or off">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16 9.5a3.5 3.5 0 0 1 0 5M18.5 7a7 7 0 0 1 0 10"/><path class="off" d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></svg>
   </button>
@@ -1408,12 +1435,12 @@ function scalePlayHtml(i, L, arp){
     <span class="sp-tempo"><button type="button" class="ib" data-act="spbpm" data-i="${i}" data-v="-5" aria-label="5 bpm slower">−5</button>
       <b>${c.bpm}</b> bpm
       <button type="button" class="ib" data-act="spbpm" data-i="${i}" data-v="5" aria-label="5 bpm faster">+5</button></span>
-    <div class="seg" aria-label="Note value">${[1, 2, 3, 4].map(p => `<button type="button" data-act="spper" data-i="${i}" data-v="${p}" aria-pressed="${c.per === p}" title="${PER_NAMES[p]}">${['♩', '♪', '3', '16'][p - 1]}</button>`).join('')}</div>
+    ${fold('splay', 'Adjust', `${PER_NAMES[c.per]} · ${c.dir === 'updown' ? 'up and down' : c.dir === 'down' ? 'down' : 'up'} · ${{ring:'ring', stacc:'staccato', mute:'muted'}[c.tone || 'ring']}${c.loop ? ' · loop' : ''}`, `<div class="row"><div class="seg" aria-label="Note value">${[1, 2, 3, 4].map(p => `<button type="button" data-act="spper" data-i="${i}" data-v="${p}" aria-pressed="${c.per === p}" title="${PER_NAMES[p]}">${['♩', '♪', '3', '16'][p - 1]}</button>`).join('')}</div>
     <div class="seg" aria-label="Direction"><button type="button" data-act="spdir" data-i="${i}" data-v="up" aria-pressed="${c.dir !== 'updown' && c.dir !== 'down'}">Up</button><button type="button" data-act="spdir" data-i="${i}" data-v="down" aria-pressed="${c.dir === 'down'}">Down</button><button type="button" data-act="spdir" data-i="${i}" data-v="updown" aria-pressed="${c.dir === 'updown'}">Up &amp; down</button></div>
     <div class="seg" aria-label="Sound">${[['ring', 'Ring', 'Let each note ring'], ['stacc', 'Staccato', 'Short, separated notes'], ['mute', 'Muted', 'Palm-muted: dull and short']].map(([v, t, h]) => `<button type="button" data-act="sptone" data-i="${i}" data-v="${v}" aria-pressed="${(c.tone || 'ring') === v}" title="${h}">${t}</button>`).join('')}</div>
     <button type="button" class="chip${c.loop ? ' sel' : ''}" data-act="sploop" data-i="${i}" aria-pressed="${c.loop}">↻ Loop</button>
-    <button type="button" class="chip" data-act="spmetro" data-i="${i}" title="Use the metronome's tempo">= metronome (${state.metro.bpm})</button>
-    <span class="hint">${PER_NAMES[c.per]} at ${c.bpm} bpm · ${nps} notes a second</span>
+    <button type="button" class="chip" data-act="spmetro" data-i="${i}" title="Use the metronome's tempo">= metronome (${state.metro.bpm})</button></div>`)}
+    <span class="hint tip">${PER_NAMES[c.per]} at ${c.bpm} bpm · ${nps} notes a second</span>
   </div>`;
 }
 function strumMidis(midis, gap = .035, force){ midis.slice().sort((a, b) => a - b).forEach((m, k) => pluck(m, k * gap, force)); }
@@ -1506,7 +1533,15 @@ const board = $('#board'), panel = $('#panel'), neck = $('#neck');
 const tuningSel = $('#setTuning');
 tuningSel.innerHTML = Object.entries(TUNINGS).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('');
 
+/* a section that folds to one line; whether it is open is remembered */
+const foldOpen = (key, def) => { const f = state.folds || {}; return f[key] === undefined ? !!def : !!f[key]; };
+function fold(key, title, sum, body, def, cls){
+  const open = foldOpen(key, def);
+  return `<div class="fold${open ? '' : ' shut'}${cls ? ' ' + cls : ''}"><button type="button" class="fold-h" data-act="fold" data-v="${key}" data-d="${def ? 1 : ''}" aria-expanded="${open}"><b>${title}</b><small>${sum || ''}</small><i aria-hidden="true">${open ? '▴' : '▾'}</i></button><div class="fold-b">${body}</div></div>`;
+}
+let circOpen = null;      // the progression whose buttons are showing on the Circle tab
 function renderToolbar(){
+  document.body.classList.toggle('tips', !!state.tips); $('#tipsBtn').setAttribute('aria-pressed', String(!!state.tips));
   { const b = $('#todayBtn'), live = state.session && !state.session.done; b.dataset.act = live ? 'pvopen' : 'todaygo'; b.textContent = live ? '▶ Practice view' : '▶ Today'; b.title = live ? 'Back to the lesson you are in' : 'Start a ' + (state.lesson.todayMin || 20) + ' minute session'; }
   const pick = state.tab === 'finder';
   document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.mode === 'pick') === pick)));
@@ -1771,8 +1806,8 @@ function fitHtml(L, i){
   const home = D[0], rn = layerRoot(L), sname = `${pn(rn)} ${SCALES[L.type].name}`;
   const row = d => `<div class="fit-row"><span class="fit-deg"><b>${pl(d.l)}</b> ${d.name}</span><span class="fit-chips">${d.fits.length ? d.fits.map(f => chip(d, f)).join('') : '<small class="hint">no chord fits on this note</small>'}</span></div>`;
   return `<div class="fit">
-    <div class="row" style="justify-content:space-between"><b>Chords to play under it</b>${ovs.length ? `<button type="button" class="btn" data-act="fitclear" data-i="${i}">Clear from the neck</button>` : ''}</div>
-    <span class="info">Every note of these chords is in ${sname}, so the whole scale sounds right over them. Tap one to hear it and see its tones on the neck over the scale.</span>
+    <div class="row" style="justify-content:flex-end">${ovs.length ? `<button type="button" class="btn" data-act="fitclear" data-i="${i}">Clear from the neck</button>` : ''}</div>
+    <span class="info tip">Every note of these chords is in ${sname}, so the whole scale sounds right over them. Tap one to hear it and see its tones on the neck over the scale.</span>
     <div class="row"><span class="rl">Tapping another chord</span><div class="seg">
       <button type="button" data-act="fitmulti" data-i="${i}" data-v="" aria-pressed="${!state.fitMulti}">Replaces it</button>
       <button type="button" data-act="fitmulti" data-i="${i}" data-v="1" aria-pressed="${!!state.fitMulti}">Adds to it</button></div></div>
@@ -1780,7 +1815,7 @@ function fitHtml(L, i){
     <div class="fit-chips">${home.fits.length ? home.fits.map(f => chip(home, f)).join('') : '<small class="hint">No chord fits on the root.</small>'}</div>
     <button type="button" class="btn" data-act="fitall" data-i="${i}" aria-expanded="${!!state.fitAll}">${state.fitAll ? 'Hide the other notes' : `Chords on every note of the scale (${D.slice(1).reduce((a, d) => a + d.fits.length, 0)} more)`}</button>
     ${state.fitAll ? `<div class="fit-all">${D.slice(1).map(row).join('')}</div>` : ''}
-    ${D.some(d => d.stack) ? '<small class="hint">Outlined: the chord the scale builds in thirds on that note.</small>' : ''}
+    ${D.some(d => d.stack) ? '<small class="hint tip">Outlined: the chord the scale builds in thirds on that note.</small>' : ''}
   </div>`;
 }
 function layerCard(L, i){
@@ -1797,8 +1832,8 @@ function layerCard(L, i){
   // on a phone only one section of the card is open at a time; a line of buttons shows what each is set to
   const secOpen = (state.secOpen || {})[L.id] !== undefined ? state.secOpen[L.id] : i === 0 ? 'root' : 'type';
   const sec = k => `<div class="sec${secOpen === k ? ' open' : ''}" data-sec="${k}">`;
+  const posT = !L.pos ? 'whole neck' : L.kind === 'chord' ? `${STRING_ORD[L.pos.s]} · ${L.pos.f}` : isArp(L) ? `${cagedOf(L.pos).n} shape` : `fret ${L.pos.f}`;
   if (L.kind !== 'notes') {
-    const posT = !L.pos ? 'whole neck' : L.kind === 'chord' ? `${STRING_ORD[L.pos.s]} · ${L.pos.f}` : isArp(L) ? `${cagedOf(L.pos).n} shape` : `fret ${L.pos.f}`;
     const typeT = L.kind === 'chord' ? CHORDS[L.type].sym || 'major' : L.kind === 'scale' ? (SCALES[L.type].arp ? (CHORDS[SCALES[L.type].chord].sym || 'major') + ' arp' : SCALES[L.type].short || SCALES[L.type].name) : '';
     const tabs = [['root', 'Root', pn(rn)], L.kind === 'intervals' ? null : ['type', 'Type', typeT],
       L.kind === 'chord' || (L.kind === 'scale' && L.type !== 'chromatic') ? ['pos', 'Position', posT] : null,
@@ -1814,7 +1849,7 @@ function layerCard(L, i){
       </select></div></div>`;
     const ps = rootPositions(L);
     const at = L.pos ? ps.findIndex(p => p.s === L.pos.s && p.f === L.pos.f) : -1;
-    h += `${sec('pos')}<div class="row"><span class="rl">Position · focus on one shape</span>
+    h += `${sec('pos')}${fold('pos', 'Position', posT, `<div class="row">
       <button type="button" class="chip${L.pos ? '' : ' sel'}" data-act="pos" data-i="${i}" data-v="none">Whole neck</button>
       <button type="button" class="ib" data-act="posstep" data-i="${i}" data-v="-1" aria-label="Previous position"${at <= 0 ? ' disabled' : ''}>◀</button>
       <button type="button" class="ib" data-act="posstep" data-i="${i}" data-v="1" aria-label="Next position"${at >= ps.length - 1 ? ' disabled' : ''}>▶</button>
@@ -1822,7 +1857,7 @@ function layerCard(L, i){
         const ok = !!findVoicing(L.root, L.type, p.s, p.f, no5Of(L));
         const on = L.pos && p.s === L.pos.s && p.f === L.pos.f;
         return `<button type="button" class="chip${on ? ' sel' : ''}" data-act="pos" data-i="${i}" data-s="${p.s}" data-f="${p.f}"${ok ? '' : ' disabled title="No playable shape with every chord tone here"'} aria-label="Root on the ${STRING_ORD[p.s]} string, fret ${p.f}">${STRING_ORD[p.s]} · ${p.f}</button>`;
-      }).join('')}</div></div>`;
+      }).join('')}</div>`, false, 'insec')}</div>`;
     if (L.pos) {
       const v = voicingFor(L);
       h += v && v.shape
@@ -1835,23 +1870,23 @@ function layerCard(L, i){
   }
   if (L.kind === 'scale') {
     h += `${sec('type')}<div class="row"><span class="rl">Mode</span>${MODES.map((m, k) => `<button type="button" class="chip${L.type === m ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="${m}">${pn(rootName(L.root, SCALES[m].labels))} ${SCALES[m].short}</button>`).join('')}</div>
-      <div class="row"><span class="rl">Arpeggio</span>${QUICK_ARPS.map(c => `<button type="button" class="chip${L.type === 'arp_' + c ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="arp_${c}">${pn(rootName(L.root, CHORDS[c].labels))}${CHORDS[c].sym}</button>`).join('')}</div>
+      ${fold('arps', 'Other scales and arpeggios', MODES.includes(L.type) ? '' : SCALES[L.type].name, `<div class="row"><span class="rl">Arpeggio</span>${QUICK_ARPS.map(c => `<button type="button" class="chip${L.type === 'arp_' + c ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="arp_${c}">${pn(rootName(L.root, CHORDS[c].labels))}${CHORDS[c].sym}</button>`).join('')}</div>
       <div class="row"><span class="rl">Other scales</span><select class="sel" id="stype-${L.id}" data-act="stype-sel" data-i="${i}" aria-label="Other scales">
         <option value="">${MODES.includes(L.type) || QUICK_ARPS.includes((SCALES[L.type].chord || '')) && SCALES[L.type].arp ? 'Choose a scale…' : ''}</option>
         ${OTHER_SCALES.map(([g, ids]) => `<optgroup label="${g}">${ids.map(id => `<option value="${id}"${L.type === id ? ' selected' : ''}>${pn(rootName(L.root, SCALES[id].labels))} ${SCALES[id].name}</option>`).join('')}</optgroup>`).join('')}
-      </select></div></div>`;
+      </select></div>`)}</div>`;
     if (L.type !== 'chromatic') {
       const ps = scalePositions(L), arp = isArp(L);
       const same = p => L.pos && p.f === L.pos.f && (!arp || (p.s === (L.pos.s || 0) && p.d === (L.pos.d || 1)));
       const at = L.pos ? ps.findIndex(same) : -1;
       const rn = layerRoot(L), per = layerLabels(L).length >= 7 ? 3 : 2;
-      h += `${sec('pos')}<div class="row"><span class="rl">Position · focus on one area of the neck</span>
+      h += `${sec('pos')}${fold('pos', 'Position', posT, `<div class="row">
         <button type="button" class="chip${L.pos ? '' : ' sel'}" data-act="spos" data-i="${i}" data-v="none">Whole neck</button>
         <button type="button" class="ib" data-act="sposstep" data-i="${i}" data-v="-1" aria-label="Previous position"${at <= 0 ? ' disabled' : ''}>◀</button>
         <button type="button" class="ib" data-act="sposstep" data-i="${i}" data-v="1" aria-label="Next position"${at >= ps.length - 1 ? ' disabled' : ''}>▶</button>
         ${ps.map(p => arp
           ? `<button type="button" class="chip${same(p) ? ' sel' : ''}" data-act="spos" data-i="${i}" data-s="${p.s}" data-f="${p.f}" data-d="${p.d}" aria-label="${p.cag} shape, root on the ${STRING_ORD[p.s]} string at fret ${p.f}, frets ${p.lo} to ${p.hi}" title="Root on the ${STRING_ORD[p.s]} string, fret ${p.f}">${p.cag} · ${p.lo}–${p.hi}</button>`
-          : `<button type="button" class="chip${same(p) ? ' sel' : ''}" data-act="spos" data-i="${i}" data-s="0" data-f="${p.f}" aria-label="Position ${p.n}, starting on the ${pl(p.label)} at fret ${p.f}" title="Starts on ${pl(p.label)} (${pn(spell(rn, p.label))})">P${p.n} · ${p.f}</button>`).join('')}</div></div>`;
+          : `<button type="button" class="chip${same(p) ? ' sel' : ''}" data-act="spos" data-i="${i}" data-s="0" data-f="${p.f}" aria-label="Position ${p.n}, starting on the ${pl(p.label)} at fret ${p.f}" title="Starts on ${pl(p.label)} (${pn(spell(rn, p.label))})">P${p.n} · ${p.f}</button>`).join('')}</div>`, false, 'insec')}</div>`;
       if (L.pos) {
         const fp = scalePosFor(L), cur = ps.find(same);
         const where = arp
@@ -1863,7 +1898,7 @@ function layerCard(L, i){
               <button type="button" data-act="sstyle" data-i="${i}" data-v="nps" aria-pressed="${L.pos.style === 'nps'}">${arp ? 'Sweep' : per + ' notes per string'}</button></div>
               </div>
             ${scalePlayHtml(i, L, arp)}
-            <span class="info">${where} · frets ${fp.lo}–${fp.hi} · ${fp.shape.length} notes. ${arp ? 'Tap a root on the 6th, 5th or 4th string to move the shape there.' :'Tap a scale note on the low E string to move here.'}</span>
+            <span class="info tip">${where} · frets ${fp.lo}–${fp.hi} · ${fp.shape.length} notes. ${arp ? 'Tap a root on the 6th, 5th or 4th string to move the shape there.' :'Tap a scale note on the low E string to move here.'}</span>
           </div></div>`;
       }
     }
@@ -1890,20 +1925,20 @@ function layerCard(L, i){
     if (L.kind === 'intervals') info = 'Every interval from the root. Turn on the ones you want to see.';
     h += `<div class="info">${info}</div>`;
     if (L.kind === 'scale' && GUIDE[L.type]) h += `<div class="row"><button type="button" class="btn" data-act="glearn" data-i="${i}">Learn this scale ▶</button></div>`;
-    if (L.kind === 'scale') h += sec('fit') + fitHtml(L, i) + '</div>';
+    if (L.kind === 'scale') { const fh = fitHtml(L, i); if (fh) h += sec('fit') + fold('fit', 'Chords to play under it', state.layers.filter(x => x.fit === L.id).map(x => layerTitle(x).replace(/<[^>]+>/g, '')).join(', '), fh, false, 'insec') + '</div>'; }
   }
   return h + '</div>';
 }
 function renderLayers(){
   return `<div class="toolbar2">
       ${addBtns()}
-      <button type="button" class="btn" data-act="example">Example: G major 3rds &amp; 5ths + A roots &amp; ♭7s</button>
-      <span class="info">${state.layers.length >= 4 ? 'Four layers is the limit.' : byIv()
+      <button type="button" class="btn tip" data-act="example">Example: G major 3rds &amp; 5ths + A roots &amp; ♭7s</button>
+      <span class="info${state.layers.length >= 4 ? '' : ' tip'}">${state.layers.length >= 4 ? 'Four layers is the limit.' : byIv()
         ? (state.layers.some(L => L.visible && L.kind === 'chord' && L.pos) ? 'A white outline marks the notes of a chosen chord position. Other layers are smaller.' : 'Main layer dots are filled, overlay dots are hollow, and a white outline means more than one layer has that note.')
         : 'Where layers overlap, the first fills the dot and the second draws the ring.'}</span>
     </div>
     <div class="cards">${state.layers.map(layerCard).join('')}</div>
-    <div class="toolbar2 add-end">${addBtns()}</div>`;
+    <div class="toolbar2 add-end"${state.layers.length > 1 ? '' : ' hidden'}>${addBtns()}</div>`;
 }
 function addBtns(){
   const off = state.layers.length >= 4 ? ' disabled' : '';
@@ -2068,8 +2103,9 @@ function renderCircle(){
   return `<div class="circle-wrap">
     <svg class="cof" viewBox="0 0 320 320" role="group" aria-label="Circle of fifths">${svg}</svg>
     <div class="kinfo">
-      <div><h3>${pn(kn)} ${minor ? 'minor' : 'major'}</h3><div class="info">${keySig(i)} · ${minor ? 'relative major' : 'relative minor'} <b>${pn(rootName(rel.pc, SCALES[rel.t].labels))}${minor ? '' : 'm'}</b> · tap any wedge to change key, tap a chord to put it on the neck</div></div>
-      <div class="row"><span class="rl" style="width:auto;margin-right:8px">Diatonic chords</span>
+      <div><h3>${pn(kn)} ${minor ? 'minor' : 'major'}</h3><div class="info">${keySig(i)} · ${minor ? 'relative major' : 'relative minor'} <b>${pn(rootName(rel.pc, SCALES[rel.t].labels))}${minor ? '' : 'm'}</b><span class="tip"> · tap any wedge to change key, tap a chord to put it on the neck</span></div></div>
+      <div class="row">${dia.map(chordBtn).join('')}</div>
+      ${fold('circ', 'Adjust', `${sevenths ? '7ths' : 'triads'} · tapping a chord ${pinMode ? 'pins it' : 'shows it'} · ${state.layers[0].pos ? 'one area of the neck' : 'whole neck'}`, `<div class="row"><span class="rl" style="width:auto;margin-right:8px">Diatonic chords</span>
         <div class="seg"><button type="button" data-act="c7" data-v="0" aria-pressed="${!sevenths}">Triads</button><button type="button" data-act="c7" data-v="1" aria-pressed="${sevenths}">7ths</button></div>
         <span class="rl" style="width:auto;margin:0 8px 0 12px">Tapping a chord</span>
         <div class="seg"><button type="button" data-act="cpin" data-v="0" aria-pressed="${!pinMode}">Shows it</button><button type="button" data-act="cpin" data-v="1" aria-pressed="${pinMode}">Pins it</button></div></div>
@@ -2079,20 +2115,19 @@ function renderCircle(){
           const on = !M.pos ? 'whole' : areas.slice(1).reduce((a, x) => Math.abs(x[0] - (M.anchor != null ? M.anchor : M.pos.f + 1.5)) < Math.abs(a[0] - (M.anchor != null ? M.anchor : M.pos.f + 1.5)) ? x : a)[0];
           return areas.map(([v, t]) => `<button type="button" data-act="carea" data-v="${v}" aria-pressed="${on === v}">${t}</button>`).join('');
         })()}</div>
-        <span class="info">Chords and scales you tap stay in this area of the neck.</span></div>
-      <div class="row">${dia.map(chordBtn).join('')}</div>
-      <div><span class="rl">Suggested scales</span><div class="scl">${scaleHtml}</div></div>
-      <div><div class="row"><span class="rl" style="width:auto;margin-right:8px">Common progressions</span>
+        <span class="info tip">Chords and scales you tap stay in this area of the neck.</span></div>`)}
+      ${fold('cscl', 'Suggested scales', `${scaleRows.length} that fit the key`, `<div class="scl">${scaleHtml}</div>`)}
+      <div>${fold('cprog', 'Common progressions', progStyle === 'color' ? 'colorful' : 'plain', `<div class="row">
         <div class="seg"><button type="button" data-act="ccolor" data-v="0" aria-pressed="${progStyle !== 'color'}" title="Every chord a ${sevenths ? '7th' : 'triad'}, as set above">Plain</button><button type="button" data-act="ccolor" data-v="1" aria-pressed="${progStyle === 'color'}" title="Mixed qualities, the way each progression is usually played">Colorful</button></div>
-        <span class="info">${progStyle === 'color' ? 'Mixed chord colors: add9s and maj7s, a dominant 7 pulling home, 9ths and 13ths for jazz.' : `All ${sevenths ? '7th chords' : 'triads'}, following the Diatonic chords setting.`}</span></div>
-        ${PROGS.map(([name], p) => `<div class="prog"><span class="pn">${name}</span>${progCache[p].map(chordBtn).join('<span class="info">→</span>')}<button type="button" class="btn" data-act="prog" data-p="${p}" aria-label="Play ${name}">Play</button><button type="button" class="btn" data-act="pinprog" data-p="${p}" aria-label="Pin ${name}">Pin all</button><button type="button" class="btn" data-act="proglane" data-p="${p}" aria-label="Send ${name} to the Looper">→ Looper</button></div>`).join('')}
+        <span class="info tip">${progStyle === 'color' ? 'Mixed chord colors: add9s and maj7s, a dominant 7 pulling home, 9ths and 13ths for jazz.' : `All ${sevenths ? '7th chords' : 'triads'}, following the Diatonic chords setting.`}</span></div>
+        ${PROGS.map(([name], p) => `<div class="prog${circOpen === p ? ' open' : ''}"><button type="button" class="prog-h" data-act="progopen" data-p="${p}" aria-expanded="${circOpen === p}"><span class="pn">${name}</span><span class="pc">${progCache[p].map(c => pn(c.name) + CHORDS[c.type].sym).join(' → ')}</span><i aria-hidden="true">${circOpen === p ? '▴' : '▾'}</i></button><div class="prog-b">${progCache[p].map(chordBtn).join('<span class="info">→</span>')}<button type="button" class="btn" data-act="prog" data-p="${p}" aria-label="Play ${name}">Play</button><button type="button" class="btn" data-act="pinprog" data-p="${p}" aria-label="Pin ${name}">Pin all</button><button type="button" class="btn" data-act="proglane" data-p="${p}" aria-label="Send ${name} to the Looper">→ Looper</button></div></div>`).join('')}`, true)}
         <div class="roll">
           <div class="row"><span class="rl" style="width:auto;margin-right:8px">Roll your own</span>
             <div class="seg" aria-label="How adventurous">${[['plain', 'Plain'], ['color', 'Colorful'], ['wild', 'Adventurous']].map(([v, t]) => `<button type="button" data-act="cspice" data-v="${v}" aria-pressed="${spice === v}">${t}</button>`).join('')}</div>
             <button type="button" class="btn primary" data-act="croll">🎲 ${roll ? 'Roll again' : 'Roll a progression'}</button></div>
-          <span class="info">${spice === 'plain' ? `Diatonic ${sevenths ? '7ths' : 'triads'} only.` : spice === 'color' ? 'Every chord fits the key, each with its own color.' : 'Adds chords borrowed from outside the key and altered dominants that pull home.'} Four chords: home, away, tension, back home.</span>
+          <span class="info tip">${spice === 'plain' ? `Diatonic ${sevenths ? '7ths' : 'triads'} only.` : spice === 'color' ? 'Every chord fits the key, each with its own color.' : 'Adds chords borrowed from outside the key and altered dominants that pull home.'} Four chords: home, away, tension, back home.</span>
           ${roll ? `<div class="prog"><span class="pn">Rolled · ${roll.spice === 'plain' ? 'plain' : roll.spice === 'wild' ? 'adventurous' : 'colorful'}</span>${progCache[rollIdx].map(chordBtn).join('<span class="info">→</span>')}<button type="button" class="btn" data-act="prog" data-p="${rollIdx}" aria-label="Play the rolled progression">Play</button><button type="button" class="btn" data-act="pinprog" data-p="${rollIdx}" aria-label="Pin the rolled progression">Pin all</button><button type="button" class="btn" data-act="proglane" data-p="${rollIdx}" aria-label="Send the rolled progression to the Looper">→ Looper</button></div>
-            <span class="info">Like it? Send it to the Looper (Pinboard tab) to loop it with drums, or Pin all.</span>` : ''}
+            <span class="info tip">Like it? Send it to the Looper (Pinboard tab) to loop it with drums, or Pin all.</span>` : ''}
         </div></div>
     </div></div>`;
 }
@@ -2429,7 +2464,7 @@ function laneAdd(items, at){
 }
 const pinToLane = p => ({root:p.root, type:p.type, name:p.name, ...pinChosen(p)});
 function foundHtml(q){
-  if (!String(q || '').trim()) return '<span class="info">Type a chord name: F♯m7♭5, Dmaj9♯11, B♭13, E7alt, Cø, A–7…</span>';
+  if (!String(q || '').trim()) return '<span class="info tip">Type a chord name: F♯m7♭5, Dmaj9♯11, B♭13, E7alt, Cø, A–7…</span>';
   const hits = findChords(q);
   if (!hits.length) return '<span class="info">Start with a note name, A to G (with ♯ or ♭), then the chord: “Gm9”, “C7♯9”.</span>';
   return hits.map(c => `<button type="button" class="chip found-c" data-drag="chord:${c.root}:${c.type}" data-act="laneadd" data-r="${c.root}" data-t="${c.type}" title="${CHORDS[c.type].name}. Tap to add, or drag into the Looper">＋ ${c.name}</button>`).join('');
@@ -2438,8 +2473,10 @@ let laneClearArmed = false;
 function laneHtml(){
   const L = state.lane, playing = loop.on && state.backing.source === 'lane';
   const total = L.reduce((a, it) => a + (it.bars || 1), 0);
-  const slots = L.map((it, k) => `<div class="slot${playing && loop.idx === k ? ' on' : ''}" data-drag="lane:${k}" data-k="${k}" style="--bars:${it.bars || 1}">
-      <button type="button" class="slot-main" data-act="laneshow" data-k="${k}" aria-label="Show ${esc(it.name)} on the neck"><small>${k + 1}</small><b>${esc(it.name)}</b></button>
+  const A = L.length ? cpAnalyze(cpLane(), cpFixed()) : null, view = state.compose.view, at = cpPos(L.length);
+  const slots = L.map((it, k) => `<div class="slot${view === 'next' && k === at ? ' sel' : ''}${playing && loop.idx === k ? ' on' : ''}" data-drag="lane:${k}" data-k="${k}" style="--bars:${it.bars || 1}">
+      <button type="button" class="slot-main" data-act="laneshow" data-k="${k}" aria-label="Show ${esc(it.name)} on the neck"><small>${k + 1}</small><b>${esc(it.name)}</b><em title="Its place in ${keyTitle(A.rows[k].key)}">${A.rows[k].num}</em></button>
+      ${view ? `<i class="ten" style="width:${Math.round(10 + A.rows[k].tension * 90)}%" title="Tension"></i>` : ''}
       <span class="slot-acts"><button type="button" class="ib" data-act="lanebars" data-k="${k}" aria-label="Length ${barsLabel(it.bars || 1)}, tap to change">${barsLabel(it.bars || 1)}</button><button type="button" class="ib" data-act="lanedel" data-k="${k}" aria-label="Remove ${esc(it.name)}">✕</button></span></div>`).join('');
   return `<div class="card looper">
     <div class="row" style="justify-content:space-between"><b>Looper</b><span class="info">${L.length ? `${L.length} chord${L.length > 1 ? 's' : ''} · ${total % 1 ? total.toFixed(1) : total} bar${total === 1 ? '' : 's'} a loop` : 'Build a progression and loop it'}</span></div>
@@ -2448,7 +2485,7 @@ function laneHtml(){
       <button type="button" class="btn primary" data-act="laneplay"${L.length ? '' : ' disabled'}>${playing ? '■ Stop' : '▶ Loop it'}</button>
       <span class="stepper"><button type="button" class="ib" data-act="mbpm" data-v="-5" aria-label="5 bpm slower">−5</button><span class="val">${state.metro.bpm} bpm</span><button type="button" class="ib" data-act="mbpm" data-v="5" aria-label="5 bpm faster">+5</button></span>
       ${L.length ? `<button type="button" class="btn" data-act="laneclear">${laneClearArmed ? 'Tap again to clear' : 'Clear'}</button>` : ''}
-      <span class="info">Drag slots to reorder · tap a length to change it · sound and drums are set in Practice › Play along</span></div>
+      <span class="info tip">Drag slots to reorder · tap a length to change it · sound and drums are set in Practice › Play along</span></div>
     <div class="find">
       <input type="search" id="laneFind" class="sel" placeholder="Find a chord: F♯m7♭5, Dmaj9♯11, B♭13…" autocomplete="off" spellcheck="false" value="${esc(state.laneQ || '')}" aria-label="Find a chord to add">
       <div class="found" id="laneFound">${foundHtml(state.laneQ)}</div>
@@ -2459,7 +2496,7 @@ let clearArmed = false, clearTimer = null;
 function renderPins(){
   if (!state.pins.length) {
     return laneHtml() + composeHtml() + `<div class="empty"><h3>Pin chords to build a progression</h3>
-      <p>Pinned chords stay here in order, so you can play them through, step through them on the neck, or overlay a few at once to compare.</p>
+      <p class="tip">Pinned chords stay here in order, so you can play them through, step through them on the neck, or overlay a few at once to compare.</p>
       <p>Pin a shape from the <b>Chord finder</b>, a chord or a whole progression from the <b>Circle of fifths</b>, or tap <b>Pin</b> on any chord layer.</p>
       <div class="row"><button type="button" class="btn primary" data-act="pinex">Pin an example: I–V–vi–IV in G</button></div></div>`;
   }
@@ -2479,22 +2516,24 @@ function renderPins(){
       <div class="pin-acts">
         <button type="button" class="ib" data-act="pinplay" data-id="${p.id}" aria-label="Play ${p.name}">▶</button>
         ${p.type ? `<button type="button" class="ib" data-act="pinlane1" data-id="${p.id}" aria-label="Add ${p.name} to the Looper" title="Add to the Looper">＋</button>` : ''}
-        <button type="button" class="ib" data-act="pinmove" data-id="${p.id}" data-v="-1" aria-label="Move earlier"${k === 0 ? ' disabled' : ''}>←</button>
+        <span class="row pin-edit" style="gap:4px"><button type="button" class="ib" data-act="pinmove" data-id="${p.id}" data-v="-1" aria-label="Move earlier"${k === 0 ? ' disabled' : ''}>←</button>
         <button type="button" class="ib" data-act="pinmove" data-id="${p.id}" data-v="1" aria-label="Move later"${k === state.pins.length - 1 ? ' disabled' : ''}>→</button>
         <button type="button" class="ib" data-act="pindel" data-id="${p.id}" aria-label="Remove ${p.name}">✕</button>
-        ${p.type ? `<label class="chk"><input type="checkbox" id="pinsel-${p.id}" data-act="pinsel" data-id="${p.id}"${p.sel ? ' checked' : ''}> Compare</label>` : ''}
+        ${p.type ? `<label class="chk"><input type="checkbox" id="pinsel-${p.id}" data-act="pinsel" data-id="${p.id}"${p.sel ? ' checked' : ''}> Compare</label>` : ''}</span>
       </div></div>`;
   }).join('');
-  return laneHtml() + composeHtml() + `<div class="toolbar2">
+  const pe = foldOpen('pinedit', false);
+  return laneHtml() + composeHtml() + fold('pins', 'Pins', `${state.pins.length} pinned`, `<div class="toolbar2">
       <button type="button" class="btn primary" data-act="pinplayall">▶ Play all</button>
       <button type="button" class="btn" data-act="pinlane">All to the Looper</button>
       ${Array.isArray(state.compare) && state.compare.length
         ? `<button type="button" class="btn primary" data-act="pinuncompare">Stop comparing</button>`
-        : `<button type="button" class="btn" data-act="pincompare"${nSel ? '' : ' disabled'}>Compare ${nSel > 1 ? nSel + ' chords' : nSel === 1 ? '1 chord' : 'chords'} on the neck</button>`}
-      <button type="button" class="btn" data-act="pinclear">${clearArmed ? 'Tap again to clear all' : 'Clear board'}</button>
-      <span class="info">Tap a chord to show it on the neck. Tick Compare on up to four to overlay them.</span>
+        : `<button type="button" class="btn" data-act="pincompare"${pe || nSel ? '' : ' hidden'}${nSel ? '' : ' disabled'}>Compare ${nSel > 1 ? nSel + ' chords' : nSel === 1 ? '1 chord' : 'chords'} on the neck</button>`}
+      <button type="button" class="btn" data-act="pinclear"${pe ? '' : ' hidden'}>${clearArmed ? 'Tap again to clear all' : 'Clear board'}</button>
+      <button type="button" class="btn" data-act="fold" data-v="pinedit" aria-pressed="${pe}">${pe ? 'Done' : 'Edit and compare'}</button>
+      <span class="info tip">Tap a chord to show it on the neck. Tick Compare on up to four to overlay them.</span>
     </div>
-    <div class="pins">${cards}</div>`;
+    <div class="pins${pe ? ' edit' : ''}">${cards}</div>`, true);
 }
 function showPin(p){
   state.compare = null;
@@ -3198,7 +3237,7 @@ function droneStop(quiet){
 function droneVolume(){ if (drone.gain && ac) drone.gain.gain.setTargetAtTime(state.drone.vol * 0.5, ac.currentTime, 0.05); }
 
 /* ================= composing: why a progression works, and where it could go next ================= */
-state.compose = Object.assign({key:'auto', view:'next', open:'home'}, state.compose || {});
+state.compose = Object.assign({key:'auto', view:'', open:'home'}, state.compose || {});
 let cpAt = null, cpUndo = null, cpTimers = [];
 const cpCanUndo = () => !!cpUndo && cpUndo.now === JSON.stringify(state.lane);
 const CP_NUM = ['I', '♭II', 'II', '♭III', 'III', 'IV', '♯IV', 'V', '♭VI', 'VI', '♭VII', 'VII'], CP_LAB = ['1', 'b2', '2', 'b3', '3', '4', '#4', '5', 'b6', '6', 'b7', '7'];
@@ -3422,31 +3461,30 @@ const cpLane = () => state.lane.map(it => ({root:it.root, type:it.type, name:it.
 const cpPos = n => cpAt == null || cpAt >= n ? n - 1 : cpAt;
 function composeHtml(){
   const list = cpLane(), S = state.compose, fixed = cpFixed();
-  if (!list.length) return `<div class="card compose"><b>Compose</b><span class="info">Put a chord in the Looper and this shows why your progression works and where it could go next.</span>${cpCanUndo() ? '<div class="row"><button type="button" class="btn" data-act="cpundo">↶ Undo</button></div>' : ''}</div>`;
+  if (!list.length) return `<div class="card compose"${cpCanUndo() || state.tips ? '' : ' hidden'}><b>Compose</b><span class="info">Put a chord in the Looper and this shows why your progression works and where it could go next.</span>${cpCanUndo() ? '<div class="row"><button type="button" class="btn" data-act="cpundo">↶ Undo</button></div>' : ''}</div>`;
   const A = cpAnalyze(list, fixed), at = cpPos(list.length);
   const keySel = `<select class="sel" id="cpKey" data-act="cpkey" aria-label="Key"><option value="auto"${fixed ? '' : ' selected'}>Auto: ${keyTitle(A.keys[at])}</option>${CP_KEYS.map(k => `<option value="${keyId(k)}"${fixed && keyId(fixed) === keyId(k) ? ' selected' : ''}>${keyTitle(k)}</option>`).join('')}</select>`;
-  const strip = `<div class="cpstrip">${A.rows.map((r, i) => `<button type="button" class="cpc${S.view === 'next' && i === at ? ' sel' : ''}" data-act="cpat" data-k="${i}" aria-pressed="${i === at}"><i style="height:${Math.round(6 + r.tension * 34)}px" title="Tension"></i><b>${esc(r.name)}</b><small>${r.num}</small></button>`).join('')}</div>`;
-  let body;
+  let body = '';
   if (S.view === 'why') {
     body = `<div class="cpnotes">${A.notes.map(x => `<p>${esc(x)}</p>`).join('')}</div>
       <div class="lrows">${A.rows.map((r, i) => `${r.moved || (!i && A.rows.some(z => z.moved)) ? `<span class="rl">${keyTitle(r.key)}</span>` : ''}<button type="button" class="lrow cprow" data-act="cphear" data-k="${i}"><span class="it"><b>${i + 1}. ${esc(r.name)} <span class="cpnum">${r.num}</span></b><small>${esc(r.why)}</small>${list[i + 1] ? `<small class="cplead">→ ${esc(list[i + 1].name)}: ${esc(leadText(list[i], list[i + 1]))}</small>` : ''}</span><span class="lval">${{T:'home', S:'away', D:'pull'}[r.fn]}</span></button>`).join('')}</div>
-      <span class="opt-note">Tap a chord to hear it move to the next one. Bars above the chords show tension: taller pulls harder.</span>`;
-  } else {
+      <span class="opt-note tip">Tap a chord to hear it move to the next one. The bar in each Looper chord shows tension: longer pulls harder.</span>`;
+  } else if (S.view) {
     const O = cpOptions(list, at, fixed), g = CP_GROUPS[S.open] ? S.open : 'home', nx = list[at + 1];
     const rows = O.options.filter(o => o.g === g).map(o => `<div class="lrow cpopt"><button type="button" class="cpplay" data-act="cpplay" data-v="${o.id}" aria-label="Hear ${esc(o.chords.map(x => x.name).join(' '))}"><span class="it"><b>▶ ${o.chords.map(x => esc(x.name)).join(' → ')}</b><small><b>${esc(o.title)}</b> · ${esc(o.why)}</small><small class="cplead">${esc(leadText(list[at], o.chords[0]))}</small></span></button><button type="button" class="ib" data-act="cpadd" data-v="${o.id}" aria-label="Add after ${esc(list[at].name)}">＋</button></div>`).join('');
     body = `<div class="row"><span>After <b>${at + 1}. ${esc(list[at].name)}</b>${nx ? `, before ${esc(nx.name)}` : ''}</span>${cpCanUndo() ? '<button type="button" class="btn" data-act="cpundo">↶ Undo</button>' : ''}</div>
       <div class="row cpgs">${Object.entries(CP_GROUPS).map(([k, [t]]) => `<button type="button" class="chip${g === k ? ' sel' : ''}" data-act="cpgroup" data-v="${k}" aria-pressed="${g === k}">${t}</button>`).join('')}</div>
       <div class="lrows">${rows || '<span class="info">Nothing new here from this chord. Try another group.</span>'}</div>
-      <span class="opt-note">Tap an idea to hear it after your chord${nx ? ', then on into the next one' : ''}. ＋ puts it in the Looper. Tap another chord above to branch from there.</span>`;
+      <span class="opt-note tip">Tap an idea to hear it after your chord${nx ? ', then on into the next one' : ''}. ＋ puts it in the Looper. Tap another chord in the Looper to branch from there.</span>`;
   }
-  return `<div class="card compose"><div class="row" style="justify-content:space-between"><div class="seg"><button type="button" data-act="cpview" data-v="next" aria-pressed="${S.view !== 'why'}">Where can I go?</button><button type="button" data-act="cpview" data-v="why" aria-pressed="${S.view === 'why'}">Why does this work?</button></div>${keySel}</div>${strip}${body}</div>`;
+  return `<div class="card compose"><div class="row" style="justify-content:space-between"><div class="seg"><button type="button" data-act="cpview" data-v="next" aria-pressed="${S.view === 'next'}">Where can I go?</button><button type="button" data-act="cpview" data-v="why" aria-pressed="${S.view === 'why'}">Why does this work?</button></div>${S.view ? keySel : ''}</div>${body}</div>`;
 }
 function handleCompose(act, b){
   const v = b.dataset.v, k = +b.dataset.k, list = cpLane(), opt = () => cpOptions(list, cpPos(list.length), cpFixed()).options.find(o => o.id === v);
   switch (act) {
-    case 'cpview': state.compose.view = v; break;
+    case 'cpview': state.compose.view = state.compose.view === v ? '' : v; break;
     case 'cpgroup': state.compose.open = v; break;
-    case 'cpat': cpAt = k; cpPlay([list[k]]); break;
+
     case 'cphear': cpPlay(list.slice(k, k + 2)); return true;
     case 'cpplay': { const o = opt(), at = cpPos(list.length); if (o) cpPlay([list[at], ...o.chords, ...(list[at + 1] ? [list[at + 1]] : [])]); return true; }
     case 'cpadd': { const o = opt(), at = cpPos(list.length); if (!o) return true; const was = clone(state.lane), n = laneAdd(o.chords, at + 1); if (n) { cpUndo = {was, now:JSON.stringify(state.lane)}; cpAt = at + n; toast(`Added ${o.chords.slice(0, n).map(x => x.name).join(' → ')}`); } break; }
@@ -4564,17 +4602,19 @@ function renderTimeCheck(){
   }
   const hist = timeLog.slice(-8).reverse().map(e => `<div class="lrow"><span class="it"><b>${e.held ? `Held ${e.held} bar${e.held > 1 ? 's' : ''}` : 'Not held'}${e.held < e.max ? ` of ${e.max}` : ''}</b><small>${e.bpm} bpm · ${(TC_WHAT[e.what] || ['?'])[0]} · ${new Date(e.ts).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</small></span><span class="lval">${e.spread == null ? '' : `±<b>${e.spread}</b> ms`}</span></div>`).join('');
   const len = Math.round(tcBars(tcSegs(c.plan)) * Math.max(2, m.beats) * 60 / m.bpm);
+  const calRow = `<div class="row"><span class="opt-note">${M ? `Calibrated${M.self ? ' by listening to itself' : ' by you playing along'}: ${Math.abs(M.ms)} ms (±${M.sd}).` : ''}</span><button type="button" class="btn${M ? '' : ' primary'}" data-act="calself">Let it listen to itself</button><button type="button" class="btn" data-act="calstart">Calibrate by playing</button></div>
+    <span class="opt-note${M ? ' tip' : ''}">Listening to itself is the more accurate of the two: use the speaker, volume up, hands off. It can’t hear its own clicks through headphones.</span>`;
   return `<div class="card"><div class="row" style="justify-content:space-between"><b>Time Check</b><span class="info">The click disappears. Keep going.</span></div>
     ${res}
     ${micT.err ? `<p class="mix-note warn" style="margin:0">${esc(micT.err)}</p>` : ''}
-    <div class="row"><span class="rl">Silences</span><div class="seg wrapseg">${['grow', '1', '2', '4', '8'].map(k => `<button type="button" data-act="tcplan" data-v="${k}" aria-pressed="${c.plan === k}">${TC_PLANS[k]}</button>`).join('')}</div></div>
-    <div class="row"><span class="rl">What you play</span>${Object.entries(TC_WHAT).map(([k, [t]]) => `<button type="button" class="chip${c.what === k ? ' sel' : ''}" data-act="tcwhat" data-v="${k}" aria-pressed="${c.what === k}">${t}</button>`).join('')}</div>
     <div class="row"><span class="rl">Tempo</span><button type="button" class="ib" data-act="mbpm" data-v="-5">−5</button><span class="val"><span data-bpm-out>${m.bpm}</span> bpm</span><button type="button" class="ib" data-act="mbpm" data-v="5">+5</button><span class="info">about ${fmt(len * 1000)}</span></div>
     <div class="row"><button type="button" class="btn${tcLast && tcLast.ok ? '' : ' primary'} big-btn" data-act="tcstart"${M ? '' : ' disabled'}>▶ Start round</button></div>
-    ${M ? `<span class="opt-note">Single notes or muted stabs, not ringing chords. Wired headphones or the speaker; Bluetooth delay varies too much.</span>` : '<span class="opt-note"><b>Calibrate first</b>, so your phone’s audio delay isn’t counted as your timing.</span>'}
-    <div class="row"><span class="opt-note">${M ? `Calibrated${M.self ? ' by listening to itself' : ' by you playing along'}: ${Math.abs(M.ms)} ms (±${M.sd}).` : ''}</span><button type="button" class="btn${M ? '' : ' primary'}" data-act="calself">Let it listen to itself</button><button type="button" class="btn" data-act="calstart">Calibrate by playing</button></div>
-    <span class="opt-note">Listening to itself is the more accurate of the two: use the speaker, volume up, hands off. It can’t hear its own clicks through headphones.</span>
-    ${hist ? `<div class="metro-opts"><b>Recent rounds</b><div class="lrows">${hist}</div></div>` : ''}</div>`;
+    ${M ? '' : '<span class="opt-note"><b>Calibrate first</b>, so your phone’s audio delay isn’t counted as your timing.</span>' + calRow}
+    ${fold('tc', 'Adjust', `silences: ${TC_PLANS[c.plan]} · ${TC_WHAT[c.what][0]}${M ? ` · calibrated ±${M.sd} ms` : ''}`, `<div class="row"><span class="rl">Silences</span><div class="seg wrapseg">${['grow', '1', '2', '4', '8'].map(k => `<button type="button" data-act="tcplan" data-v="${k}" aria-pressed="${c.plan === k}">${TC_PLANS[k]}</button>`).join('')}</div></div>
+    <div class="row"><span class="rl">What you play</span>${Object.entries(TC_WHAT).map(([k, [t]]) => `<button type="button" class="chip${c.what === k ? ' sel' : ''}" data-act="tcwhat" data-v="${k}" aria-pressed="${c.what === k}">${t}</button>`).join('')}</div>
+    ${M ? calRow : ''}`)}
+    ${M ? `<span class="opt-note tip">Single notes or muted stabs, not ringing chords. Wired headphones or the speaker; Bluetooth delay varies too much.</span>` : ''}
+    ${hist ? fold('tchist', 'Recent rounds', String(Math.min(8, timeLog.length)), `<div class="lrows">${hist}</div>`) : ''}</div>`;
 }
 function calPanel(){
   return `<div class="sess"><span class="rl" style="color:inherit;opacity:.7">Calibrating mic timing</span>
@@ -4687,12 +4727,12 @@ function renderTakes(){
   const mb = takes.reduce((a, t) => a + (t.size || 0), 0) / 1048576;
   return `<div class="card"><div class="row" style="justify-content:space-between"><b>Takes</b><span class="info">${takes.length ? `${takes.length} kept · ${mb < 0.1 ? '<0.1' : mb.toFixed(1)} MB` : 'Record, then listen back'}</span></div>
     ${rec ? `<div class="sess"><span class="rl" style="color:inherit;opacity:.7"><span class="recdot"></span> Recording · ${esc(rec.song || '')}</span><span class="time" data-rec-time>${fmt(Date.now() - rec.t0)}</span><div class="row"><button type="button" class="btn primary big-btn" data-act="tkstop">■ Stop and keep</button></div></div>`
-    : `<div class="row"><span class="rl">Over</span><div class="seg">${[['loop', 'My loop'], ['click', 'A click'], ['none', 'Nothing']].map(([k, t]) => `<button type="button" data-act="tkover" data-v="${k}" aria-pressed="${c.over === k}">${t}</button>`).join('')}</div></div>
+    : `${state.tkErr ? `<p class="mix-note warn" style="margin:0">${esc(state.tkErr)}</p>` : ''}
+      <div class="row"><button type="button" class="btn primary big-btn" data-act="tkrec"><span class="recdot"></span> Record</button></div>
+      ${fold('tk', 'Adjust', `over ${{loop:'my loop', click:'a click', none:'nothing'}[c.over]}${c.over === 'loop' ? (ch.length ? ': ' + ch.slice(0, 8).map(x => esc(x.name)).join(' → ') : ' (empty)') : ''}${c.mix && c.over !== 'none' ? ' · mixed in' : ''}`, `<div class="row"><span class="rl">Over</span><div class="seg">${[['loop', 'My loop'], ['click', 'A click'], ['none', 'Nothing']].map(([k, t]) => `<button type="button" data-act="tkover" data-v="${k}" aria-pressed="${c.over === k}">${t}</button>`).join('')}</div></div>
       ${c.over === 'loop' ? `<span class="opt-note">${ch.length ? `${ch.slice(0, 8).map(x => esc(x.name)).join(' → ')}${ch.length > 8 ? ' …' : ''} at ${state.metro.bpm} bpm, after a one-bar count-in. Change it in Play along or the Looper.` : 'The loop is empty. Set one up in Play along or the Looper.'}</span>` : ''}
       ${c.over !== 'none' ? `<div class="row"><label class="chk"><input type="checkbox" id="tkMix" data-act="tkmix"${c.mix ? ' checked' : ''}> Add the ${c.over === 'loop' ? 'loop' : 'click'} to the recording</label><span class="opt-note">Turn on with headphones. On the speaker, the mic already hears it.${c.mix && !state.micCal ? ' Calibrate in Time first, or you will sound late against it.' : ''}</span></div>` : ''}
-      <div class="row"><input type="text" class="task-in" id="tkName" maxlength="60" value="${esc($('#tkName') ? $('#tkName').value : c.name || '')}" placeholder="Name (optional): takes with the same name are kept together" aria-label="Name for this take"></div>
-      ${state.tkErr ? `<p class="mix-note warn" style="margin:0">${esc(state.tkErr)}</p>` : ''}
-      <div class="row"><button type="button" class="btn primary big-btn" data-act="tkrec"><span class="recdot"></span> Record</button></div>`}
+      <div class="row"><input type="text" class="task-in" id="tkName" maxlength="60" value="${esc($('#tkName') ? $('#tkName').value : c.name || '')}" placeholder="Name (optional): takes with the same name are kept together" aria-label="Name for this take"></div>`)}`}
     ${list || '<p class="opt-note" style="margin:0">One take today, one of the same thing in two weeks. Listening to both tells you more than any score.</p>'}
     ${takes.length ? '<span class="opt-note">Takes live in this browser only. Use ⤓ to keep a copy anywhere else.</span>' : ''}</div>`;
 }
@@ -4913,7 +4953,8 @@ function renderPractice(){
       <button type="button" class="ib" data-act="mbpm" data-v="-5">−5</button><button type="button" class="ib" data-act="mbpm" data-v="-1">−1</button>
       <button type="button" class="ib" data-act="mbpm" data-v="1">+1</button><button type="button" class="ib" data-act="mbpm" data-v="5">+5</button>
       <button type="button" class="btn" data-act="mtap">Tap tempo</button></div>
-    <div class="row"><span class="rl">Beats per bar</span>
+    <div class="row"><button type="button" class="btn primary big-btn" data-act="mtoggle">${metro.on ? 'Stop' : 'Start'} metronome</button></div>
+    ${fold('metro', 'Adjust', [m.beats + ' beats', subs.find(x => x[0] === m.sub)[1].toLowerCase(), {all:'every beat', backbeat:'2 & 4', one:'beat 1'}[m.clickMode], m.gap.on && 'gap click', m.ladder.on && 'speed ladder'].filter(Boolean).join(' · '), `<div class="row"><span class="rl">Beats per bar</span>
       <span class="stepper"><button type="button" class="ib" data-act="mbeats" data-v="-1" aria-label="Fewer beats">−</button><span class="val">${m.beats}</span><button type="button" class="ib" data-act="mbeats" data-v="1" aria-label="More beats">+</button></span>
       <label class="chk"><input type="checkbox" id="mAccent" data-act="maccent"${m.accent ? ' checked' : ''}> Accent beat 1</label></div>
     <div class="row"><span class="rl">Subdivision</span><div class="seg">${subs.map(([v, t]) => `<button type="button" data-act="msub" data-v="${v}" aria-pressed="${m.sub === v}">${t}</button>`).join('')}</div></div>
@@ -4926,8 +4967,7 @@ function renderPractice(){
         ${m.gap.on ? `<span>play</span>${stepper('mgplay', m.gap.play, 'bars of click')}<span>bars, rest</span>${stepper('mgrest', m.gap.rest, 'bars of silence')}<span>bars</span>` : '<span class="opt-note">Drops out for a few bars so you keep time on your own.</span>'}</div>
       <div class="row"><label class="chk"><input type="checkbox" id="mLadder" data-act="mladder"${m.ladder.on ? ' checked' : ''}> Speed ladder</label>
         ${m.ladder.on ? `<span>+</span>${stepper('mlstep', m.ladder.step, 'bpm per step')}<span>bpm every</span>${stepper('mlbars', m.ladder.bars, 'bars per step')}<span>bars up to</span>${stepper('mlmax', m.ladder.max, 'top tempo', 5)}<span>bpm</span>` : '<span class="opt-note">Raises the tempo step by step while you play.</span>'}</div>
-    </div>
-    <div class="row"><button type="button" class="btn primary big-btn" data-act="mtoggle">${metro.on ? 'Stop' : 'Start'} metronome</button></div>
+    </div>`)}
   </div>`;
 
   // session panel
@@ -4956,7 +4996,7 @@ function renderPractice(){
     const cur = s && !s.done && s.idx === k, past = s && !s.done && k < s.idx;
     return `<div class="item${cur ? ' cur' : ''}${past ? ' past' : ''}">
       <span class="n">${k + 1}</span>
-      <span class="it"><b>${itemTitle(it)}</b><small>${it.why ? `<em class="why2">${esc(it.why)}</em> ` : ''}${itemSub(it)}</small></span>
+      <span class="it"><b>${itemTitle(it)}</b><small>${it.why ? `<em class="why2">${esc(it.why)}</em> ` : ''}${itemSub(it)} · ${it.min} min${it.bpm ? ` · ${it.bpm} bpm` : ''}</small></span>
       <span class="ctl2">
         <button type="button" class="ib" data-act="imin" data-id="${it.id}" data-v="-1" aria-label="One minute less">−</button>
         <span class="dur">${it.min} min</span>
@@ -4983,7 +5023,8 @@ function renderPractice(){
   const mixNote = !kindsOn.length ? '<span class="mix-note warn">Nothing is included yet. Tick at least one of Scales, Chords or Quizzes.</span>'
     : kindsOn.length === 1 ? `<span class="mix-note warn">Lessons will only contain ${kindsOn[0]}. Tap the others above to mix them in.</span>`
     : `<span class="mix-note">Lessons will mix ${kindsOn.slice(0, -1).join(', ')} and ${kindsOn[kindsOn.length - 1]}.</span>`;
-  const ing = `<details class="ingredients"${items.length ? '' : ' open'}><summary>Lesson ingredients</summary><div class="ing">
+  const genBtn = `<button type="button" class="btn${items.length ? '' : ' primary'}" data-act="lgen">${lessonArmed ? 'Tap again to replace your lesson' : items.length ? 'Generate a new lesson' : 'Generate lesson'}</button>`;
+  const ing = (items.length ? `<div class="row">${genBtn}</div>` : '') + (kindsOn.length ? '' : mixNote) + fold('ing', 'Adjust', `${kindsOn.join(', ') || 'nothing included'} · ${cfg.keys.length === 12 ? 'all keys' : cfg.keys.length + (cfg.keys.length === 1 ? ' key' : ' keys')} · ${cfg.count} × ${cfg.minutes} min`, `<div class="ing">
     <div class="row"><span class="rl">Include · tap to turn on or off</span>${chipT(cfg.scales, 'linc', 'scales', 'Scales')}${chipT(cfg.chords, 'linc', 'chords', 'Chords')}${chipT(cfg.quizzes, 'linc', 'quizzes', 'Quizzes')}
       <button type="button" class="btn" data-act="lall">Select everything</button>${mixNote}</div>
     ${cfg.scales ? `<div class="row"><span class="rl">Scales to draw from · ${cfg.scalePool.length} picked</span>${allNone('scale')}</div><div class="ing-grps">${grpHtml('scale', LESSON_SCALE_GROUPS, cfg.scalePool, id => SCALES[id].short || SCALES[id].name)}</div>` : ''}
@@ -4999,13 +5040,13 @@ function renderPractice(){
     ${cfg.scalePool.some(id => SCALES[id] && SCALES[id].arp) ? `<div class="row"><span class="rl">Arpeggio fingering</span><div class="seg">${[['box','Shape'],['nps','Sweep'],['mix','Mix']].map(([v, t]) => `<button type="button" data-act="larp" data-v="${v}" aria-pressed="${(cfg.arpStyle || 'box') === v}">${t}</button>`).join('')}</div></div>` : ''}` : ''}
     <div class="row"><span class="rl">Size</span>
       <span class="stepper"><button type="button" class="ib" data-act="lcount" data-v="-1" aria-label="Fewer items">−</button><span class="val">${cfg.count}</span><button type="button" class="ib" data-act="lcount" data-v="1" aria-label="More items">+</button></span> items ×
-      <span class="stepper"><button type="button" class="ib" data-act="lminutes" data-v="-1" aria-label="Fewer minutes">−</button><span class="val">${cfg.minutes}</span><button type="button" class="ib" data-act="lminutes" data-v="1" aria-label="More minutes">+</button></span> min each
-      <button type="button" class="btn primary" data-act="lgen">${lessonArmed ? 'Tap again to replace your lesson' : items.length ? 'Generate a new lesson' : 'Generate lesson'}</button></div>
-  </div></details>`;
+      <span class="stepper"><button type="button" class="ib" data-act="lminutes" data-v="-1" aria-label="Fewer minutes">−</button><span class="val">${cfg.minutes}</span><button type="button" class="ib" data-act="lminutes" data-v="1" aria-label="More minutes">+</button></span> min each</div>
+    <div class="row"><label class="chk"><input type="checkbox" id="lAuto" data-act="lauto"${Ls.auto ? ' checked' : ''}> Move to the next item automatically when time is up</label></div>
+  </div>`);
 
   const rs = reviewStats(), tmin = Ls.todayMin || 20, liveS = s && !s.done;
   const todayCard = liveS ? '' : `<div class="card today"><div class="row" style="justify-content:space-between"><b>Today</b><span class="info">${rs.due ? `${rs.due} due for review` : rs.all ? 'nothing due: something new' : 'your first session'}</span></div>
-    <span class="info">What’s due, what you miss in quizzes, and one new thing. Rate each item and it comes back when you need it.</span>
+    <span class="info tip">What’s due, what you miss in quizzes, and one new thing. Rate each item and it comes back when you need it.</span>
     <div class="row"><div class="seg">${[10, 20, 30].map(x => `<button type="button" data-act="todaymin" data-v="${x}" aria-pressed="${tmin === x}">${x} min</button>`).join('')}</div>
       <button type="button" class="btn primary big-btn" data-act="todaygo">▶ Start today</button><button type="button" class="btn" data-act="todaysee">${Ls.today ? 'Shuffle' : 'See it first'}</button>
       ${Ls.today && Ls.mine && Ls.mine.length ? `<button type="button" class="btn" data-act="todaymine">Back to my lesson (${Ls.mine.length})</button>` : ''}</div></div>`;
@@ -5016,13 +5057,14 @@ function renderPractice(){
   const lessonCard = `${todayCard}<div class="card">
     <div class="row" style="justify-content:space-between"><b>${Ls.today ? 'Today’s lesson' : 'Lesson'}</b><span class="info">${items.length ? `${items.length} item${items.length > 1 ? 's' : ''} · ${total} min total` : 'Empty'}</span></div>
     ${sess}
-    ${items.length ? `<div class="items">${itemRows}</div>` : `<p class="info" style="margin:0">Roll a random lesson from the ingredients below, or add what's on the neck and your own tasks. Each item gets its own timer.</p>`}
+    ${items.length ? `<div class="items${foldOpen('items', false) ? ' edit' : ''}">${itemRows}</div>` : `<p class="info tip" style="margin:0">Roll a random lesson from the ingredients below, or add what's on the neck and your own tasks. Each item gets its own timer.</p>`}
     <div class="row">
       ${items.length && !(s && !s.done) ? `<button type="button" class="btn primary big-btn" data-act="sessstart" data-v="0">▶ Start lesson</button>` : ''}
+      ${items.length ? `<button type="button" class="btn" data-act="fold" data-v="items" aria-pressed="${foldOpen('items', false)}">${foldOpen('items', false) ? 'Done' : 'Edit'}</button>` : genBtn}
+      </div>${fold('ladd', 'Add something', 'what’s on the neck, or your own task', `<div class="row">
       <button type="button" class="btn" data-act="iaddneck">+ What's on the neck</button>
       <span class="task-add"><input type="text" class="task-in" id="newTask" maxlength="80" placeholder="Custom task, e.g. alternate picking 16ths" aria-label="Custom task">
-      <button type="button" class="btn" data-act="iaddtask">+ Add task</button></span></div>
-    <div class="row"><label class="chk"><input type="checkbox" id="lAuto" data-act="lauto"${Ls.auto ? ' checked' : ''}> Move to the next item automatically when time is up</label></div>
+      <button type="button" class="btn" data-act="iaddtask">+ Add task</button></span></div>`)}
     ${ing}
   </div>`;
   const qc = state.quizCfg, isIv = qc.type.endsWith('interval') || qc.type === 'ear-find';
@@ -5031,16 +5073,16 @@ function renderPractice(){
   const quizCard = `<div class="card">
     <div class="row" style="justify-content:space-between"><b>Fretboard quiz</b>${quiz && quiz.mode !== 'session' ? '<span class="info">Running: answer on the neck</span>' : ''}</div>
     <div class="quiz-types">${Object.entries(QUIZ_TYPES).map(([k, t]) => `<button type="button" data-act="qtype" data-v="${k}" aria-pressed="${qc.type === k}"><b>${t.name}</b><small>${t.desc}</small></button>`).join('')}</div>
-    <div class="row"><span class="rl">Frets</span><div class="seg">${Object.keys(QUIZ_RANGES).map(k => `<button type="button" data-act="qrange" data-v="${k}" aria-pressed="${qc.range === k}">${k.replace('-', '–')}</button>`).join('')}</div>
+    <div class="row">${quiz && quiz.mode !== 'session'
+      ? '<button type="button" class="btn primary big-btn" data-act="qstop">End quiz</button>'
+      : '<button type="button" class="btn primary big-btn" data-act="qstart">▶ Start quiz</button>'}</div>
+    ${fold('quiz', 'Adjust', `frets ${qc.range.replace('-', '–')} · ${QUIZ_LENGTHS[qc.length].label}${qc.focus === 'weak' ? ' · weak spots first' : ''}`, `<div class="row"><span class="rl">Frets</span><div class="seg">${Object.keys(QUIZ_RANGES).map(k => `<button type="button" data-act="qrange" data-v="${k}" aria-pressed="${qc.range === k}">${k.replace('-', '–')}</button>`).join('')}</div>
       ${isIv ? `<div class="seg"><button type="button" data-act="qpool" data-v="core" aria-pressed="${qc.pool === 'core'}">Core intervals</button><button type="button" data-act="qpool" data-v="all" aria-pressed="${qc.pool === 'all'}">All intervals</button></div>` : ''}</div>
     <div class="row"><span class="rl">Length</span><div class="seg">${Object.entries(QUIZ_LENGTHS).map(([k, l]) => `<button type="button" data-act="qlen" data-v="${k}" aria-pressed="${qc.length === k}">${l.label}</button>`).join('')}</div></div>
     <div class="row"><span class="rl">Questions</span><div class="seg">
       <button type="button" data-act="qfocus" data-v="random" aria-pressed="${(qc.focus || 'random') === 'random'}">Random</button>
       <button type="button" data-act="qfocus" data-v="weak" aria-pressed="${qc.focus === 'weak'}">Weak spots first</button></div>
-      ${qc.focus === 'weak' ? '<span class="opt-note">Asks more often about what you miss or answer slowly. Lesson quizzes do too.</span>' : ''}</div>
-    <div class="row">${quiz && quiz.mode !== 'session'
-      ? '<button type="button" class="btn primary big-btn" data-act="qstop">End quiz</button>'
-      : '<button type="button" class="btn primary big-btn" data-act="qstart">▶ Start quiz</button>'}</div>
+      ${qc.focus === 'weak' ? '<span class="opt-note">Asks more often about what you miss or answer slowly. Lesson quizzes do too.</span>' : ''}</div>`)}
     ${state.quizLast ? `<div class="info qres">Last: <b>${QUIZ_TYPES[state.quizLast.type].name}</b>, ${resLine(state.quizLast)}${state.quizLast.best ? ' · new best' : ''}</div>` : ''}
     ${bestOf ? `<div class="info qres">Best for this quiz and length: ${resLine(bestOf)}</div>` : ''}
   </div>`;
@@ -5050,32 +5092,32 @@ function renderPractice(){
   const chordsNow = backingChords();
   const playCard = `<div class="card">
     <div class="row" style="justify-content:space-between"><b>Play along</b><span class="info">Uses the metronome tempo (${state.metro.bpm} bpm)</span></div>
-    <div class="row"><span class="rl">Loop</span><div class="seg"><button type="button" data-act="bsrc" data-v="prog" aria-pressed="${B.source === 'prog'}">Progression</button><button type="button" data-act="bsrc" data-v="pins" aria-pressed="${B.source === 'pins'}">My Pinboard</button><button type="button" data-act="bsrc" data-v="lane" aria-pressed="${B.source === 'lane'}">Looper</button></div></div>
+    <div class="row loop-chords">${chordsNow.length ? chordsNow.map((c, k) => `<span class="lc${loop.on && loop.idx === k ? ' on' : ''}">${c.name}</span>`).join('<span class="info">→</span>') : `<span class="info">${B.source === 'lane' ? 'The Looper is empty. Build one on the Pinboard tab.' : 'Your Pinboard is empty. Pin chords to loop them.'}</span>`}</div>
+    <div class="row"><button type="button" class="btn primary big-btn" data-act="bstart">${loop.on ? '■ Stop loop' : '▶ Start loop'}</button></div>
+    ${fold('bchords', 'Chords', B.source === 'lane' ? 'the Looper' : B.source === 'pins' ? 'my Pinboard' : `${keyName(B.key)} ${B.minor ? 'minor' : 'major'} · ${(PROG_LIST[B.minor ? 'minor' : 'major'][B.prog] || [''])[0]}`, `<div class="row"><span class="rl">Loop</span><div class="seg"><button type="button" data-act="bsrc" data-v="prog" aria-pressed="${B.source === 'prog'}">Progression</button><button type="button" data-act="bsrc" data-v="pins" aria-pressed="${B.source === 'pins'}">My Pinboard</button><button type="button" data-act="bsrc" data-v="lane" aria-pressed="${B.source === 'lane'}">Looper</button></div></div>
     ${B.source === 'prog' ? `<div class="row">
       <select class="sel" id="bKey" data-act="bkey" aria-label="Key">${[0,1,2,3,4,5,6,7,8,9,10,11].map(pc => `<option value="${pc}"${B.key === pc ? ' selected' : ''}>${keyName(pc)}</option>`).join('')}</select>
       <div class="seg"><button type="button" data-act="bmode" data-v="0" aria-pressed="${!B.minor}">Major</button><button type="button" data-act="bmode" data-v="1" aria-pressed="${B.minor}">Minor</button></div>
       <select class="sel" id="bProg" data-act="bprog" aria-label="Progression">${PROG_LIST[B.minor ? 'minor' : 'major'].map(([n], k) => `<option value="${k}"${B.prog === k ? ' selected' : ''}>${n}</option>`).join('')}</select>
-      <div class="seg">${[['tri', 'Triads'], ['sev', '7ths'], ['color', 'Colorful']].map(([v, t]) => `<button type="button" data-act="b7" data-v="${v}" aria-pressed="${backingStyle() === v}">${t}</button>`).join('')}</div></div>` : ''}
-    <div class="row loop-chords">${chordsNow.length ? chordsNow.map((c, k) => `<span class="lc${loop.on && loop.idx === k ? ' on' : ''}">${c.name}</span>`).join('<span class="info">→</span>') : `<span class="info">${B.source === 'lane' ? 'The Looper is empty. Build one on the Pinboard tab.' : 'Your Pinboard is empty. Pin chords to loop them.'}</span>`}</div>
-    <div class="row"><span class="rl">Feel</span>
+      <div class="seg">${[['tri', 'Triads'], ['sev', '7ths'], ['color', 'Colorful']].map(([v, t]) => `<button type="button" data-act="b7" data-v="${v}" aria-pressed="${backingStyle() === v}">${t}</button>`).join('')}</div></div>` : ''}`)}
+    ${fold('bsound', 'Sound', `${{strum1:'strum on 1', quarters:'every beat', pad:'sustained'}[B.pattern]}${B.drums ? ' · drums' : ''}${B.click ? ' · click' : ''}`, `<div class="row"><span class="rl">Feel</span>
       <div class="seg">${[['strum1','Strum on 1'], ['quarters','Every beat'], ['pad','Sustained']].map(([v, t]) => `<button type="button" data-act="bpat" data-v="${v}" aria-pressed="${B.pattern === v}">${t}</button>`).join('')}</div>
       ${B.source === 'lane' ? '<span class="info">Chord lengths come from the Looper.</span>' : ''}<div class="seg"${B.source === 'lane' ? ' hidden' : ''}>${[1, 2, 4].map(n => `<button type="button" data-act="bbpc" data-v="${n}" aria-pressed="${B.bpc === n}">${n} bar${n > 1 ? 's' : ''} each</button>`).join('')}</div></div>
     <div class="row"><label class="chk"><input type="checkbox" id="bDrums" data-act="bdrums"${B.drums ? ' checked' : ''}> Drums</label>
       <label class="chk"><input type="checkbox" id="bClick" data-act="bclick"${B.click ? ' checked' : ''}> Click too</label></div>
-    <div class="row"><span class="rl">On the neck</span><div class="seg">${[['tones', 'Follow the changes'], ['chord', 'Each chord’s shape'], ['off', 'Leave it alone']].map(([v, t]) => `<button type="button" data-act="bview" data-v="${v}" aria-pressed="${neckView() === v}">${t}</button>`).join('')}</div></div>
+    <div class="row"><span class="rl">Loop volume</span><input type="range" id="bVol" min="0.1" max="1" step="0.05" value="${B.vol}" data-act="bvol" aria-label="Loop volume"></div>`)}
+    ${fold('bneck', 'On the neck', {tones:'follow the changes', chord:'each chord’s shape', off:'leave it alone'}[neckView()], `<div class="row"><span class="rl">On the neck</span><div class="seg">${[['tones', 'Follow the changes'], ['chord', 'Each chord’s shape'], ['off', 'Leave it alone']].map(([v, t]) => `<button type="button" data-act="bview" data-v="${v}" aria-pressed="${neckView() === v}">${t}</button>`).join('')}</div></div>
     ${neckView() === 'tones' ? `<div class="row"><span class="rl">Scale under the chords</span><div class="seg">${[['best', 'Best for each chord'], ['key', 'One for the whole loop'], ['mine', 'My main layer']].map(([v, t]) => `<button type="button" data-act="bunder" data-v="${v}" aria-pressed="${(B.under || 'best') === v}"${v === 'mine' && !mainScale() ? ' disabled title="Set the main layer to a scale first"' : ''}>${t}</button>`).join('')}</div></div>
     <div class="row"><span class="rl">Where</span><div class="seg">${[['auto', state.layers[0].pos && state.layers[0].visible ? 'My position' : 'Whole neck'], ['low', '0–4'], ['mid', '4–8'], ['high', '7–11'], ['top', '11–15']].map(([v, t]) => `<button type="button" data-act="barea" data-v="${v}" aria-pressed="${(B.area || 'auto') === v}">${t}</button>`).join('')}</div></div>
     ${chordsNow.length ? `<div class="chg">${chordsNow.map((c, k) => { const sc = scaleFor(c), nx = chordsNow[(k + 1) % chordsNow.length]; return `<span><b>${c.name}</b><small>${scaleTitle(sc.root, sc.type)}</small>${chordsNow.length > 1 ? `<small class="ld">${leadText(c, nx)}</small>` : ''}</span>`; }).join('')}</div>
-    <span class="opt-note">Big notes belong to the chord. Just before each change, dashed rings show the next chord’s 3rd and 7th (its 5th if it has no 7th): land on one as it arrives. Your layers come back when the loop stops.</span>` : ''}` : ''}
-    <div class="row"><span class="rl">Loop volume</span><input type="range" id="bVol" min="0.1" max="1" step="0.05" value="${B.vol}" data-act="bvol" aria-label="Loop volume"></div>
-    <div class="row"><button type="button" class="btn primary big-btn" data-act="bstart">${loop.on ? '■ Stop loop' : '▶ Start loop'}</button></div>
+    <span class="opt-note tip">Big notes belong to the chord. Just before each change, dashed rings show the next chord’s 3rd and 7th (its 5th if it has no 7th): land on one as it arrives. Your layers come back when the loop stops.</span>` : ''}` : ''}`)}
     <div class="metro-opts">
-      <div class="row" style="justify-content:space-between"><b>Drone</b><span class="opt-note">A held root note for hearing modes and checking intonation.</span></div>
-      <div class="row">${[0,1,2,3,4,5,6,7,8,9,10,11].map(pc => `<button type="button" class="chip${D.root === pc ? ' sel' : ''}" data-act="droot" data-v="${pc}">${pn(DEFAULT[pc])}</button>`).join('')}
+      <div class="row" style="justify-content:space-between"><b>Drone</b><button type="button" class="btn" data-act="dstart">${drone.on ? '■ Stop drone' : '▶ Start drone'}</button></div>
+      <span class="opt-note tip">A held root note for hearing modes and checking intonation.</span>
+      ${fold('drone', 'Adjust', `${pn(DEFAULT[D.root])}${D.fifth ? ' with its 5th' : ''}`, `<div class="row">${[0,1,2,3,4,5,6,7,8,9,10,11].map(pc => `<button type="button" class="chip${D.root === pc ? ' sel' : ''}" data-act="droot" data-v="${pc}">${pn(DEFAULT[pc])}</button>`).join('')}
         <button type="button" class="btn" data-act="dmatch" title="Use the root of the main layer">Match the neck</button></div>
       <div class="row"><div class="seg"><button type="button" data-act="dfifth" data-v="0" aria-pressed="${!D.fifth}">Root</button><button type="button" data-act="dfifth" data-v="1" aria-pressed="${D.fifth}">Root + 5th</button></div>
-        <input type="range" id="dVol" min="0.05" max="1" step="0.05" value="${D.vol}" data-act="dvol" aria-label="Drone volume" style="flex:1 1 120px; width:auto">
-        <button type="button" class="btn primary" data-act="dstart">${drone.on ? '■ Stop drone' : '▶ Start drone'}</button></div>
+        <input type="range" id="dVol" min="0.05" max="1" step="0.05" value="${D.vol}" data-act="dvol" aria-label="Drone volume" style="flex:1 1 120px; width:auto"></div>`)}
     </div>
   </div>`;
 
@@ -5155,20 +5197,21 @@ function renderPractice(){
             <span class="tline" title="Each dot is a note: above the line is early, below is late; red marks a missed click">${marks}</span></div>`;
         })() : `<small style="opacity:.75">Play the exercise once through, then tap how it went. ${tc.need} clean in a row raises the tempo by ${tc.step}; ${tc.slips} slips at one tempo end the test.</small>`}</div>`
       : cal ? calPanel()
-      : `<div class="row"><span class="rl">Who judges each pass</span><div class="seg">
+      : `<div class="row"><span>Exercise: <b>${esc(tgt.title)}</b>${tgt.fromLesson ? ' <small class="opt-note">(current lesson item)</small>' : ''}</span></div>
+        ${micT.err ? `<p class="mix-note warn" style="margin:0">${esc(micT.err)}</p>` : ''}
+        <div class="row"><button type="button" class="btn primary big-btn" data-act="ttstart">▶ Start tempo test</button>
+          <span class="opt-note">${prevClean ? `Last clean: <b>${prevClean} bpm</b>. Starts at ${Math.max(30, prevClean - tc.step * 2)}.` : `Starts at the metronome tempo (${state.metro.bpm} bpm).`}</span></div>
+        ${tc.judge === 'mic' && !state.micCal ? '<span class="opt-note"><b>Calibrate first</b>: it’s in Adjust.</span>' : ''}
+        ${fold('tt', 'Adjust', `${tc.judge === 'mic' ? 'the mic judges' : 'you judge'} · +${tc.step} bpm after ${tc.need} clean`, `<div class="row"><span class="rl">Who judges each pass</span><div class="seg">
           <button type="button" data-act="ttjudge" data-v="me" aria-pressed="${tc.judge !== 'mic'}">I do (tap)</button>
           <button type="button" data-act="ttjudge" data-v="mic" aria-pressed="${tc.judge === 'mic'}">Mic (timing)</button></div></div>
-        ${micT.err ? `<p class="mix-note warn" style="margin:0">${esc(micT.err)}</p>` : ''}
         ${tc.judge === 'mic' ? `<div class="row"><span class="opt-note">${state.micCal ? `Mic timing calibrated: notes land ${Math.abs(state.micCal.ms)} ms ${state.micCal.ms >= 0 ? 'after' : 'before'} the click (±${state.micCal.sd} ms).` : '<b>Calibrate first</b> so the app knows your phone’s audio delay.'}</span>
             <button type="button" class="btn${state.micCal ? '' : ' primary'}" data-act="calstart">${state.micCal ? 'Recalibrate' : 'Calibrate mic timing'}</button></div>
           <div class="row"><span class="rl">Timing window</span><div class="seg">${Object.entries(STRICT).map(([k, x]) => `<button type="button" data-act="ttstrict" data-v="${k}" aria-pressed="${(tc.strict || 'normal') === k}">${x[1]}</button>`).join('')}</div>
             <span>Bars per pass</span>${stepper('ttbars', tc.bars || 2, 'bars per pass')}</div>
           <p class="opt-note" style="margin:0">Headphones give the best results. Without them the click switches to a high tick the mic ignores. The mic checks that a note starts on every click${state.metro.sub > 1 ? ` and subdivision (${['', '', '8ths', 'triplets', '16ths'][state.metro.sub]})` : ''}, on time, with no more than one extra. It can’t hear whether they were the right notes, so tap Slipped if you fumbled one.</p>` : ''}
-        <div class="row"><span>Exercise: <b>${esc(tgt.title)}</b>${tgt.fromLesson ? ' <small class="opt-note">(current lesson item)</small>' : ''}</span></div>
         <div class="row"><input type="text" class="task-in" id="ttName" maxlength="60" placeholder="Or name your own, e.g. Spider exercise" aria-label="Exercise name"></div>
-        <div class="row"><span>Step</span>${stepper('ttstep', tc.step, 'bpm per step')}<span>bpm · clean passes</span>${stepper('ttneed', tc.need, 'clean passes per step')}<span>· slips allowed</span>${stepper('ttslips', tc.slips, 'slips that end the test')}</div>
-        <div class="row"><button type="button" class="btn primary big-btn" data-act="ttstart">▶ Start tempo test</button>
-          <span class="opt-note">${prevClean ? `Last clean: <b>${prevClean} bpm</b>. Starts at ${Math.max(30, prevClean - tc.step * 2)}.` : `Starts at the metronome tempo (${state.metro.bpm} bpm).`}</span></div>
+        <div class="row"><span>Step</span>${stepper('ttstep', tc.step, 'bpm per step')}<span>bpm · clean passes</span>${stepper('ttneed', tc.need, 'clean passes per step')}<span>· slips allowed</span>${stepper('ttslips', tc.slips, 'slips that end the test')}</div>`)}
         ${state.ttLast ? `<div class="info qres">Last test: <b>${esc(state.ttLast.title)}</b> · ${state.ttLast.best ? `clean at <b>${state.ttLast.best} bpm</b>` : 'no clean tempo'} · ${state.ttLast.passes} passes</div>` : ''}`}
   </div>`;
   // sections, so one thing at a time fills the screen; "All" is the old everything-at-once page for big screens
@@ -5192,6 +5235,8 @@ function handlePractice(act, b){
   const goTo = {calstart:state.ptab === 'time' ? 'time' : 'metro', calself:'time', ttstart:'metro', qstart:'quiz', wdrill:'quiz', tunstart:'tuner'}[act];
   if (goTo && state.ptab !== 'all') state.ptab = goTo;
   switch (act) {
+    case 'fold': state.folds = Object.assign({}, state.folds, {[v]:!foldOpen(v, !!b.dataset.d)}); render(); { const n = panel.querySelector(`[data-act="fold"][data-v="${v}"]`); if (n) n.focus({preventScroll:true}); } return true;
+    case 'progopen': circOpen = circOpen === +b.dataset.p ? null : +b.dataset.p; render(); { const n = panel.querySelector(`[data-act="progopen"][data-p="${b.dataset.p}"]`); if (n) n.focus({preventScroll:true}); } return true;
     case 'ptab': state.ptab = v; render(); return true;
     case 'mtoggle': if (metro.on) metroStop(); else metroStart(); render(); return true;
     case 'mbpm': setBpm(state.metro.bpm + +v); return true;
@@ -5532,7 +5577,7 @@ function render(){
   pvFollow();
   panel.innerHTML = state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'practice' ? renderPractice() : renderLayers();
   { const r = panel.querySelector('.ptabs'), b = r && r.querySelector('[aria-selected="true"]'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - r.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; }     // keep the open section in sight
-  { const r = panel.querySelector('.cpstrip'), b = r && r.querySelector('.sel'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - r.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; }
+
   tunerPaint();
   tickUI();
   save();
@@ -5564,14 +5609,14 @@ function revealNeck(){
   if (r.top < 0 || r.bottom > window.innerHeight) neck.scrollIntoView({block:'start', behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
   neck.classList.remove('flash'); void neck.offsetWidth; neck.classList.add('flash');
 }
-function loadMain(kind, root, type){
+function loadMain(kind, root, type, quiet){
   const L = state.layers[0];
   L.kind = kind; L.root = mod(root); L.type = type; L.hidden = []; L.visible = true;
   if (L.pos && L.pos.style == null && kind === 'scale') L.pos = {s:0, f:L.pos.f, style:'box'};
   adjustPos(L);
   state.tap = null;
   if (state.tab === 'finder') state.tab = 'layers';
-  render(); revealNeck();
+  render(); if (!quiet) revealNeck();      // quiet: composing, so the page stays where it is
 }
 function nextColor(){ const used = state.layers.map(L => L.color); for (let c = 0; c < 4; c++) if (!used.includes(c)) return c; return 0; }
 
@@ -5646,6 +5691,7 @@ function setSound(on){
 }
 $('#setSound').addEventListener('change', e => setSound(e.target.checked));
 $('#viewBtn').addEventListener('click', () => { const on = $('.bar').classList.toggle('showview'); $('#viewBtn').setAttribute('aria-expanded', String(on)); });
+$('#tipsBtn').addEventListener('click', () => { state.tips = !state.tips; renderToolbar(); save(); toast(state.tips ? 'Explanations on' : 'Explanations off'); });
 $('#soundBtn').addEventListener('click', () => setSound(!state.sound));
 document.addEventListener('click', e => { ['#menu', '#savesMenu'].forEach(id => { const m = $(id); if (m.open && !m.contains(e.target)) m.open = false; }); });
 $('#savesMenu').addEventListener('toggle', () => { if ($('#savesMenu').open) { $('#menu').open = false; saveDelArmed = null; renderSaves(); } });
@@ -5803,7 +5849,7 @@ panel.addEventListener('click', e => {
     case 'laneadd': { const r = +b.dataset.r, t = b.dataset.t, hit = findChords(state.laneQ).find(c => c.root === r && c.type === t); if (laneAdd([hit || {root:r, type:t, name:chordName(r, t)}])) strumMidis(chordMidis(r, t), .035, true); break; }
     case 'lanedel': state.lane.splice(+b.dataset.k, 1); if (!state.lane.length && loop.on && state.backing.source === 'lane') loopStop(); else refreshLoop(); break;
     case 'lanebars': { const it = state.lane[+b.dataset.k]; if (it) { it.bars = it.bars === 1 || it.bars == null ? 2 : it.bars === 2 ? 0.5 : 1; refreshLoop(); } break; }
-    case 'laneshow': { const it = state.lane[+b.dataset.k]; if (it) { strumMidis(it.shape && (it.tuning || 'std') === state.tuning ? it.shape.map(q => TUNINGS[state.tuning].midi[q.s] + q.f) : chordMidis(it.root, it.type), .035, true); loadMain('chord', it.root, it.type); } return; }
+    case 'laneshow': { const it = state.lane[+b.dataset.k]; if (it) { cpAt = +b.dataset.k; strumMidis(it.shape && (it.tuning || 'std') === state.tuning ? it.shape.map(q => TUNINGS[state.tuning].midi[q.s] + q.f) : chordMidis(it.root, it.type), .035, true); loadMain('chord', it.root, it.type, state.compose.view === 'next'); } return; }
     case 'laneplay':
       if (loop.on && state.backing.source === 'lane') loopStop();
       else { if (loop.on) loopStop(); state.backing.source = 'lane'; loopStart(); }

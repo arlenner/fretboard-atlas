@@ -29,6 +29,7 @@ A guitar neck reference that runs in the browser. It needs no build step or serv
 - Follow the changes: while a loop plays, the neck shows each chord's tones over a fitting scale, and the next chord's 3rd and 7th just before it arrives.
 - Guided lessons for every scale: hear it over a drone, compare it with a familiar scale, play its chords, check your ear, improvise over a two-chord vamp, and schedule it for review.
 - Compose (Pinboard tab): "Where can I go?" suggests next chords by what they do; "Why does this work?" explains the Looper progression chord by chord.
+- Calm screens: settings fold to one line that says what is set and stay how you leave them; View holds the display choices and ? shows explanations.
 - Time Check: the click drops out for 1 to 8 bars and the mic measures your drift, spread and placement.
 - Takes: record yourself over a loop or click, keep dated takes, compare the first with the latest.
 - Weak spots: every quiz answer is tracked by fret, note, string, interval and chord type; a heatmap on the neck shows % right per fret (green / amber for slow / red), and 'weak spots first' quizzes drill what you miss.
