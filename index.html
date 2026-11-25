@@ -204,11 +204,17 @@ h2,h3{margin:0; text-wrap:balance}
 .fretnums{display:grid; min-width:740px; font-size:11px; color:var(--muted); text-align:center; padding-top:4px; font-variant-numeric:tabular-nums}
 .fretnums .mk{color:var(--ink); font-weight:700}
 .neck-hide{position:absolute; right:10px; bottom:6px; z-index:5; border:1px solid var(--line); background:var(--surface-2); color:var(--muted); border-radius:8px; padding:3px 9px; font-size:12px; font-weight:650}
+.neck-hide.focus-btn{right:104px}
+body.focus .legend{padding-right:12px}
+@media (max-width: 560px){ .focus-btn .fl{display:none} .legend{padding-right:146px} }
+.strip .focus-x{margin-left:auto}
+.ptabs .pt-tuner{margin-left:auto}
+.subtabs{margin-bottom:10px}
 .neck-hide:hover{color:var(--ink); border-color:var(--muted)}
 .neck-bar{display:flex; align-items:center; gap:8px; width:100%; border:1px solid var(--line); background:var(--surface); color:var(--ink); border-radius:12px; padding:9px 14px; font-weight:700; font-size:14px; text-align:left}
 .neck-bar small{color:var(--muted); font-weight:500; margin-left:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0}
 .neck-bar:hover{border-color:var(--muted)}
-.legend{display:flex; flex-wrap:wrap; gap:4px 14px; padding:6px 112px 0 12px; font-size:12px; color:var(--muted); min-height:26px}
+.legend{display:flex; flex-wrap:wrap; gap:4px 14px; padding:6px 184px 0 12px; font-size:12px; color:var(--muted); min-height:26px}
 .legend span{display:inline-flex; align-items:center; gap:6px}
 .legend i{width:10px; height:10px; border-radius:50%; background:var(--c); display:inline-block}
 .legend b{color:var(--ink); font-weight:650}
@@ -233,7 +239,7 @@ body{display:flex; flex-direction:column}
   body.side-open .board, body.side-open .fretnums{min-width:max(740px, calc(100vw - 38px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)))}
   body{padding:0; position:fixed; inset:0; width:auto}   /* not just overflow:hidden: iOS keeps a scrolled page's old touch offset after rotating */
   body::before{display:none}
-  .rotate-hint, .neck-bar, #neckHide{display:none !important}
+  .rotate-hint, .neck-bar, #neckHide, #focusBtn{display:none !important}
   .neck-wrap, .neck-wrap.collapsed{position:fixed; inset:0; z-index:1; display:flex; flex-direction:column; gap:4px; padding:max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))}
   .neck-wrap .strip{margin:0}
   /* keep the strip's controls (stop, skip, beats) out from under the sidebar */
@@ -315,6 +321,7 @@ body{display:flex; flex-direction:column}
 .pv-rep small{opacity:.7}
 .pv-rep .pv-rates{flex:1 1 180px; max-width:280px}
 .pv-rep .pv-r{min-height:38px}
+body.focus .menus, body.focus .rotate-hint, body.focus #neckHide, body.focus #focusBtn, body.focus .neck-bar, body.pv #focusBtn,
 body.pv .menus, body.pv .rotate-hint, body.pv #neckHide, body.pv #menusOpen, body.pv .neck-bar{display:none !important}
 body.pv-done .neck-wrap{display:none !important}
 @media (orientation: landscape) and (max-height: 520px){
@@ -609,8 +616,7 @@ body.is-dragging, body.is-dragging *{cursor:grabbing !important}
 .over{margin-top:0; padding-top:0; border-top:0}
 .over > .scl, .over > .fold{justify-self:stretch}
 /* practice: metronome, lesson, session */
-.practice{display:grid; grid-template-columns:minmax(0, 1fr); gap:12px; align-items:start}
-@media (min-width: 900px){ .practice{grid-template-columns:minmax(300px, 380px) minmax(0, 1fr)} }
+.practice{display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap:12px; align-items:start}
 .pcol{display:grid; grid-template-columns:minmax(0, 1fr); gap:12px; align-content:start; min-width:0}
 .tview{display:grid; justify-items:center; gap:4px; padding:14px 12px; border-radius:12px; background:var(--surface-2); transition:background .2s}
 .tview .tnote{font-size:56px; font-weight:800; line-height:1; font-variation-settings:'wdth' 80}
@@ -816,6 +822,7 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
   <div class="strip" id="strip" hidden></div>
   <button type="button" class="neck-bar" id="neckBar" hidden aria-expanded="false" aria-controls="neck"><span aria-hidden="true">▾</span> <span>Show neck</span> <small id="neckBarInfo"></small></button>
   <div class="neck" id="neck">
+    <button type="button" class="neck-hide focus-btn" id="focusBtn" title="Only the neck and whatever is running" aria-label="Focus">⤢<span class="fl"> Focus</span></button>
     <button type="button" class="neck-hide" id="neckHide" aria-expanded="true" aria-controls="neck" title="Hide the neck to make room for menus">▴ Hide neck</button>
     <button type="button" class="neck-hide menus-open" id="menusOpen" aria-controls="menus" aria-expanded="false" title="Open the menus">☰ Menus</button>
     <div class="board-scroll" id="boardScroll">
@@ -887,11 +894,9 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 </div>
 
 <div class="tabs" role="tablist">
-  <button type="button" role="tab" data-tab="layers"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5zM3 13l9 5 9-5"/></svg><span class="tt">Layers</span></button>
-  <button type="button" role="tab" data-tab="finder"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 5 5"/></svg><span class="tt"><span class="tl-long">Chord finder</span><span class="tl-short">Finder</span></span></button>
-  <button type="button" role="tab" data-tab="circle"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg><span class="tt"><span class="tl-long">Circle of fifths</span><span class="tl-short">Circle</span></span></button>
-  <button type="button" role="tab" data-tab="pins"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span class="tt" id="pinsTab">Pinboard</span></button>
-  <button type="button" role="tab" data-tab="practice"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16l12-8z"/></svg><span class="tt">Practice</span></button>
+  <button type="button" role="tab" data-grp="explore"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg><span class="tt">Explore</span></button>
+  <button type="button" role="tab" data-grp="write"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg><span class="tt">Write</span></button>
+  <button type="button" role="tab" data-grp="practice"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16l12-8z"/></svg><span class="tt">Practice</span></button>
 </div>
 <div class="panel" id="panel"></div>
 </aside>
@@ -1137,6 +1142,7 @@ state.layers.forEach(L => {
 if (!TUNINGS[state.tuning]) state.tuning = 'std';
 state.pins = (Array.isArray(state.pins) ? state.pins : []).filter(p => p && (p.type == null || CHORDS[p.type]));
 if (!['layers','finder','circle','pins','practice'].includes(state.tab)) state.tab = 'layers';
+fixSub();
 state.metro = Object.assign(clone(DEF.metro), state.metro || {});
 state.metro.gap = Object.assign(clone(DEF.metro.gap), state.metro.gap || {});
 state.metro.ladder = Object.assign(clone(DEF.metro.ladder), state.metro.ladder || {});
@@ -1198,6 +1204,7 @@ function applySnapshot(o){
   state.lane = (Array.isArray(state.lane) ? state.lane : []).filter(it => it && CHORDS[it.type]).slice(0, 32);
   state.picks = Array.isArray(state.picks) ? state.picks.filter(p => p && p.s >= 0 && p.s < 6 && p.f >= 0 && p.f <= 24) : [];
   if (!['layers','finder','circle','pins','practice'].includes(state.tab)) state.tab = 'layers';
+  fixSub();
   state.circle = Object.assign(clone(DEF.circle), state.circle || {});
   state.backing = Object.assign(clone(DEF.backing), state.backing || {});
   state.playCfg = Object.assign(clone(DEF.playCfg), state.playCfg || {}); phrLoad();
@@ -1756,6 +1763,18 @@ function fold(key, title, sum, body, def, cls){
   const open = foldOpen(key, def);
   return `<div class="fold${open ? '' : ' shut'}${cls ? ' ' + cls : ''}"><button type="button" class="fold-h" data-act="fold" data-v="${key}" data-d="${def ? 1 : ''}" aria-expanded="${open}"><b>${title}</b><small>${sum || ''}</small><i aria-hidden="true">${open ? '▴' : '▾'}</i></button><div class="fold-b">${body}</div></div>`;
 }
+/* three tabs, by what you came to do: Explore (layers, chord finder), Write (the progression, the circle) and Practice */
+const grpOf = t => t === 'layers' || t === 'finder' ? 'explore' : t === 'practice' ? 'practice' : 'write';
+const SUBS = {explore:[['layers', 'Layers'], ['finder', 'Chord finder']], write:[['pins', 'Progression'], ['circle', 'Circle of fifths']]};
+function fixSub(){ const o = state.lastSub || {}; state.lastSub = {explore:o.explore === 'finder' ? 'finder' : 'layers', write:o.write === 'circle' ? 'circle' : 'pins'}; }
+function subNav(){
+  const g = grpOf(state.tab), L = SUBS[g]; if (!L) return '';
+  return `<div class="ptabs subtabs" role="tablist" aria-label="${g === 'explore' ? 'Explore' : 'Write'}">${L.map(([v, n]) => `<button type="button" role="tab" data-act="subtab" data-v="${v}" aria-selected="${state.tab === v}"${v === 'pins' ? ' id="pinsTab"' : ''}>${n}${v === 'pins' && state.pins.length ? ` · ${state.pins.length} pinned` : ''}${v === 'pins' && loop.on ? '<i class="live" title="Running"></i>' : ''}</button>`).join('')}</div>`;
+}
+/* Focus: only the neck and whatever is running */
+let focus = false;
+const focusOn = () => focus && !pvOn();
+function setFocus(on){ focus = on; if (on) { side = 'closed'; ['#menu', '#savesMenu'].forEach(id => { $(id).open = false; }); } render(); if (on) scrollTo(0, 0); }
 let circOpen = null;      // the progression whose buttons are showing on the Circle tab
 function renderToolbar(){
   document.body.classList.toggle('tips', !!state.tips); $('#tipsBtn').setAttribute('aria-pressed', String(!!state.tips));
@@ -1764,8 +1783,8 @@ function renderToolbar(){
   document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.mode === 'pick') === pick)));
   document.querySelectorAll('#labelSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.label === state.labelMode)));
   document.querySelectorAll('#colorSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color === state.colorBy)));
-  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
-  $('#pinsTab').innerHTML = `<span class="tl-long">Pinboard</span><span class="tl-short">Pins</span>${state.pins.length ? ` · ${state.pins.length}` : ''}`;
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.grp === grpOf(state.tab))));
+  document.body.classList.toggle('focus', focusOn());
   tuningSel.value = state.tuning;
   $('#setPref').value = state.pref;
   $('#setExt').value = state.extNames;
@@ -1775,7 +1794,7 @@ function renderToolbar(){
   $('#setSound').checked = state.sound;
   $('#soundBtn').setAttribute('aria-pressed', String(!!state.sound));
   // collapsible neck
-  const hid = !!state.neckHidden && !landQ.matches && !pvOn();       // a sideways phone always shows the neck (the menus slide over it)
+  const hid = !!state.neckHidden && !landQ.matches && !pvOn() && !focusOn();       // a sideways phone always shows the neck (the menus slide over it)
   applySide();
   neck.hidden = hid; $('#neckBar').hidden = !hid; $('.neck-wrap').classList.toggle('collapsed', hid);
   $('#neckBar').setAttribute('aria-expanded', 'false'); $('#neckHide').setAttribute('aria-expanded', 'true');
@@ -4218,8 +4237,10 @@ function setToday(start){
   if (start) { pvOpen(); sessStart(0); } else render();
 }
 const pvOn = () => !!state.pview && !!state.session;
+/* the old sections, by the group they're in now */
+const pgroup = p => ({lesson:'today', learn:'today', today:'today', metro:'time', time:'time', play:'play', takes:'play', quiz:'train', log:'train', train:'train', tuner:'tuner', all:'all'})[p] || 'today';
 function pvOpen(){
-  state.pview = true; state.tab = 'practice'; heatOn = false; side = 'closed';
+  state.pview = true; state.tab = 'practice'; heatOn = false; side = 'closed'; focus = false;
   ['#menu', '#savesMenu'].forEach(id => { $(id).open = false; });
   scrollTo(0, 0);
 }
@@ -4927,7 +4948,7 @@ async function takeTx(fn, mode){
   const db = await takeStore();
   return new Promise((res, rej) => { const t = db.transaction(['meta', 'blob'], mode || 'readonly'); let out; t.oncomplete = () => res(out && out.result); t.onerror = t.onabort = () => rej(t.error); out = fn(t.objectStore('meta'), t.objectStore('blob')); });
 }
-async function takesLoad(){ try { takes = (await takeTx(m => m.getAll())) || []; if (state.tab === 'practice' && (state.ptab === 'takes' || state.ptab === 'all')) render(); } catch (e) { } }
+async function takesLoad(){ try { takes = (await takeTx(m => m.getAll())) || []; if (state.tab === 'practice' && ['play', 'all'].includes(pgroup(state.ptab))) render(); } catch (e) { } }
 function takeMime(){ return typeof MediaRecorder === 'undefined' ? null : ['audio/mp4;codecs=mp4a.40.2', 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find(t => MediaRecorder.isTypeSupported(t)) || ''; }
 async function takeStart(){
   if (rec || recBusy) return;
@@ -5203,7 +5224,7 @@ function renderStrip(){
   const el = $('#strip'), s = state.session, items = state.lesson.items;
   const live = s && !s.done && items[s.idx];
   const pv = pvOn();        // practice view has its own timer and metronome, so the strip only carries the rest
-  el.hidden = !((!pv && (live || metro.on)) || quiz || drone.on || heatOn || tt || tc || rec || tuner.on || (pv && loop.on));
+  el.hidden = !(focusOn() || (!pv && (live || metro.on)) || quiz || drone.on || heatOn || tt || tc || rec || tuner.on || (pv && loop.on));
   if (el.hidden) { el.innerHTML = ''; return; }
   let h = '';
   if (rec) h += `<span class="st-item"><b><span class="recdot"></span> Recording</b><small data-rec-time>${fmt(Date.now() - rec.t0)}</small></span><button type="button" class="ib" data-act="tkstop">■ Stop and keep</button>`;
@@ -5227,6 +5248,7 @@ function renderStrip(){
   }
   if (!pv && !tc) h += `<span class="st-metro"><span class="beats">${Array.from({length:state.metro.beats}, () => '<i></i>').join('')}</span>
     <button type="button" class="ib" data-act="mtoggle" aria-label="${metro.on ? 'Stop' : 'Start'} metronome">${metro.on ? '■' : '▶'} <span data-bpm-out>${state.metro.bpm}</span> bpm</button></span>`;
+  if (focusOn()) h += `<button type="button" class="ib focus-x" data-act="focusoff">✕ Exit focus</button>`;
   el.innerHTML = h;
 }
 
@@ -5507,13 +5529,13 @@ function renderPractice(){
         <div class="row"><span>Step</span>${stepper('ttstep', tc.step, 'bpm per step')}<span>bpm · clean passes</span>${stepper('ttneed', tc.need, 'clean passes per step')}<span>· slips allowed</span>${stepper('ttslips', tc.slips, 'slips that end the test')}</div>`)}
         ${state.ttLast ? `<div class="info qres">Last test: <b>${esc(state.ttLast.title)}</b> · ${state.ttLast.best ? `clean at <b>${state.ttLast.best} bpm</b>` : 'no clean tempo'} · ${state.ttLast.passes} passes</div>` : ''}`}
   </div>`;
-  // sections, so one thing at a time fills the screen; "All" is the old everything-at-once page for big screens
-  const PT = [['lesson', 'Lesson', s && !s.done], ['learn', 'Learn', !!guide], ['metro', 'Metronome', metro.on || !!tt], ['time', 'Time', tcOn()], ['play', 'Play along', loop.on || drone.on], ['takes', 'Takes', !!rec], ['quiz', 'Quiz', !!quiz && quiz.mode !== 'session'], ['tuner', 'Tuner', tuner.on], ['log', 'Progress', false], ['all', 'All', false]];
-  const pt = PT.some(p => p[0] === state.ptab) ? state.ptab : 'lesson';
-  const nav = `<div class="ptabs" role="tablist" aria-label="Practice sections">${PT.map(([v, t, live]) => `<button type="button" role="tab" data-act="ptab" data-v="${v}" aria-selected="${pt === v}">${t}${live ? '<i class="live" title="Running"></i>' : ''}</button>`).join('')}</div>`;
-  if (pt === 'learn') return `${guide ? '' : nav}<div class="practice one"><div class="pcol">${renderLearn()}</div></div>`;
+  // four groups, so one thing at a time fills the screen; the tuner sits apart. ("all" is the old everything-at-once page, kept for testing)
+  const PT = [['today', 'Today', s && !s.done || !!guide], ['time', 'Time', metro.on || !!tt || tcOn()], ['play', 'Play', loop.on || drone.on || !!rec], ['train', 'Train', !!quiz && quiz.mode !== 'session']];
+  const pt = pgroup(state.ptab);
+  const nav = `<div class="ptabs" role="tablist" aria-label="Practice sections">${PT.map(([v, t, live]) => `<button type="button" role="tab" data-act="ptab" data-v="${v}" aria-selected="${pt === v}">${t}${live ? '<i class="live" title="Running"></i>' : ''}</button>`).join('')}<button type="button" role="tab" class="pt-tuner" data-act="ptab" data-v="tuner" aria-selected="${pt === 'tuner'}">Tuner${tuner.on ? '<i class="live" title="Running"></i>' : ''}</button></div>`;
+  if (pt === 'today' && guide) return `<div class="practice one"><div class="pcol">${renderLearn()}</div></div>`;
   if (pt === 'all') return `${nav}<div class="practice"><div class="pcol">${metroCard}${ttCard}${renderTimeCheck()}${tunerCard}${playCard}${renderTakes()}${quizCard}</div><div class="pcol">${lessonCard}${weakCard}${revCard}${logCard}</div></div>`;
-  const body = {lesson:[lessonCard], metro:[metroCard, ttCard], time:pt === 'time' ? [renderTimeCheck()] : [], takes:pt === 'takes' ? [renderTakes()] : [], play:[playCard], quiz:[quizCard, weakCard], tuner:[tunerCard], log:[revCard, logCard]}[pt];
+  const body = {today:[lessonCard, renderLearnList()], time:[metroCard + ttCard, renderTimeCheck()], play:[playCard, renderTakes()], train:[quizCard + weakCard, revCard + logCard], tuner:[tunerCard]}[pt];
   return `${nav}<div class="practice ${body.length > 1 ? 'two' : 'one'}">${body.map(c => `<div class="pcol">${c}</div>`).join('')}</div>`;
 }
 function handlePractice(act, b){
@@ -5537,6 +5559,8 @@ function handlePractice(act, b){
       panel.querySelectorAll('.prog-h').forEach(h => { const on = circOpen === +h.dataset.p; h.parentNode.classList.toggle('open', on); h.setAttribute('aria-expanded', String(on)); h.lastElementChild.textContent = on ? '▴' : '▾'; });
       return true;
     case 'ptab': state.ptab = v; render(); return true;
+    case 'subtab': state.tab = v; render(); return true;
+    case 'focusoff': setFocus(false); return true;
     case 'mtoggle': if (metro.on) metroStop(); else metroStart(); render(); return true;
     case 'mbpm': setBpm(state.metro.bpm + +v); return true;
     case 'mtap': tapTempo(); return true;
@@ -5742,6 +5766,8 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('keyup', e => { if (e.key === ' ' && pvOn() && !(e.target.closest && e.target.closest('input, textarea, select'))) e.preventDefault(); });   // and not also the focused button
 $('#strip').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) handlePractice(b.dataset.act, b); });
+$('#focusBtn').addEventListener('click', () => setFocus(true));
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && focusOn() && !e.defaultPrevented) setFocus(false); });
 $('#neckHide').addEventListener('click', () => { setNeckHidden(true); toast('Neck hidden. Tap “Show neck” to bring it back.'); });
 $('#menusOpen').addEventListener('click', () => setSide('open'));
 $('#menusClose').addEventListener('click', () => setSide('closed'));
@@ -5924,7 +5950,7 @@ window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions,
 let lastView = '';
 function render(){
   // rebuilding the same screen must not move it: hold the panel's height meanwhile and put the scroll back
-  const view = state.tab + '|' + (state.tab === 'practice' ? state.ptab : ''), hold = view === lastView; lastView = view;
+  const view = state.tab + '|' + (state.tab === 'practice' ? pgroup(state.ptab) : ''), hold = view === lastView; lastView = view;
   const mm = $('#menus'), y0 = window.scrollY, m0 = mm.scrollTop;
   if (hold) panel.style.minHeight = panel.offsetHeight + 'px';
   // the scale player stops when its layer no longer has a scale position to play (changed, cleared or removed)
@@ -5934,8 +5960,9 @@ function render(){
   renderPview();
   renderStrip();
   pvFollow();
-  panel.innerHTML = state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'practice' ? renderPractice() : renderLayers();
-  { const r = panel.querySelector('.ptabs'), b = r && r.querySelector('[aria-selected="true"]'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - r.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; }     // keep the open section in sight
+  if (state.tab !== 'practice') state.lastSub[grpOf(state.tab)] = state.tab;
+  panel.innerHTML = subNav() + (state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'practice' ? renderPractice() : renderLayers());
+  { const r = panel.querySelector('.ptabs:not(.subtabs)'), b = r && r.querySelector('[aria-selected="true"]'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - r.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; }     // keep the open section in sight
 
   if (hold) { panel.style.minHeight = ''; if (mm.scrollTop !== m0) mm.scrollTop = m0; if (Math.abs(window.scrollY - y0) > 1 && !landQ.matches) scrollTo({top:y0, behavior:'instant'}); }
   tunerPaint();
@@ -6033,7 +6060,7 @@ document.getElementById('colorSeg').addEventListener('click', e => {
 });
 document.querySelector('.tabs').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
-  const same = state.tab === b.dataset.tab; state.tab = b.dataset.tab; render();
+  const g = b.dataset.grp, same = grpOf(state.tab) === g; state.tab = g === 'practice' ? 'practice' : state.lastSub[g]; render();
   // the bar is always in reach on a phone, so a new tab starts at its top; tapping the open one goes back up
   if (thumbQ.matches) { const w = $('.neck-wrap'), y = panel.getBoundingClientRect().top + scrollY - (getComputedStyle(w).position === 'sticky' ? w.offsetHeight : 0); if (same) scrollTo(0, 0); else if (scrollY > y) scrollTo(0, Math.max(0, y)); }
 });

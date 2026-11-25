@@ -21,14 +21,16 @@ A guitar neck reference that runs in the browser. It needs no build step or serv
 - Today: one tap builds a 10, 20 or 30 minute session from what is due for review, what you miss in quizzes, and something new.
 - Practice view: while a lesson runs, just the neck, the item, the time and large controls (also arrow keys, space and page-turner pedals).
 - Spaced review: rate an item Tough, OK or Easy and it comes back in 1 to 64 days; quizzes rate themselves. Progress shows what is due.
-- Practice tab, in sections (Lesson, Metronome, Play along, Quiz, Tuner, Progress, or All at once): a metronome (tap tempo, beats per bar, accent, subdivisions), a lesson builder that rolls random scales and chords (any of the app's scales, arpeggios and chord types, in foldable groups) from the keys, types and positions you choose, and a session timer that loads each item onto the neck and counts it down.
+- Three tabs, by what you came to do: Explore (Layers, Chord finder), Write (the progression: Looper, Compose and pins; Circle of fifths) and Practice.
+- Focus: one button leaves just the neck and whatever is running (loop, metronome, Time Check, tempo test, quiz).
+- Practice tab, in four groups (Today, Time, Play, Train) plus the Tuner: a metronome (tap tempo, beats per bar, accent, subdivisions), a lesson builder that rolls random scales and chords (any of the app's scales, arpeggios and chord types, in foldable groups) from the keys, types and positions you choose, and a session timer that loads each item onto the neck and counts it down.
 - Fretboard quizzes: find the note, name the note, find the interval, name the interval; timed or counted, with personal bests. Quizzes can be lesson items.
 - Metronome options: click on 2 & 4 or beat 1 only, gap click (play N bars, rest M), and a speed ladder.
 - Practice log (stored in the browser): minutes, streak, 14-day chart, per-exercise tempo history with a 'clean at N bpm' marker, quiz scores, and copy/restore backup.
 - Play along: progression loops (any key, or your Pinboard) with strum/pad patterns and drums on the metronome clock, plus a root or root+5th drone.
 - Follow the changes: while a loop plays, the neck shows each chord's tones over a fitting scale, and the next chord's 3rd and 7th just before it arrives.
 - Guided lessons for every scale: hear it over a drone, compare it with a familiar scale, play its chords, check your ear, improvise over a two-chord vamp, and schedule it for review.
-- Compose (Pinboard tab): "Where can I go?" suggests next chords by what they do; "Why does this work?" explains the Looper progression chord by chord.
+- Compose (Write tab): "Where can I go?" suggests next chords by what they do; "Why does this work?" explains the Looper progression chord by chord.
 - Scales to play over any chord: what each one adds, which notes to pass through, and pentatonics from other notes.
 - Hammer and pluck phrases: single, double, triple and mixed selective-picking phrases from any scale or arpeggio position, with tab, their own playback controls, a phrase number you can type, favorites and a your-turn gap.
 - Calm screens: settings fold to one line that says what is set and stay how you leave them; View holds the display choices and ? shows explanations.
