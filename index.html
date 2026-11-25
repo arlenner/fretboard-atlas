@@ -578,7 +578,17 @@ select.sel{padding:5px 8px; border-radius:8px; border:1px solid var(--line); bac
 .found-c{touch-action:none; user-select:none; -webkit-user-select:none}
 .pin-drag[data-drag]{touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none}
 .pin-drag[data-drag]::before{content:"⠿"; margin-right:4px; color:var(--muted)}
-.drag-ghost{position:fixed; z-index:100; pointer-events:none; opacity:.92; box-shadow:0 10px 28px rgba(0,0,0,.3); margin:0}
+.pin[data-drag] .pin-main{cursor:grab; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none}
+.pin.dragging{opacity:.45}
+.pin.drag-ghost{max-width:130px; max-height:96px; overflow:hidden}
+.pin-drag[data-drag]{padding:8px 8px 10px 14px; margin:-8px -8px 0 0}
+.slot.drop-after::after{content:""; position:absolute; right:-5px; top:4px; bottom:4px; width:3px; border-radius:2px; background:var(--accent)}
+.lane.dock{position:fixed; z-index:90; min-height:0; max-height:38vh; overflow:auto; padding:10px; background:var(--surface); border-color:var(--accent); box-shadow:0 -6px 28px rgba(0,0,0,.28)}
+.lane.dock.drop-over{background:color-mix(in srgb, var(--accent) 12%, var(--surface))}
+.lane.dock .slot{min-width:64px; min-height:48px}
+.lane.dock .slot-acts, .lane.dock .ten{display:none}
+.lane.dock .lane-end{min-height:48px; border:1.5px dashed var(--line); border-radius:10px}
+.drag-ghost{position:fixed !important; z-index:100; pointer-events:none; opacity:.92; box-shadow:0 10px 28px rgba(0,0,0,.3); margin:0}
 body.is-dragging, body.is-dragging *{cursor:grabbing !important}
 .scl{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:6px}
 .scl button{border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:6px 10px; text-align:left; display:grid}
@@ -1754,7 +1764,8 @@ const FRET_COLS = fretCols();
 function renderBoard(){
   const tun = TUNINGS[state.tuning].midi;
   // on the Pinboard, a pinned shape is shown the same way as picked notes
-  const viewPin = state.tab === 'pins' ? state.pins.find(p => p.id === state.pinView) : null;
+  const playPin = loopShape(), follow = followView();
+  const viewPin = playPin || (state.tab === 'pins' && !follow ? state.pins.find(p => p.id === state.pinView) : null);
   const pinShape = viewPin && viewPin.shape ? viewPin.shape : null;
   const pickMode = state.tab === 'finder' || !!pinShape;
   const picks = pinShape || state.picks;
@@ -1768,13 +1779,13 @@ function renderBoard(){
   else if (pickMode) reading = readings(picks).sel;
   const pickRoot = reading ? reading.root : null;
   // Pinboard compare: draw the selected pins themselves (their frets, or every position for named chords)
-  const cmp = (state.tab === 'pins' && !pinShape && Array.isArray(state.compare))
+  const cmp = (state.tab === 'pins' && !pinShape && !follow && Array.isArray(state.compare))
     ? state.compare.map(id => state.pins.find(p => p.id === id)).filter(p => p && p.type) : [];
   const cmpMode = cmp.length > 0;
   const cmpPcs = cmp.map(p => new Set(CHORDS[p.type].labels.map(l => mod(p.root + semi(l)))));
   // position focus: every visible chord or scale layer with a position is filtered to its own position
   const heatAgg = heatOn && !quiz && !pickMode && !cmpMode ? quizAgg(state.heatFam || 'all') : null;
-  const fv = pickMode || cmpMode || quiz || heatAgg ? null : followView();
+  const fv = pickMode || cmpMode || quiz || heatAgg ? null : follow;
   const foci = (pickMode || cmpMode || quiz || heatAgg || fv) ? [] : state.layers.map((L, i) => L.visible && (L.kind === 'chord' || L.kind === 'scale') && L.pos ? Object.assign({i}, focusFor(L)) : null).filter(Boolean);
   const focus = foci.length > 0;
   const voiced = foci.filter(F => F.shape && !F.scale);             // chord layers showing one voicing
@@ -1847,6 +1858,7 @@ function renderBoard(){
             dot = `<span class="dot pick iv sv s${dg}" style="--c:${byIv() ? 'var(--i' + iv + ')' : 'var(--pick)'}">${shapeSvg(dg)}${text}</span>`;
           }
         }
+        else if (playPin) { if (f === 0 && !picks.some(p => p.s === s)) dot = '<span class="dot mute" aria-hidden="true">×</span>'; }
         else if (state.echoes && pickPcs.has(pc)) dot = `<span class="dot echo">${pn(noteName(pc))}</span>`;
         else if (hits.length) dot = `<span class="dot faint" style="--c:${byIv() ? 'var(--neutral)' : colOf(hits[0].i)}"></span>`;
       } else if (hits.length) {
@@ -1928,7 +1940,10 @@ function renderBoard(){
     if (F.scale) return `<span>${who}Position ${scalePositions(P).find(p => p.f === P.pos.f)?.n || ''} · frets ${F.lo}–${F.hi} · ${P.pos.style === 'nps' ? (layerLabels(P).length >= 7 ? '3' : '2') + ' notes per string' : 'box'}</span>`;
     return `<span>${who || 'Position: '}root on the ${STRING_ORD[P.pos.s]} string, fret ${P.pos.f}${F.shape ? ' · <b>' + tabText(F.shape) + '</b>' : ' · no playable shape here, showing chord tones'}</span>`;
   };
-  $('#legend').innerHTML = pinShape
+  const nxL = playPin && loop.chords.length > 1 ? loop.chords[(loop.idx + 1) % loop.chords.length] : null;
+  $('#legend').innerHTML = playPin
+    ? `<span><i style="--c:var(--pick)"></i><b>${playPin.name}</b> playing · ${tabText(playPin.shape)}</span>${nxL ? `<span class="lg-next">next <b>${nxL.name}</b></span>` : ''}`
+    : pinShape
     ? `<span><i style="--c:var(--pick)"></i><b>Pinned shape: ${viewPin.name}</b>${pickNote} · tap the neck to go back to your layers</span>`
     : pickMode
     ? `<span><i style="--c:var(--pick)"></i><b>Picked notes</b> · tap frets to add or remove${pickNote}</span>`
@@ -2669,6 +2684,7 @@ function laneHtml(){
       <span class="stepper"><button type="button" class="ib" data-act="mbpm" data-v="-5" aria-label="5 bpm slower">−5</button><span class="val">${state.metro.bpm} bpm</span><button type="button" class="ib" data-act="mbpm" data-v="5" aria-label="5 bpm faster">+5</button></span>
       ${L.length ? `<button type="button" class="btn" data-act="laneclear">${laneClearArmed ? 'Tap again to clear' : 'Clear'}</button>` : ''}
       <span class="info tip">Drag slots to reorder · tap a length to change it · sound and drums are set in Practice › Play along</span></div>
+    ${L.length ? `<div class="row"><span class="rl">On the neck while it loops</span><div class="seg">${[['shape', 'Chord shapes'], ['tones', 'Chord and scale'], ['off', 'My layers']].map(([v, t]) => `<button type="button" data-act="laneview" data-v="${v}" aria-pressed="${laneView() === v}">${t}</button>`).join('')}</div></div>` : ''}
     <div class="find">
       <input type="search" id="laneFind" class="sel" placeholder="Find a chord: F♯m7♭5, Dmaj9♯11, B♭13…" autocomplete="off" spellcheck="false" value="${esc(state.laneQ || '')}" aria-label="Find a chord to add">
       <div class="found" id="laneFound">${foundHtml(state.laneQ)}</div>
@@ -2692,7 +2708,7 @@ function renderPins(){
     const body = p.shape ? `${diagram(p)}<span class="tabtxt">${tabText(p.shape)}</span>`
       : `${v ? `${diagram({shape:v.shape, root:p.root, type:p.type, tuning:state.tuning})}<span class="tabtxt">${tabText(v.shape)}${v.no5 ? ' · no 5' : ''}</span>` : ''}<span class="pin-notes">${CHORDS[p.type].labels.map(l => pn(spell(rootName(p.root, CHORDS[p.type].labels), l))).join(' ')}</span>`;
     const ck = Array.isArray(state.compare) ? state.compare.indexOf(p.id) : -1;
-    return `<div class="pin${state.pinView === p.id ? ' active' : ''}${p.sel ? ' sel' : ''}">
+    return `<div class="pin${state.pinView === p.id ? ' active' : ''}${p.sel ? ' sel' : ''}"${p.type ? ` data-drag="pin:${p.id}"` : ''}>
       <span class="pin-num pin-drag"${p.type ? ` data-drag="pin:${p.id}" title="Drag into the Looper"` : ''}>${ck >= 0 ? `<i style="--c:var(--l${ck})"></i>` : ''}${k + 1}</span>
       <button type="button" class="pin-main" data-act="pinshow" data-id="${p.id}" aria-label="Show ${p.name} on the neck"><b>${p.name}</b><small>${sub}</small>${p.alt && p.alt.length ? `<small>also ${p.alt.join(', ')}</small>` : ''}${body}</button>
       ${vs.length > 1 ? `<div class="row pin-v"><button type="button" class="ib" data-act="pinvoice" data-id="${p.id}" data-v="-1" aria-label="Voicing lower on the neck"${at <= 0 ? ' disabled' : ''}>◀</button><span class="info" aria-label="Voicing ${at + 1} of ${vs.length}">${at + 1} of ${vs.length}</span><button type="button" class="ib" data-act="pinvoice" data-id="${p.id}" data-v="1" aria-label="Voicing higher on the neck"${at >= vs.length - 1 ? ' disabled' : ''}>▶</button></div>` : ''}
@@ -3222,12 +3238,12 @@ function backingStyle(){ const b = state.backing; return b.style || (b.sevenths 
 /* a guitar voicing for each loop chord, near the main layer's hand area (or around fret 3) */
 function voiceChord(c){
   const tun = TUNINGS[state.tuning].midi;
-  if (c.shape) return {midis:c.shape.map(q => tun[q.s] + q.f), pos:null};
+  if (c.shape) return {midis:c.shape.map(q => tun[q.s] + q.f), pos:null, shape:c.shape};
   const M = state.layers[0];
   const L = {kind:'chord', root:c.root, type:c.type, pos:{s:0, f:0}, anchor:M.anchor != null ? M.anchor : 3, hidden:[], notes:[]};
   adjustPos(L);
   const v = L.pos && findVoicing(c.root, c.type, L.pos.s, L.pos.f);
-  return v ? {midis:v.shape.map(q => tun[q.s] + q.f), pos:L.pos, anchor:L.anchor} : {midis:chordMidis(c.root, c.type), pos:null};
+  return v ? {midis:v.shape.map(q => tun[q.s] + q.f), pos:L.pos, anchor:L.anchor, shape:v.shape} : {midis:chordMidis(c.root, c.type), pos:null};
 }
 const loop = {on:false, chords:[], voices:[], idx:-1, bar0:0};
 const drumBufs = {};
@@ -3267,7 +3283,9 @@ function loopSlot(barIn, beatNo, chords){
   return {k, pos, len:lens[k]};
 }
 /* ---- follow the changes: the chord of the moment over a scale, and where the next chord wants you to land ---- */
-const neckView = () => loop.guide ? 'tones' : state.backing.view || (state.backing.follow === false ? 'off' : 'tones');
+/* on the Pinboard a loop shows each chord's shape as it plays, without touching the layers (or the changes view, or nothing) */
+const laneView = () => ['shape', 'tones', 'off'].includes(state.laneView) ? state.laneView : 'shape';
+const neckView = () => loop.guide ? 'tones' : state.tab === 'pins' ? (laneView() === 'shape' && loop.idx >= 0 && loop.voices[loop.idx] && !loop.voices[loop.idx].shape ? 'tones' : laneView()) : state.backing.view || (state.backing.follow === false ? 'off' : 'tones');
 const scalePcs = s => new Set(SCALES[s.type].labels.map(l => mod(s.root + semi(l))));
 const chordTones = c => CHORDS[c.type].labels.filter(l => !(c.no5 && l === '5')).map(l => ({l, pc:mod(c.root + semi(l))}));
 /* the scale the whole loop lives in: the key, or for pins and the Looper the mode on the first chord that covers the most chord tones */
@@ -3316,6 +3334,19 @@ function voiceLead(c, nx){
 const toneName = (c, l) => pn(spell(rootName(c.root, CHORDS[c.type].labels), l));
 const leadText = (c, nx) => voiceLead(c, nx).map(v => v.step === 0 ? `${toneName(nx, v.to.l)} stays` : `${toneName(c, v.from.l)} → ${toneName(nx, v.to.l)}`).join(', ');
 const AREAS = {auto:null, low:[0, 4], mid:[4, 8], high:[7, 11], top:[11, 15]};
+function loopShape(){
+  if (!loop.on || loop.idx < 0 || state.tab !== 'pins' || quiz || neckView() !== 'shape' || !loop.chords[loop.idx] || !loop.voices[loop.idx]) return null;
+  const c = loop.chords[loop.idx];
+  return {shape:loop.voices[loop.idx].shape, root:c.root, type:c.type, name:c.name};
+}
+/* keep the playing shape in sight on a neck that scrolls sideways */
+function loopReveal(){
+  const ps = loopShape(), bs = $('#boardScroll'); if (!ps || !ps.shape || bs.scrollWidth <= bs.clientWidth) return;
+  const b = bs.getBoundingClientRect(), rs = ps.shape.map(q => board.querySelector(`.cell[data-s="${q.s}"][data-f="${q.f}"]`).getBoundingClientRect());
+  let hi = b.right; if (document.body.classList.contains('side-open')) { const m = $('#menus').getBoundingClientRect(); if (m.left > b.left) hi = Math.min(hi, m.left); }
+  const L = Math.min(...rs.map(r => r.left)), R = Math.max(...rs.map(r => r.right));
+  if (L < b.left || R > hi) bs.scrollLeft += (L + R) / 2 - (b.left + hi) / 2;
+}
 function followView(){
   if (!loop.on || loop.idx < 0 || neckView() !== 'tones' || !loop.chords[loop.idx]) return null;
   const c = loop.chords[loop.idx], n = loop.chords.length, nx = n > 1 ? loop.chords[(loop.idx + 1) % n] : null, sc = scaleFor(c), L = state.layers[0];
@@ -3337,7 +3368,7 @@ function followDot(fv, pc){
 }
 /* the loop moved on: redraw the neck and the strip, and move the highlights, without rebuilding the panel under your fingers */
 function loopPaint(){
-  renderBoard(); renderStrip();
+  renderBoard(); renderStrip(); loopReveal();
   document.querySelectorAll('#panel .loop-chords .lc').forEach((el, k) => el.classList.toggle('on', loop.on && k === loop.idx));
   document.querySelectorAll('#panel .lane .slot').forEach((el, k) => el.classList.toggle('on', loop.on && state.backing.source === 'lane' && k === loop.idx));
 }
@@ -5689,60 +5720,109 @@ panel.addEventListener('keydown', e => {
 /* drag and drop into the Looper, with pointer events so it works with a finger as well as a mouse.
    Sources: [data-drag] = "lane:<index>" (reorder), "pin:<id>", "chord:<root>:<type>". The lane is the drop target. */
 let drag = null, eatClick = false;
+/* the part of the screen the panel can be seen in: below a neck that stays put, above a tab bar at the bottom */
+function dragView(){
+  const land = landQ.matches, top = land ? 0 : Math.max(0, Math.min(innerHeight / 2, neck.closest('.neck-wrap') ? neck.closest('.neck-wrap').getBoundingClientRect().bottom : 0));
+  const tb = document.querySelector('.menus > .tabs'), r = tb && getComputedStyle(tb).position === 'fixed' ? tb.getBoundingClientRect() : null;
+  return {top, bottom:r && r.height ? r.top : innerHeight};
+}
 function dropAt(x, y){
-  document.querySelectorAll('.lane .drop-before, .lane.drop-end, .lane.drop-over').forEach(el => el.classList.remove('drop-before', 'drop-end', 'drop-over'));
-  const el = document.elementFromPoint(x, y), lane = el && el.closest('.lane');
+  document.querySelectorAll('.lane .drop-before, .lane .drop-after, .lane.drop-end, .lane.drop-over').forEach(el => el.classList.remove('drop-before', 'drop-after', 'drop-end', 'drop-over'));
+  if (x < 0 || y < 0 || !drag) return null;
+  const el = document.elementFromPoint(x, y), near = l => { const r = l.getBoundingClientRect(); return x > r.left - 16 && x < r.right + 16 && y > r.top - 16 && y < r.bottom + 16; };
+  let lane = null;
+  if (drag.dock && (drag.dock.contains(el) || near(drag.dock))) { if (Math.hypot(x - drag.x, y - drag.y) < 40) return null; lane = drag.dock; }     // the dock may open under the finger: a small slip is not a drop
+  else if (el && !el.closest('#neck, .neck-wrap')) lane = [...document.querySelectorAll('#panel .lane')].find(l => l.contains(el) || near(l)) || null;
   if (!lane) return null;
   lane.classList.add('drop-over');
-  const slots = [...lane.querySelectorAll('.slot')];
-  let idx = slots.findIndex(s => { const r = s.getBoundingClientRect(); return y < r.top || (y <= r.bottom && x < r.left + r.width / 2); });
-  if (idx < 0) { idx = slots.length; lane.classList.add('drop-end'); } else slots[idx].classList.add('drop-before');
+  const slots = [...lane.querySelectorAll('.slot')], rs = slots.map(s => s.getBoundingClientRect());
+  let idx = rs.findIndex(r => y < r.top || (y <= r.bottom && x < r.left + r.width / 2));
+  if (idx < 0) { idx = slots.length; lane.classList.add('drop-end'); }
+  else if (idx && y < rs[idx].top && y >= rs[idx - 1].top) slots[idx - 1].classList.add('drop-after');       // past the end of a row
+  else slots[idx].classList.add('drop-before');
   return idx;
 }
 function dragCleanup(){
   if (!drag) return;
+  clearTimeout(drag.timer); cancelAnimationFrame(drag.raf);
   if (drag.ghost) drag.ghost.remove();
+  if (drag.dock) drag.dock.remove();
   if (drag.src) drag.src.classList.remove('dragging');
   document.body.classList.remove('is-dragging');
   dropAt(-1, -1);
 }
+/* the Looper is off the screen (a pin from a lower row): bring a copy of it to the bottom to drop on */
+function dragDock(){
+  const lane = panel.querySelector('.lane'); if (!lane) return;
+  const r = lane.getBoundingClientRect(), v = dragView(); if (r.top >= v.top && r.bottom <= v.bottom) return;
+  const d = lane.cloneNode(true), p = panel.getBoundingClientRect();
+  d.classList.add('dock'); d.removeAttribute('aria-label');
+  d.querySelectorAll('[data-drag]').forEach(x => x.removeAttribute('data-drag'));
+  d.querySelectorAll('[style*="visibility"]').forEach(x => x.remove());
+  const left = Math.max(8, p.left), right = Math.min(innerWidth - 8, p.right);
+  Object.assign(d.style, {left:left + 'px', width:right - left + 'px', bottom:innerHeight - v.bottom + 8 + 'px'});
+  document.body.appendChild(d); d.scrollTop = d.scrollHeight; drag.dock = d;
+}
+function dragBegin(){
+  if (drag.src.classList.contains('pin-drag')) drag.src = drag.src.closest('.pin');
+  const r = drag.src.getBoundingClientRect(), g = drag.src.cloneNode(true);
+  g.classList.add('drag-ghost'); g.removeAttribute('data-drag'); g.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+  const pin = drag.src.classList.contains('pin');       // a card is big: carry a small one just above the pointer
+  Object.assign(g.style, {left:(pin ? drag.x - 60 : r.left) + 'px', top:(pin ? drag.y - 112 : r.top) + 'px', width:(pin ? 120 : r.width) + 'px'});
+  document.body.appendChild(g); drag.ghost = g; drag.on = true; drag.cx = drag.x; drag.cy = drag.y;
+  drag.src.classList.add('dragging'); document.body.classList.add('is-dragging');
+  if (!drag.kind.startsWith('lane')) dragDock();
+  else {       // a Looper longer than the screen scrolls when you hold a chord at the edge
+    const step = () => {
+      if (!drag || !drag.on) return;
+      const v = dragView(), lane = panel.querySelector('.lane'), r2 = lane && lane.getBoundingClientRect(), sc = landQ.matches ? $('#menus') : window;
+      const dy = !r2 ? 0 : drag.cy < v.top + 48 && r2.top < v.top + 8 ? -9 : drag.cy > v.bottom - 48 && r2.bottom > v.bottom - 8 ? 9 : 0;
+      if (dy) { sc.scrollBy({top:dy, behavior:'instant'}); drag.idx = dropAt(drag.cx, drag.cy); }
+      drag.raf = requestAnimationFrame(step);
+    };
+    drag.raf = requestAnimationFrame(step);
+  }
+}
 panel.addEventListener('pointerdown', e => {
-  const src = e.target.closest('[data-drag]'); if (!src || e.button > 0) return;
-  if (e.target.closest('.slot-acts')) return;               // the length and ✕ buttons are just buttons
+  const src = e.target.closest('[data-drag]'); if (!src || e.button > 0 || drag) return;
+  if (e.target.closest('.slot-acts, .pin-acts, .pin-v')) return;               // the buttons are just buttons
   drag = {src, kind:src.dataset.drag, x:e.clientX, y:e.clientY, on:false, id:e.pointerId};
+  // a finger on a card scrolls the page; hold still for a moment to pick the card up
+  if (e.pointerType === 'touch' && src.classList.contains('pin')) { const d = drag; d.hold = true; d.timer = setTimeout(() => { if (drag === d && d.hold) { d.hold = false; dragBegin(); try { navigator.vibrate && navigator.vibrate(15); } catch (x) {} } }, 280); }
 });
 document.addEventListener('pointermove', e => {
   if (!drag || e.pointerId !== drag.id) return;
   if (!drag.on) {
     if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return;
-    const r = drag.src.getBoundingClientRect(), g = drag.src.cloneNode(true);
-    g.classList.add('drag-ghost'); g.removeAttribute('data-drag'); Object.assign(g.style, {left:r.left + 'px', top:r.top + 'px', width:r.width + 'px'});
-    document.body.appendChild(g); drag.ghost = g; drag.on = true;
-    drag.src.classList.add('dragging'); document.body.classList.add('is-dragging');
+    if (drag.hold) { dragCleanup(); drag = null; return; }       // moved before the hold: it's a scroll
+    dragBegin();
   }
   e.preventDefault();
+  drag.cx = e.clientX; drag.cy = e.clientY;
   drag.ghost.style.transform = `translate(${e.clientX - drag.x}px, ${e.clientY - drag.y}px) rotate(-2deg)`;
   drag.idx = dropAt(e.clientX, e.clientY);
 }, {passive:false});
+document.addEventListener('touchmove', e => { if (drag && drag.on && e.cancelable) e.preventDefault(); }, {passive:false});
+panel.addEventListener('contextmenu', e => { if (drag && (drag.on || drag.hold)) e.preventDefault(); });
 document.addEventListener('pointerup', e => {
   if (!drag || e.pointerId !== drag.id) return;
   const d = drag; dragCleanup(); drag = null;
   if (!d.on) return;
-  eatClick = true; setTimeout(() => { eatClick = false; }, 0);   // the browser's click for this pointerup comes before this timer
+  eatClick = true; setTimeout(() => { eatClick = false; }, 60);   // a touch screen can send its click a little after the pointerup
   if (d.idx == null) return;                                // dropped outside the lane: nothing changes
   const [kind, a, b] = d.kind.split(':');
   if (kind === 'lane') {
     const from = +a; let to = d.idx; if (from < to) to--;
     if (from !== to) { const [it] = state.lane.splice(from, 1); state.lane.splice(to, 0, it); refreshLoop(); }
   } else if (kind === 'pin') {
-    const p = state.pins.find(z => z.id === +a); if (p) laneAdd([pinToLane(p)], d.idx);
+    const p = state.pins.find(z => z.id === +a); if (p && laneAdd([pinToLane(p)], d.idx) && d.dock) toast(`${p.name} is chord ${d.idx + 1} in the Looper`);
   } else if (kind === 'chord') {
     const r = +a, hit = findChords(state.laneQ).find(c => c.root === r && c.type === b);
     if (laneAdd([hit || {root:r, type:b, name:chordName(r, b)}], d.idx)) strumMidis(chordMidis(r, b), .035, true);
   }
   render();
 });
-document.addEventListener('pointercancel', () => { dragCleanup(); drag = null; });
+document.addEventListener('pointercancel', e => { if (drag && e.pointerId === drag.id) { dragCleanup(); drag = null; } });
 // a drag ends with a click on whatever it started on; swallow that one
 document.addEventListener('click', e => { if (eatClick) { eatClick = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 // offline: the service worker keeps a copy of the app; with a connection you always get the newest version
@@ -5753,7 +5833,7 @@ if (state.guideBack) guideRestore();      // the page closed in the middle of a 
 // small read-only hook for automated tests and the browser console
 window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
-  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, get phrFavs(){ return phrFavs; }, phrFavOk, get sp(){ return sp; }, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
+  get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, get phrFavs(){ return phrFavs; }, phrFavOk, get sp(){ return sp; }, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, followView, loopShape, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
   micHelp, micSessionStart, micSessionEnd, openMic, get micUsers(){ return micUsers; }, get audioCtx(){ return ac; },
   detectPitch, tunerFeed, get tuner(){ return tuner; }, get tt(){ return tt; },
@@ -5827,7 +5907,7 @@ board.addEventListener('click', e => {
   const s = +cell.dataset.s, f = +cell.dataset.f;
   const tun = TUNINGS[state.tuning].midi, midi = tun[s] + f, pc = mod(midi);
   if (quiz) { quizTap(s, f); return; }
-  if (pvOn() || (guide && state.tab === 'practice') || (state.tab !== 'finder' && followView())) { pluck(midi); return; }     // practicing: tapping the neck only sounds the note
+  if (pvOn() || (guide && state.tab === 'practice') || (state.tab !== 'finder' && (followView() || loopShape()))) { pluck(midi); return; }     // practicing: tapping the neck only sounds the note
   if (heatOn) {     // the heatmap view explains a fret instead of changing the root
     const b = quizAgg(state.heatFam || 'all').cells.get(s + ':' + f);
     toast(b ? `${STRING_ORD[s]} string, ${f ? 'fret ' + f : 'open'} · ${pn(noteName(pc))} · ${b.ok} of ${b.n} right${b.ms.length ? ` · avg ${(median(b.ms) / 1000).toFixed(1)} s` : ''}` : `${STRING_ORD[s]} string, ${f ? 'fret ' + f : 'open'} · ${pn(noteName(pc))} · no answers here yet`);
@@ -6077,6 +6157,7 @@ panel.addEventListener('click', e => {
     case 'pinex': [[7,'maj'],[2,'maj'],[4,'min'],[0,'maj']].forEach(([r, t]) => pinFromChord(r, t)); break;
     case 'laneadd': { const r = +b.dataset.r, t = b.dataset.t, hit = findChords(state.laneQ).find(c => c.root === r && c.type === t); if (laneAdd([hit || {root:r, type:t, name:chordName(r, t)}])) strumMidis(chordMidis(r, t), .035, true); break; }
     case 'lanedel': state.lane.splice(+b.dataset.k, 1); if (!state.lane.length && loop.on && state.backing.source === 'lane') loopStop(); else refreshLoop(); break;
+    case 'laneview': state.laneView = v; break;
     case 'lanebars': { const it = state.lane[+b.dataset.k]; if (it) { it.bars = it.bars === 1 || it.bars == null ? 2 : it.bars === 2 ? 0.5 : 1; refreshLoop(); } break; }
     case 'laneshow': { const it = state.lane[+b.dataset.k]; if (it) { cpAt = +b.dataset.k; strumMidis(it.shape && (it.tuning || 'std') === state.tuning ? it.shape.map(q => TUNINGS[state.tuning].midi[q.s] + q.f) : chordMidis(it.root, it.type), .035, true); loadMain('chord', it.root, it.type, state.compose.view === 'next'); } return; }
     case 'laneplay':
