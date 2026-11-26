@@ -479,6 +479,9 @@ body.pv-done .neck-wrap{display:none !important}
 .tbc q.st{padding-left:2px}
 .tbc q.en{box-shadow:inset -1px 0 0 var(--muted); margin-right:3px}
 .tbc q span{background:var(--surface); padding-right:2px}
+.tbc i b.mk{font-size:9px; color:var(--muted); background:var(--surface); padding:0 3px}
+.tbc i.mu-in b.mk{opacity:.7}
+.tbc i b.cut{text-decoration:underline dotted; text-underline-offset:2px}
 .tbc.pm i b{box-shadow:inset 0 -2px 0 color-mix(in srgb, var(--muted) 55%, transparent)}
 .tbwhere b{color:var(--ink, inherit)}
 .tbpaste{width:100%; box-sizing:border-box; font:12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:inherit; resize:vertical}
@@ -1744,13 +1747,14 @@ const TBASE = [[96, '1/1', 'Whole note', 'W'], [48, '1/2', 'Half note', 'H'], [2
 const TSYM = {96:'1', 48:'½', 24:'¼', 12:'⅛', 6:'16'};
 const TTECH = {h:['h', 'Hammer-on'], p:['p', 'Pull-off'], s:['/', 'Slide into it'], b:['b', 'Bend it up a whole step'], v:['~', 'Vibrato'], x:['x', 'Dead (muted) note']};
 const tbDec = d => { for (const [b] of TBASE) { if (d === b) return {b, m:''}; if (d === b * 1.5) return {b, m:'dot'}; if (d === b * 2 / 3) return {b, m:'tri'}; } return null; };
+const tbLenName = d => { const x = tbDec(d); return x ? TBASE.find(z => z[0] === x.b)[2].replace(' note', '').toLowerCase() + (x.m === 'dot' ? ', dotted' : x.m === 'tri' ? ' triplet' : '') : (d / TQ).toFixed(2).replace(/\.?0+$/, '') + ' beats'; };
 const tbDurOk = d => Number.isInteger(d) && !!tbDec(d);
 const tbMake = (b, m) => m === 'dot' ? b * 1.5 : m === 'tri' ? b * 2 / 3 : b;
 const tbFit = d => { let best = 6; for (const [b] of TBASE) for (const m of ['', 'dot', 'tri']) { const x = tbMake(b, m); if (x <= d && x > best) best = x; } return best; };
 function tbClean(t){
   if (!t || typeof t !== 'object' || !Array.isArray(t.cols)) return null;
   const cols = t.cols.slice(0, TMAX).filter(c => c && tbDurOk(c.d)).map(c => {
-    const seen = new Set(), n = (Array.isArray(c.n) ? c.n : []).filter(q => q && num(q.s, 0, 5, -1) >= 0 && num(q.f, 0, 24, -1) >= 0 && !seen.has(q.s) && seen.add(q.s)).map(q => Object.assign({s:q.s, f:q.f}, TTECH[q.t] ? {t:q.t} : {}));
+    const seen = new Set(), n = (Array.isArray(c.n) ? c.n : []).filter(q => q && num(q.s, 0, 5, -1) >= 0 && num(q.f, 0, 24, -1) >= 0 && !seen.has(q.s) && seen.add(q.s)).map(q => Object.assign({s:q.s, f:q.f}, TTECH[q.t] ? {t:q.t} : {}, q.t !== 'x' && num(q.len, 1, 9999, 0) ? {len:q.len} : {}));
     return Object.assign({d:c.d, n}, typeof c.lab === 'string' && c.lab.trim() ? {lab:c.lab.trim().slice(0, 24)} : {}, c.pm === true ? {pm:true} : {});
   });
   return {id:num(t.id, 1, 9e15, 0) || Date.now(), name:String(t.name || 'Untitled tab').slice(0, 60), bpm:num(t.bpm, 30, 300, 90), beats:num(t.beats, 1, 12, 4), cols};
@@ -1769,6 +1773,31 @@ function tbUndoDo(redo){
 }
 const tbAt = T => T.cols[tbc.c] || null;
 const tbNew = () => Object.assign({d:state.tabDur, n:[]}, state.tabPm ? {pm:true} : {});      // new columns stay palm-muted while you're muting
+/* muting one note: it stops ringing len ticks after it starts. tbStarts: where each column starts, in ticks. */
+const tbStarts = T => { let a = 0; return T.cols.map(c => { const x = a; a += c.d; return x; }).concat([a]); };
+/* the note still ringing on string s just before column c (none after a rest or a newer note) */
+function tbRinging(T, c, s){
+  for (let j = Math.min(c, T.cols.length) - 1; j >= 0; j--) { const z = T.cols[j]; if (!z.n.length) return null; const q = z.n.find(x => x.s === s); if (q) return q.t === 'x' ? null : {j, q}; }
+  return null;
+}
+/* where each muted note stops, as marks: 'column:string' -> 'at' (the mute is where that column starts) or 'in' (partway through it) */
+function tbMutes(T){
+  const st = tbStarts(T), out = new Map();
+  T.cols.forEach((c, k) => c.n.forEach(q => {
+    if (!q.len || q.t === 'x') return;
+    const mt = st[k] + q.len; let j = k + 1;
+    while (j < T.cols.length && st[j + 1] <= mt) { if (!T.cols[j].n.length || T.cols[j].n.some(x => x.s === q.s)) return; j++; }      // cut sooner anyway
+    if (j < T.cols.length && st[j] < mt && (!T.cols[j].n.length || T.cols[j].n.some(x => x.s === q.s))) return;
+    if (st[j] === mt) { if (j < T.cols.length && T.cols[j].n.some(x => x.s === q.s)) return; out.set(j + ':' + q.s, 'at'); }
+    else out.set((j - 1) + ':' + q.s, j - 1 === k ? 'own' : 'in');
+  }));
+  return out;
+}
+function tbMuteHere(){
+  const T = tbDoc(); if (!T) return;
+  const r = tbRinging(T, tbc.c, tbc.s); if (!r) { toast('Nothing is ringing on this string here.'); return; }
+  const st = tbStarts(T); tbEdit(T => { T.cols[r.j].n.find(x => x.s === tbc.s).len = st[tbc.c] - st[r.j]; });
+}
 /* palm mute: the column at the cursor, and the ones written after it, until it's turned off */
 function tbPmToggle(){
   const T = tbDoc(); if (!T) return;
@@ -1874,10 +1903,11 @@ function tbText(T){
   const last = [], blocks = []; let blk = null;
   const start = () => { blk = {lab:' '.repeat(nw + 1), pm:' '.repeat(nw + 1), str:names.map(n => n.padEnd(nw) + '|'), rh:' '.repeat(nw + 1), any:false}; };
   start();
+  const mutes = tbMutes(T);
   tbBars(T).filter(b => b.to > b.from).forEach(b => {
     let lab = '', pm = '', str = ['', '', '', '', '', ''], rh = '';
     for (let k = b.from; k < b.to; k++) {
-      const c = T.cols[k], dc = tbDec(c.d), cells = [5, 4, 3, 2, 1, 0].map(s => { const q = c.n.find(z => z.s === s); return q ? [tbPre(q, last[s]), tbCore(q)] : null; });
+      const c = T.cols[k], dc = tbDec(c.d), cells = [5, 4, 3, 2, 1, 0].map(s => { const q = c.n.find(z => z.s === s); return q ? [tbPre(q, last[s]), tbCore(q)] : mutes.has(k + ':' + s) ? ['', '*'] : null; });
       c.n.forEach(q => { if (q.t !== 'x') last[q.s] = q.f; });
       const pre = cells.some(x => x && x[0]) ? 1 : 0, tok = TBASE.find(x => x[0] === dc.b)[3] + (dc.m === 'dot' ? '.' : dc.m === 'tri' ? '3' : '') + (c.n.length ? '' : 'r');
       const w = Math.max(pre + Math.max(0, ...cells.map(x => x ? x[1].length : 0)), pre + tok.length, c.lab ? pre + c.lab.length + 2 : 0) + 1 + (c.d >= 24) + (c.d >= 48) * 2 + (c.d >= 96) * 2;
@@ -1911,7 +1941,7 @@ function tbParse(txt){
     const pms = []; if (pmL) { const re = /P\.?M\.?[-._~|]*/gi; let m; while ((m = re.exec(pmL))) pms.push([m.index, m.index + m[0].length]); }
     const rh = /^[\sWHQES.3r]+$/.test(below) && /[WHQES]/.test(below) ? below : '';
     const labs = []; if (above) { const re = /\S+(?: \S+)*/g; let m; while ((m = re.exec(above))) labs.push({x:m.index, t:m[0]}); }
-    const width = Math.max(...B.map(l => l.length), rh.length), here = [];
+    const width = Math.max(...B.map(l => l.length), rh.length), here = [], stars = [];
     for (let x = 0; x < width; x++) {
       const n = [];
       B.forEach((l, r) => {
@@ -1923,6 +1953,7 @@ function tbParse(txt){
           const t = /[hH]/.test(pr) ? 'h' : /[pP]/.test(pr) ? 'p' : /[\/\\sS]/.test(pr) ? 's' : nx === 'b' ? 'b' : nx === '~' ? 'v' : '';
           n.push(Object.assign({s, f}, t ? {t} : {}));
         } else if (/[xX]/.test(ch) && !/[xX]/.test(pr)) n.push({s, f:0, t:'x'});
+        else if (ch === '*') stars.push({x, s});
       });
       const tk = rh ? rh.slice(x).match(/^([WHQES])(\.|3)?(r)?/) : null, gap = rh && x > 0 && rh[x - 1] !== ' ';
       if (!n.length && !(tk && tk[3] && !gap)) continue;
@@ -1930,6 +1961,15 @@ function tbParse(txt){
       here.push({x, col:Object.assign({d, n:n.filter((q, k) => n.findIndex(z => z.s === q.s) === k)}, pms.some(([a, e]) => x >= a && x < e) ? {pm:true} : {})});
     }
     labs.forEach(lb => { const h = here.find(z => z.x >= lb.x); if (h && !h.col.lab) h.col.lab = lb.t.slice(0, 24); });
+    // a * mutes the note before it on that string, where the next column starts
+    if (stars.length) {
+      let a = 0; const seq = cols.map(c => { const x = {tk:a, col:c}; a += c.d; return x; }), base = seq.length;
+      here.forEach(h => { seq.push({tk:a, col:h.col, x:h.x}); a += h.col.d; });
+      stars.forEach(st => {
+        const h = seq.slice(base).find(z => z.x >= st.x), at = h ? h.tk : a;
+        for (let j = seq.length - 1; j >= 0; j--) { if (seq[j].tk >= at) continue; const q = seq[j].col.n.find(z => z.s === st.s); if (q) { if (q.t !== 'x') q.len = at - seq[j].tk; break; } }
+      });
+    }
     cols.push(...here.map(h => h.col));
     i += 5 + (rh ? 1 : 0);
   }
@@ -1985,6 +2025,7 @@ function tbStart(from){
           og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(35, t + Math.min(0.25, dt * 0.4));
           o.connect(og); og.connect(src.detune); o.start(t); o.stop(t + dt + 1); tbp.srcs.push(o);
         }
+        if (q.len && q.t !== 'x') { const e = t + q.len * spt; if (!stopAt || e < stopAt) { g.gain.setTargetAtTime(0, e, 0.015); stopAt = e + 0.12; } }      // muted partway
         if (onStr[q.s]) cut(onStr[q.s], t);
         onStr[q.s] = {src, g, stop:stopAt};
         src.start(t); if (stopAt) src.stop(stopAt); tbp.srcs.push(src);
@@ -2016,13 +2057,14 @@ function tbStart(from){
 }
 /* ---- drawing it ---- */
 function tbSheet(T){
-  const bt = T.beats * TQ, bars = tbBars(T), last = [], tun = TUNINGS[state.tuning].midi; let tick = 0;
+  const bt = T.beats * TQ, bars = tbBars(T), last = [], tun = TUNINGS[state.tuning].midi, mutes = tbMutes(T); let tick = 0;
   const col = k => {
     const c = T.cols[k], ghost = !c, cur = k === tbc.c, d = ghost ? state.tabDur : c.d, dc = tbDec(d) || {b:12, m:''};
     const w = Math.round(24 + 9 * Math.log2(d / 6)), beat = !ghost && tick % TQ === 0 ? (tick % bt) / TQ + 1 : '';
     const rows = [5, 4, 3, 2, 1, 0].map(s => {
       const q = c && c.n.find(z => z.s === s), at = cur && tbc.s === s;
-      return `<i data-act="tbcell" data-c="${k}" data-s="${s}"${at ? ' class="at"' : ''}>${q ? `<b${q.t ? ` class="t-${q.t}"` : ''}>${tbPre(q, last[s]) + tbCore(q)}</b>` : ''}</i>`;
+      const mu = mutes.get(k + ':' + s), cls = [at ? 'at' : '', mu && !q ? 'mu mu-' + mu : ''].filter(Boolean).join(' ');
+      return `<i data-act="tbcell" data-c="${k}" data-s="${s}"${cls ? ` class="${cls}"` : ''}${mu && !q ? ' title="Muted here"' : ''}>${q ? `<b class="${q.t ? 't-' + q.t : ''}${mu === 'own' ? ' cut' : ''}"${q.len ? ` title="Muted after ${tbLenName(q.len)}"` : ''}>${tbPre(q, last[s]) + tbCore(q)}</b>` : mu ? '<b class="mk" aria-label="muted">◼</b>' : ''}</i>`;
     }).join('');
     if (c) { c.n.forEach(q => { if (q.t !== 'x') last[q.s] = q.f; }); tick += c.d; }
     const len = TSYM[dc.b] + (dc.m === 'dot' ? '.' : dc.m === 'tri' ? '³' : '');
@@ -2067,6 +2109,8 @@ function renderTab(){
       <div class="row"><div class="seg" aria-label="Technique">${Object.entries(TTECH).map(([k, [t, h]]) => `<button type="button" data-act="tbtech" data-v="${k}" aria-pressed="${!!q && q.t === k}" title="${h}"${q || k === 'x' ? '' : ' disabled'}>${t === '/' ? '/ \\' : t}</button>`).join('')}</div>
         <button type="button" class="chip${(c ? c.pm : state.tabPm) ? ' sel' : ''}" data-act="tbpm" aria-pressed="${!!(c ? c.pm : state.tabPm)}" title="Palm mute: rest the picking hand on the strings by the bridge. Stays on for the columns you write next.">PM</button>
         <button type="button" class="chip tog${state.tabAdv ? ' sel' : ''}" data-act="tbstep" aria-pressed="${!!state.tabAdv}" title="For single-note lines: after each note (or chord), go to the next column by itself">Move on after each note</button></div>
+      ${q && q.t !== 'x' ? `<div class="row"><span class="info">Mute after</span><div class="seg" aria-label="Mute this note after">${[[0, 'Rings'], ...TBASE.slice().reverse().map(([b, l]) => [b, l])].map(([d, l]) => `<button type="button" data-act="tbmute" data-v="${d}" aria-pressed="${(q.len || 0) === d}" title="${d ? 'Stop it ringing after a ' + tbLenName(d) : 'Let it ring until the next note on this string'}">${l}</button>`).join('')}</div>${q.len && !tbDec(q.len) ? `<span class="info">muted after ${tbLenName(q.len)}</span>` : ''}</div>`
+        : !q && tbRinging(T, tbc.c, tbc.s) && tbc.c > 0 ? `<div class="row"><button type="button" class="btn" data-act="tbmutehere" title="Stop the note ringing on this string right here">◼ Mute the ${tbCore(tbRinging(T, tbc.c, tbc.s).q)} here</button>${tbRinging(T, tbc.c, tbc.s).q.len ? '<span class="info">it is muted earlier now</span>' : ''}</div>` : ''}
       <div class="row tbchord"><input class="task-in" id="tbchord" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="Chord: Am7, G, F#m…" aria-label="Put in a chord by name" value="${esc(tbChordQ)}"><span id="tbfound" class="row">${tbFound(tbChordQ)}</span>
         ${tbLast && T.cols[tbLast.c] && tbLast.vs.length > 1 ? `<button type="button" class="btn" data-act="tbchordnext" title="The same chord, another place on the neck">Other ${esc(tbLast.name)} shape (${tbLast.k + 1} of ${tbLast.vs.length})</button>` : ''}</div>
       <div class="row tbedit"><button type="button" class="ib" data-act="tbmove" data-v="-1" aria-label="Previous column"${tbc.c <= 0 ? ' disabled' : ''}>◀</button><button type="button" class="btn primary" data-act="tbmove" data-v="1" title="Move to the next column"${tbc.c >= T.cols.length ? ' disabled' : ''}>Next ▶</button>
@@ -2085,7 +2129,7 @@ function renderTab(){
       <span class="hint tip">These go in at the cursor. The phrase comes from the hammer and pluck phrases on the Layers tab, with its chords as labels.</span>`)}
     ${fold('tbtext', 'Copy or paste text tab', '', `<div class="row"><button type="button" class="btn" data-act="tbcopy">Copy as text</button></div>${imp}`)}
     ${fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div><div class="row"><button type="button" class="btn" data-act="tbnew">＋ New tab</button></div>`)}
-    <span class="hint tip">On a keyboard: click the tab, then arrows move, numbers type a fret (two quickly for 10 and up), H P S B V X mark a technique, M palm-mutes, Delete removes, R makes a rest, + and − change the length, Space plays, Ctrl+Z undoes.</span>
+    <span class="hint tip">On a keyboard: click the tab, then arrows move, numbers type a fret (two quickly for 10 and up), H P S B V X mark a technique, M palm-mutes, O mutes the ringing note at the cursor, Delete removes, R makes a rest, + and − change the length, Space plays, Ctrl+Z undoes.</span>
   </div>`;
 }
 /* redraw, keeping the tab focused (for the keyboard) and the cursor in sight */
@@ -2128,6 +2172,8 @@ function handleTab(act, b){
     case 'tbtri': { const d = tbCurDur(); tbSetDur(d.b, d.m === 'tri' ? '' : 'tri'); break; }
     case 'tbtech': tbTech(v); break;
     case 'tbpm': tbPmToggle(); break;
+    case 'tbmute': tbEdit(T => { const z = T.cols[tbc.c], q = z && z.n.find(x => x.s === tbc.s); if (q) { if (+v) q.len = +v; else delete q.len; } }); break;
+    case 'tbmutehere': tbMuteHere(); break;
     case 'tbstep': state.tabAdv = !state.tabAdv; break;
     case 'tbmove': tbc.c = Math.max(0, Math.min(T.cols.length, tbc.c + +v)); tbNum = null; break;
     case 'tbrest': if (tbc.c >= T.cols.length) { tbEdit(T => T.cols.push(tbNew())); tbc.c = T.cols.length; } else tbEdit(T => { T.cols[tbc.c].n = []; }); break;
@@ -2185,6 +2231,7 @@ function tbKey(e){
     case 'r': handleTab('tbrest', {dataset:{}}); e.preventDefault(); return;
     case 'h': case 'p': case 's': case 'b': case 'v': case 'x': tbTech(lk); return go();
     case 'm': tbPmToggle(); return go();
+    case 'o': { const z = tbAt(T), q = z && z.n.find(x => x.s === tbc.s); if (q) tbEdit(() => { delete q.len; }); else tbMuteHere(); return go(); }
     case '/': case '\\': tbTech('s'); return go();
     case '~': tbTech('v'); return go();
     case '+': case '=': case '-': case '_': {
