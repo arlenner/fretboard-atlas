@@ -466,6 +466,14 @@ body.pv-done .neck-wrap{display:none !important}
 .tbc.sel{background:color-mix(in srgb, var(--accent) 24%, transparent)}
 .tbc.sel + .tbc.sel{box-shadow:none}
 .tbselrow{gap:8px}
+.tpr{display:block; height:12px; position:relative; color:var(--accent)}
+.tpr.on{height:5px; margin-bottom:7px; border-bottom:1px solid}
+.tpr.st{border-left:1px solid; margin-left:3px}
+.tpr.en{border-right:1px solid; margin-right:3px}
+.tpr.part{border-bottom-style:dashed; opacity:.75}
+.tpn{position:absolute; left:0; top:0; text-align:center; z-index:1; line-height:10px; pointer-events:none}
+.tpn b{font-size:10px; font-weight:800; font-style:italic; background:var(--surface); padding:0 2px}
+.tbc.cur .tpn b, .tbc.sel .tpn b{background:transparent}
 .tbc.on{background:color-mix(in srgb, var(--accent) 30%, transparent)}
 .tbc.ghost i{background:repeating-linear-gradient(90deg, var(--line) 0 3px, transparent 3px 6px) center/100% 1px no-repeat}
 .tbc.ghost em{color:var(--muted); text-align:center; padding:0}
@@ -1816,6 +1824,22 @@ function tbPasteCols(){
   if (T.cols.length + tbClip.length > TMAX) { toast('That would make the tab too long.'); return; }
   const n = tbClip.length; tbSel = null; tbEdit(T => T.cols.splice(tbc.c, 0, ...clone(tbClip))); tbc.c += n;
 }
+/* triplet groups, for their brackets: three in the time of two (a "3"), or six 16th triplets filling a beat (a "6").
+   A group never crosses a bar line; one that's cut short is marked as not full. */
+function tbTuplets(T){
+  const st = tbStarts(T), bt = T.beats * TQ, out = [], tri = k => { const d = T.cols[k] && tbDec(T.cols[k].d); return !!d && d.m === 'tri'; };
+  let k = 0;
+  while (k < T.cols.length) {
+    if (!tri(k)) { k++; continue; }
+    const barEnd = (Math.floor(st[k] / bt) + 1) * bt;
+    if (T.cols[k].d === 4 && st[k] % TQ === 0 && st[k] + TQ <= barEnd && k + 5 < T.cols.length && T.cols.slice(k, k + 6).every(c => c.d === 4)) { out.push({from:k, to:k + 5, n:6, full:true}); k += 6; continue; }
+    const span = T.cols[k].d * 3; let j = k, acc = 0;
+    while (j < T.cols.length && acc < span && st[j] < barEnd && tri(j)) { acc += T.cols[j].d; j++; }
+    out.push({from:k, to:j - 1, n:3, full:acc === span}); k = j;
+  }
+  return out;
+}
+const tbW = d => Math.round(24 + 9 * Math.log2(d / 6));
 /* palm mute: the column at the cursor, and the ones written after it, until it's turned off */
 function tbPmToggle(){
   const T = tbDoc(); if (!T) return;
@@ -1919,25 +1943,33 @@ function tbText(T){
   const tun = TUNINGS[state.tuning].midi, names = [5, 4, 3, 2, 1, 0].map(s => { const n = DEFAULT[mod(tun[s])]; return s === 5 ? n.toLowerCase() : n; });
   const nw = Math.max(...names.map(n => n.length)), out = [`${T.name} · ${T.bpm} bpm · ${T.beats}/4`];
   const last = [], blocks = []; let blk = null;
-  const start = () => { blk = {lab:' '.repeat(nw + 1), pm:' '.repeat(nw + 1), str:names.map(n => n.padEnd(nw) + '|'), rh:' '.repeat(nw + 1), any:false}; };
+  const tups = tbTuplets(T);
+  const start = () => { blk = {lab:' '.repeat(nw + 1), pm:' '.repeat(nw + 1), tp:' '.repeat(nw + 1), str:names.map(n => n.padEnd(nw) + '|'), rh:' '.repeat(nw + 1), any:false}; };
   start();
   const mutes = tbMutes(T);
   tbBars(T).filter(b => b.to > b.from).forEach(b => {
-    let lab = '', pm = '', str = ['', '', '', '', '', ''], rh = '';
+    let lab = '', pm = '', str = ['', '', '', '', '', ''], rh = ''; const cs = {}, cw = {};
     for (let k = b.from; k < b.to; k++) {
       const c = T.cols[k], dc = tbDec(c.d), cells = [5, 4, 3, 2, 1, 0].map(s => { const q = c.n.find(z => z.s === s); return q ? [tbPre(q, last[s]), tbCore(q)] : mutes.has(k + ':' + s) ? ['', '*'] : null; });
       c.n.forEach(q => { if (q.t !== 'x') last[q.s] = q.f; });
       const pre = cells.some(x => x && x[0]) ? 1 : 0, tok = TBASE.find(x => x[0] === dc.b)[3] + (dc.m === 'dot' ? '.' : dc.m === 'tri' ? '3' : '') + (c.n.length ? '' : 'r');
       const w = Math.max(pre + Math.max(0, ...cells.map(x => x ? x[1].length : 0)), pre + tok.length, c.lab ? pre + c.lab.length + 2 : 0) + 1 + (c.d >= 24) + (c.d >= 48) * 2 + (c.d >= 96) * 2;
       cells.forEach((x, r) => { str[r] += x ? ('-'.repeat(pre - x[0].length) + x[0] + x[1]).padEnd(w, '-') : '-'.repeat(w); });
-      rh += (' '.repeat(pre) + tok).padEnd(w); lab += (' '.repeat(pre) + (c.lab || '')).padEnd(w);
+      cs[k] = rh.length; cw[k] = w; rh += (' '.repeat(pre) + tok).padEnd(w); lab += (' '.repeat(pre) + (c.lab || '')).padEnd(w);
       pm += !c.pm ? ' '.repeat(w) : (k > 0 && T.cols[k - 1].pm ? '' : 'PM').padEnd(w, '-');
     }
     if (blk.any && blk.str[0].length + str[0].length > 78) { blocks.push(blk); start(); }
+    const tl = Array.from({length:rh.length}, () => ' ');
+    tups.filter(g => g.from >= b.from && g.to < b.to).forEach(g => {
+      const a = cs[g.from], e = Math.max(a, cs[g.to] + cw[g.to] - 2), lb = String(g.n);
+      if (e - a >= 2) { for (let x = a; x <= e; x++) tl[x] = '─'; tl[a] = '└'; tl[e] = '┘'; }
+      const m = e - a >= 2 ? Math.floor((a + e) / 2) : a; tl[m] = lb;
+    });
+    blk.tp += tl.join('') + ' ';
     blk.pm += pm + (T.cols[b.to - 1].pm && T.cols[b.to] && T.cols[b.to].pm ? '-' : ' '); blk.lab += lab + ' '; blk.rh += rh + ' '; blk.str = blk.str.map((l, r) => l + str[r] + '|'); blk.any = true;
   });
   if (blk.any) blocks.push(blk);
-  blocks.forEach(b => { out.push(''); if (b.lab.trim()) out.push(b.lab.trimEnd()); if (b.pm.trim()) out.push(b.pm.trimEnd()); out.push(...b.str, b.rh.trimEnd()); });
+  blocks.forEach(b => { out.push(''); if (b.lab.trim()) out.push(b.lab.trimEnd()); if (b.pm.trim()) out.push(b.pm.trimEnd()); out.push(...b.str, b.rh.trimEnd()); if (b.tp.trim()) out.push(b.tp.trimEnd()); });
   return out.join('\n') + '\n';
 }
 const TB_STR = /^\s*[A-Ga-g][#b♯♭]?\s*[|:]/, TB_BARE = /^\s*\|?[-0-9hpbsx\/\\~|r() ]+$/;
@@ -2075,19 +2107,21 @@ function tbStart(from){
 }
 /* ---- drawing it ---- */
 function tbSheet(T){
-  const bt = T.beats * TQ, bars = tbBars(T), last = [], tun = TUNINGS[state.tuning].midi, mutes = tbMutes(T), rg = tbRange(T); let tick = 0;
+  const bt = T.beats * TQ, bars = tbBars(T), last = [], tun = TUNINGS[state.tuning].midi, mutes = tbMutes(T), rg = tbRange(T), tps = tbTuplets(T), tpOf = []; let tick = 0;
+  tps.forEach(g => { for (let k = g.from; k <= g.to; k++) tpOf[k] = g; });
   const col = k => {
     const c = T.cols[k], ghost = !c, cur = k === tbc.c, d = ghost ? state.tabDur : c.d, dc = tbDec(d) || {b:12, m:''};
-    const w = Math.round(24 + 9 * Math.log2(d / 6)), beat = !ghost && tick % TQ === 0 ? (tick % bt) / TQ + 1 : '';
+    const w = tbW(d), beat = !ghost && tick % TQ === 0 ? (tick % bt) / TQ + 1 : '';
     const rows = [5, 4, 3, 2, 1, 0].map(s => {
       const q = c && c.n.find(z => z.s === s), at = cur && tbc.s === s;
       const mu = mutes.get(k + ':' + s), cls = [at ? 'at' : '', mu && !q ? 'mu mu-' + mu : ''].filter(Boolean).join(' ');
       return `<i data-act="tbcell" data-c="${k}" data-s="${s}"${cls ? ` class="${cls}"` : ''}${mu && !q ? ' title="Muted here"' : ''}>${q ? `<b class="${q.t ? 't-' + q.t : ''}${mu === 'own' ? ' cut' : ''}"${q.len ? ` title="Muted after ${tbLenName(q.len)}"` : ''}>${tbPre(q, last[s]) + tbCore(q)}</b>` : mu ? '<b class="mk" aria-label="muted">◼</b>' : ''}</i>`;
     }).join('');
     if (c) { c.n.forEach(q => { if (q.t !== 'x') last[q.s] = q.f; }); tick += c.d; }
-    const len = TSYM[dc.b] + (dc.m === 'dot' ? '.' : dc.m === 'tri' ? '³' : '');
+    const len = TSYM[dc.b] + (dc.m === 'dot' ? '.' : ''), g = !ghost && tpOf[k];
+    const tp = g ? `<span class="tpr on${k === g.from ? ' st' : ''}${k === g.to ? ' en' : ''}${g.full ? '' : ' part'}"${g.full ? '' : ' title="Not a full triplet"'}>${k === g.from ? `<span class="tpn" style="width:${T.cols.slice(g.from, g.to + 1).reduce((a, c) => a + tbW(c.d), 0) - 6}px"><b>${g.n}</b></span>` : ''}</span>` : '<span class="tpr"></span>';
     const pm = ghost ? state.tabPm : !!c.pm, pmPrev = k > 0 && T.cols[k - 1] && T.cols[k - 1].pm, pmNext = ghost ? false : (T.cols[k + 1] ? !!T.cols[k + 1].pm : k + 1 === tbc.c && state.tabPm);
-    return `<span class="tbc${cur ? ' cur' : ''}${rg && k >= rg[0] && k <= rg[1] ? ' sel' : ''}${ghost ? ' ghost' : c.n.length ? '' : ' rest'}${pm ? ' pm' : ''}" data-c="${k}" style="--w:${w}px" title="${ghost ? 'A new column' : (c.n.length ? '' : 'Rest · ') + TBASE.find(x => x[0] === dc.b)[2] + (dc.m === 'dot' ? ', dotted' : dc.m === 'tri' ? ', triplet' : '') + (pm ? ', palm-muted' : '')}"><em>${ghost ? '＋' : c.lab ? esc(c.lab) : ''}</em><q class="${pm ? (pmPrev ? 'on' : 'on st') + (pmNext ? '' : ' en') : ''}">${pm && !pmPrev ? '<span>PM</span>' : ''}</q>${rows}<u>${ghost ? '' : (c.n.length ? '' : 'rest ') + len}</u><s>${beat}</s></span>`;
+    return `<span class="tbc${cur ? ' cur' : ''}${rg && k >= rg[0] && k <= rg[1] ? ' sel' : ''}${ghost ? ' ghost' : c.n.length ? '' : ' rest'}${pm ? ' pm' : ''}" data-c="${k}" style="--w:${w}px" title="${ghost ? 'A new column' : (c.n.length ? '' : 'Rest · ') + TBASE.find(x => x[0] === dc.b)[2] + (dc.m === 'dot' ? ', dotted' : dc.m === 'tri' ? ', triplet' : '') + (pm ? ', palm-muted' : '')}"><em>${ghost ? '＋' : c.lab ? esc(c.lab) : ''}</em><q class="${pm ? (pmPrev ? 'on' : 'on st') + (pmNext ? '' : ' en') : ''}">${pm && !pmPrev ? '<span>PM</span>' : ''}</q>${rows}${tp}<u>${ghost ? '' : (c.n.length ? '' : 'rest ') + len}</u><s>${beat}</s></span>`;
   };
   const names = [5, 4, 3, 2, 1, 0].map(s => `<i>${pn(noteName(tun[s]))}</i>`).join('');
   return `<div class="tbsheet" id="tbsheet" tabindex="0" role="application" aria-label="Tab, ${T.cols.length} columns. Arrows move, numbers type a fret, Delete removes."><div class="tbnames"><small></small><em></em><q></q>${names}</div>${bars.map((b, n) => {
