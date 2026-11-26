@@ -442,6 +442,38 @@ body.pv-done .neck-wrap{display:none !important}
 .phc.h.g2::before, .phc.h.g3::before{border-color:var(--accent)}
 .phc u .tr3{padding:0; display:block; background:none; height:auto; font-size:10px; font-style:italic; color:var(--accent); font-weight:700}
 .phc.on{background:color-mix(in srgb, var(--accent) 22%, transparent)}
+/* Write > Tab */
+.tbx{display:grid; gap:10px; min-width:0}
+.tbx > .row{gap:8px}
+.tbname{flex:1 1 160px; min-width:0; max-width:320px}
+.tbsheet{display:flex; flex-wrap:wrap; row-gap:12px; padding:8px 8px 4px; border:1px solid var(--line); border-radius:10px; background:var(--surface); max-height:62vh; overflow:auto; outline:none; min-width:0}
+.tbsheet:focus-visible, .tbsheet:focus{box-shadow:0 0 0 2px var(--accent)}
+.tbnames, .tbbar{display:flex; flex-direction:column}
+.tbbar{border-right:1px solid var(--muted)}
+.tbbar > small, .tbnames > small{font-size:10px; color:var(--muted); height:13px; line-height:13px; padding-left:3px}
+.tbbar.over{background:color-mix(in srgb, #e5484d 12%, transparent)}
+.tbcols{display:flex}
+.tbnames em, .tbc em{display:block; font-style:normal; font-size:11px; font-weight:700; height:15px; line-height:15px; white-space:nowrap}
+.tbnames i{display:block; height:20px; line-height:20px; font-style:normal; font-size:10px; color:var(--muted); padding-right:4px; text-align:right}
+.tbc{display:flex; flex-direction:column; width:var(--w); flex:none; position:relative}
+.tbc em{overflow:visible; padding-left:2px}
+.tbc i{display:grid; place-items:center; height:20px; font-style:normal; cursor:pointer; background:linear-gradient(var(--line), var(--line)) center/100% 1px no-repeat}
+.tbc i b{font-size:12px; font-weight:650; padding:0 2px; background:var(--surface); line-height:16px; font-variant-numeric:tabular-nums; border-radius:4px; white-space:nowrap}
+.tbc i b.t-h, .tbc i b.t-p, .tbc i b.t-s{color:var(--accent)}
+.tbc i b.t-x{color:var(--muted)}
+.tbc i.at{box-shadow:inset 0 0 0 2px var(--accent); border-radius:5px}
+.tbc.cur{background:color-mix(in srgb, var(--accent) 9%, transparent)}
+.tbc.on{background:color-mix(in srgb, var(--accent) 30%, transparent)}
+.tbc.ghost i{background:repeating-linear-gradient(90deg, var(--line) 0 3px, transparent 3px 6px) center/100% 1px no-repeat}
+.tbc.ghost em{color:var(--muted); text-align:center; padding:0}
+.tbc u, .tbc s{text-decoration:none; font-size:10px; color:var(--muted); text-align:center; height:13px; line-height:13px; white-space:nowrap}
+.tbc s{font-weight:700; opacity:.7}
+.tbc.rest u{color:var(--accent)}
+.tbtools{display:grid; gap:8px}
+.tbtools .row{gap:8px}
+.tbedit .btn{padding:5px 9px}
+.tbwhere b{color:var(--ink, inherit)}
+.tbpaste{width:100%; box-sizing:border-box; font:12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:inherit; resize:vertical}
 /* folded sections: a row that names the section and shows what it is set to */
 .fold{display:grid; grid-template-columns:minmax(0, 1fr)}
 .fold-h{display:flex; align-items:baseline; gap:8px; width:100%; min-height:40px; padding:9px 12px; border:1px solid var(--line); border-radius:10px; background:var(--surface-2); color:var(--ink); text-align:left}
@@ -1108,6 +1140,7 @@ const DEF = {
   layers:[{id:1, kind:'scale', root:9, type:'dorian', hidden:[], notes:[], visible:true, color:0}],
   picks:[], tap:null, circle:{i:0, minor:false, sevenths:false, pin:false}, nextId:2,
   pins:[], nextPin:1, pinView:null,
+  tabCur:null, tabStep:true, tabDur:12, tabLoop:true, tabClick:false, tabCount:false,      // Write > Tab: the open tab and how it's written and played
   playCfg:{bpm:90, per:4, dir:'up', loop:false, tone:'ring'},     // playing a scale or arpeggio: tempo, notes per beat, direction, ring/staccato/muted
   metro:{bpm:80, beats:4, sub:1, accent:true, vol:0.8, clickMode:'all',
     gap:{on:false, play:2, rest:2}, ladder:{on:false, step:5, bars:4, max:140}},
@@ -1141,7 +1174,7 @@ state.layers.forEach(L => {
 });
 if (!TUNINGS[state.tuning]) state.tuning = 'std';
 state.pins = (Array.isArray(state.pins) ? state.pins : []).filter(p => p && (p.type == null || CHORDS[p.type]));
-if (!['layers','finder','circle','pins','practice'].includes(state.tab)) state.tab = 'layers';
+if (!['layers','finder','circle','pins','tab','practice'].includes(state.tab)) state.tab = 'layers';
 fixSub();
 state.metro = Object.assign(clone(DEF.metro), state.metro || {});
 state.metro.gap = Object.assign(clone(DEF.metro.gap), state.metro.gap || {});
@@ -1203,7 +1236,7 @@ function applySnapshot(o){
   state.pins = (Array.isArray(state.pins) ? state.pins : []).filter(p => p && (p.type == null || CHORDS[p.type]));
   state.lane = (Array.isArray(state.lane) ? state.lane : []).filter(it => it && CHORDS[it.type]).slice(0, 32);
   state.picks = Array.isArray(state.picks) ? state.picks.filter(p => p && p.s >= 0 && p.s < 6 && p.f >= 0 && p.f <= 24) : [];
-  if (!['layers','finder','circle','pins','practice'].includes(state.tab)) state.tab = 'layers';
+  if (!['layers','finder','circle','pins','tab','practice'].includes(state.tab)) state.tab = 'layers';
   fixSub();
   state.circle = Object.assign(clone(DEF.circle), state.circle || {});
   state.backing = Object.assign(clone(DEF.backing), state.backing || {});
@@ -1557,7 +1590,7 @@ function scalePlayStop(quiet){
   if (!quiet) render();
 }
 function scalePlayStart(L, ph){
-  scalePlayStop(true);
+  scalePlayStop(true); if (tbp.on) tbStop(true);
   const a = getAudio(); if (!a) return;
   if (a.state !== 'running') a.resume().catch(() => {});
   Object.assign(sp, {on:true, ph:!!ph, layerId:L.id}); const cfg = ph ? PHR : state.playCfg;
@@ -1695,6 +1728,425 @@ function scalePlayHtml(i, L, arp){
 }function strumMidis(midis, gap = .035, force){ midis.slice().sort((a, b) => a - b).forEach((m, k) => pluck(m, k * gap, force)); }
 function chordMidis(rootPc, type){ const base = 48 + mod(rootPc); return CHORDS[type].labels.map(l => base + lab(l).semi); }
 
+/* ================= Tab: write your own, a column at a time =================
+   A tab is columns in order. Each column lasts d ticks (24 a beat, so dotted notes and triplets come out whole)
+   and holds at most one note a string; no notes is a rest. A note can be hammered, pulled, slid into, bent, shaken or dead. */
+const TABKEY = 'fretboard-atlas-tabs-v1', TQ = 24, TMAX = 2000;
+const TBASE = [[96, '1/1', 'Whole note', 'W'], [48, '1/2', 'Half note', 'H'], [24, '1/4', 'Quarter note', 'Q'], [12, '1/8', '8th note', 'E'], [6, '1/16', '16th note', 'S']];
+const TSYM = {96:'1', 48:'½', 24:'¼', 12:'⅛', 6:'16'};
+const TTECH = {h:['h', 'Hammer-on'], p:['p', 'Pull-off'], s:['/', 'Slide into it'], b:['b', 'Bend it up a whole step'], v:['~', 'Vibrato'], x:['x', 'Dead (muted) note']};
+const tbDec = d => { for (const [b] of TBASE) { if (d === b) return {b, m:''}; if (d === b * 1.5) return {b, m:'dot'}; if (d === b * 2 / 3) return {b, m:'tri'}; } return null; };
+const tbDurOk = d => Number.isInteger(d) && !!tbDec(d);
+const tbMake = (b, m) => m === 'dot' ? b * 1.5 : m === 'tri' ? b * 2 / 3 : b;
+const tbFit = d => { let best = 6; for (const [b] of TBASE) for (const m of ['', 'dot', 'tri']) { const x = tbMake(b, m); if (x <= d && x > best) best = x; } return best; };
+function tbClean(t){
+  if (!t || typeof t !== 'object' || !Array.isArray(t.cols)) return null;
+  const cols = t.cols.slice(0, TMAX).filter(c => c && tbDurOk(c.d)).map(c => {
+    const seen = new Set(), n = (Array.isArray(c.n) ? c.n : []).filter(q => q && num(q.s, 0, 5, -1) >= 0 && num(q.f, 0, 24, -1) >= 0 && !seen.has(q.s) && seen.add(q.s)).map(q => Object.assign({s:q.s, f:q.f}, TTECH[q.t] ? {t:q.t} : {}));
+    return Object.assign({d:c.d, n}, typeof c.lab === 'string' && c.lab.trim() ? {lab:c.lab.trim().slice(0, 24)} : {});
+  });
+  return {id:num(t.id, 1, 9e15, 0) || Date.now(), name:String(t.name || 'Untitled tab').slice(0, 60), bpm:num(t.bpm, 30, 300, 90), beats:num(t.beats, 1, 12, 4), cols};
+}
+let tabs = [];
+try { const x = JSON.parse(localStorage.getItem(TABKEY)); if (Array.isArray(x)) tabs = x.map(tbClean).filter(Boolean); } catch (e) {}
+function storeTabs(){ try { localStorage.setItem(TABKEY, JSON.stringify(tabs)); } catch (e) { toast('Could not save: the browser storage is full.'); } }
+const tbDoc = () => tabs.find(t => t.id === state.tabCur) || null;
+let tbc = {c:0, s:5}, tbUndo = [], tbRedo = [], tbDelArm = null, tbNum = null;     // the cursor (column, string), undo, a delete waiting for its second tap, a number being typed
+function tbOpen(id){ state.tabCur = id; const T = tbDoc(); tbc = {c:T ? T.cols.length : 0, s:5}; tbUndo = []; tbRedo = []; tbNum = null; if (tbp.on) tbStop(true); }
+function tbEdit(fn){ const T = tbDoc(); if (!T) return; tbUndo.push(JSON.stringify(T)); if (tbUndo.length > 200) tbUndo.shift(); tbRedo = []; fn(T); tbc.c = Math.max(0, Math.min(tbc.c, T.cols.length)); storeTabs(); }
+function tbUndoDo(redo){
+  const T = tbDoc(), from = redo ? tbRedo : tbUndo, to = redo ? tbUndo : tbRedo; if (!T || !from.length) return false;
+  to.push(JSON.stringify(T)); const o = tbClean(JSON.parse(from.pop())); if (o) Object.assign(T, o, {id:T.id});
+  tbc.c = Math.min(tbc.c, T.cols.length); storeTabs(); return true;
+}
+const tbAt = T => T.cols[tbc.c] || null;
+const tbNew = () => ({d:state.tabDur, n:[]});
+/* the bars, by where the beats fall: [{from, to, ticks}]; the last one is the bar being written (maybe empty) */
+function tbBars(T){
+  const bt = T.beats * TQ, bars = []; let cur = {from:0, ticks:0};
+  T.cols.forEach((c, k) => { cur.ticks += c.d; if (cur.ticks >= bt) { bars.push(Object.assign(cur, {to:k + 1})); cur = {from:k + 1, ticks:0}; } });
+  bars.push(Object.assign(cur, {to:T.cols.length}));
+  return bars;
+}
+/* a note as tab text: h7 p5 /9 \5 7b 7~ x. A slide shows which way it goes from the last note on that string. */
+const tbPre = (q, pf) => q.t === 'h' ? 'h' : q.t === 'p' ? 'p' : q.t === 's' ? (pf != null && pf > q.f ? '\\' : '/') : '';
+const tbCore = q => q.t === 'x' ? 'x' : String(q.f) + (q.t === 'b' ? 'b' : q.t === 'v' ? '~' : '');
+/* put a note on string s at fret f in the cursor's column. From the neck, the same note again takes it off; Step moves on. */
+function tbPut(s, f, fromNeck){
+  const T = tbDoc(); if (!T) return;
+  if (tbc.c >= T.cols.length && T.cols.length >= TMAX) { toast('That tab is as long as it can be.'); return; }
+  let off = false;
+  tbEdit(T => {
+    if (tbc.c >= T.cols.length) T.cols.push(tbNew());
+    const c = T.cols[tbc.c], k = c.n.findIndex(q => q.s === s);
+    if (k >= 0 && fromNeck && c.n[k].f === f && c.n[k].t !== 'x') { c.n.splice(k, 1); off = true; }
+    else if (k >= 0) { c.n[k] = Object.assign({}, c.n[k], {f}); if (c.n[k].t === 'x') delete c.n[k].t; }
+    else c.n.push({s, f});
+  });
+  tbc.s = s;
+  if (!off) { pluck(TUNINGS[state.tuning].midi[s] + f); if (fromNeck && state.tabStep) tbc.c = Math.min(tbc.c + 1, T.cols.length); }
+}
+function tbTech(t){
+  const T = tbDoc(), c = T && tbAt(T), q = c && c.n.find(z => z.s === tbc.s);
+  if (!q && t !== 'x') { toast('Put a note on this string first.'); return; }
+  tbEdit(T => {
+    if (tbc.c >= T.cols.length) T.cols.push(tbNew());
+    const c = T.cols[tbc.c], q = c.n.find(z => z.s === tbc.s);
+    if (!q) c.n.push({s:tbc.s, f:0, t:'x'});
+    else if (q.t === t) delete q.t; else q.t = t;
+  });
+}
+function tbSetDur(b, m){
+  const T = tbDoc(); if (!T) return;
+  const d = tbMake(b, m); state.tabDur = d;
+  if (tbAt(T)) tbEdit(T => { T.cols[tbc.c].d = d; });
+}
+function tbCurDur(){ const T = tbDoc(), c = T && tbAt(T); return tbDec(c ? c.d : state.tabDur) || {b:12, m:''}; }
+function tbDupBar(){
+  const T = tbDoc(); if (!T || !T.cols.length) return;
+  const bars = tbBars(T), b = bars.find(x => tbc.c >= x.from && tbc.c < x.to) || bars.filter(x => x.to > x.from).pop(); if (!b) return;
+  if (T.cols.length + b.to - b.from > TMAX) { toast('That tab is as long as it can be.'); return; }
+  tbEdit(T => { T.cols.splice(b.to, 0, ...clone(T.cols.slice(b.from, b.to))); }); tbc.c = b.to;
+}
+/* ---- bringing things in from the rest of the app ---- */
+function tbInsert(cols, lab){
+  const T = tbDoc(); if (!T || !cols.length) return;
+  if (T.cols.length + cols.length > TMAX) { toast('That would make the tab too long.'); return; }
+  tbEdit(T => { T.cols.splice(tbc.c, 0, ...cols); }); tbc.c += cols.length;
+  toast(`Added ${lab}`);
+}
+const tbPhLayer = () => state.layers.find(L => L.kind === 'scale' && L.pos && L.type !== 'chromatic');
+function tbFromPhrase(){
+  const L = tbPhLayer(), ph = L && phraseFor(L);
+  if (!ph || !ph.notes.length) { toast('Pick a scale position on the Layers tab first, so there is a phrase to add.'); return; }
+  const T = tbDoc(); if (T && !T.cols.length) T.bpm = PHR.bpm;
+  tbInsert(ph.notes.map((n, j) => Object.assign({d:tbFit(Math.max(4, Math.round(n.d * TQ))), n:[Object.assign({s:n.s, f:n.f}, n.h ? {t:'h'} : {})]}, j === 0 || n.bar !== ph.notes[j - 1].bar ? {lab:String(ph.chords[n.bar]).slice(0, 24)} : {})), `phrase #${PHR.n}`);
+}
+function tbFromPins(){
+  const T = tbDoc(); if (!T) return;
+  const d = tbFit(T.beats * TQ), cols = state.pins.map(p => { const sh = p.shape || (pinVoicing(p) || {}).shape; return sh && sh.length ? {d, n:sh.map(q => ({s:q.s, f:q.f})), lab:String(p.name).slice(0, 24)} : null; }).filter(Boolean);
+  if (!cols.length) { toast('Pin some chords on the Progression tab first.'); return; }
+  tbInsert(cols, cols.length === 1 ? '1 chord' : cols.length + ' chords');
+}
+function tbFromPicks(){
+  if (!state.picks.length) { toast('Pick notes in the Chord finder first.'); return; }
+  const r = readings(state.picks).sel;
+  tbInsert([Object.assign({d:state.tabDur, n:state.picks.map(p => ({s:p.s, f:p.f}))}, r ? {lab:r.name.slice(0, 24)} : {})], r ? r.name : 'the picked notes');
+}
+/* ---- as plain text, to copy anywhere; and reading text tab back in ---- */
+function tbText(T){
+  const tun = TUNINGS[state.tuning].midi, names = [5, 4, 3, 2, 1, 0].map(s => { const n = DEFAULT[mod(tun[s])]; return s === 5 ? n.toLowerCase() : n; });
+  const nw = Math.max(...names.map(n => n.length)), out = [`${T.name} · ${T.bpm} bpm · ${T.beats}/4`];
+  const last = [], blocks = []; let blk = null;
+  const start = () => { blk = {lab:' '.repeat(nw + 1), str:names.map(n => n.padEnd(nw) + '|'), rh:' '.repeat(nw + 1), any:false}; };
+  start();
+  tbBars(T).filter(b => b.to > b.from).forEach(b => {
+    let lab = '', str = ['', '', '', '', '', ''], rh = '';
+    for (let k = b.from; k < b.to; k++) {
+      const c = T.cols[k], dc = tbDec(c.d), cells = [5, 4, 3, 2, 1, 0].map(s => { const q = c.n.find(z => z.s === s); return q ? [tbPre(q, last[s]), tbCore(q)] : null; });
+      c.n.forEach(q => { if (q.t !== 'x') last[q.s] = q.f; });
+      const pre = cells.some(x => x && x[0]) ? 1 : 0, tok = TBASE.find(x => x[0] === dc.b)[3] + (dc.m === 'dot' ? '.' : dc.m === 'tri' ? '3' : '') + (c.n.length ? '' : 'r');
+      const w = Math.max(pre + Math.max(0, ...cells.map(x => x ? x[1].length : 0)), pre + tok.length, c.lab ? pre + c.lab.length + 2 : 0) + 1 + (c.d >= 24) + (c.d >= 48) * 2 + (c.d >= 96) * 2;
+      cells.forEach((x, r) => { str[r] += x ? ('-'.repeat(pre - x[0].length) + x[0] + x[1]).padEnd(w, '-') : '-'.repeat(w); });
+      rh += (' '.repeat(pre) + tok).padEnd(w); lab += (' '.repeat(pre) + (c.lab || '')).padEnd(w);
+    }
+    if (blk.any && blk.str[0].length + str[0].length > 78) { blocks.push(blk); start(); }
+    blk.lab += lab + ' '; blk.rh += rh + ' '; blk.str = blk.str.map((l, r) => l + str[r] + '|'); blk.any = true;
+  });
+  if (blk.any) blocks.push(blk);
+  blocks.forEach(b => { out.push(''); if (b.lab.trim()) out.push(b.lab.trimEnd()); out.push(...b.str, b.rh.trimEnd()); });
+  return out.join('\n') + '\n';
+}
+const TB_STR = /^\s*[A-Ga-g][#b♯♭]?\s*[|:]/, TB_BARE = /^\s*\|?[-0-9hpbsx\/\\~|r() ]+$/;
+const tbIsStr = l => typeof l === 'string' && (TB_STR.test(l) || (TB_BARE.test(l) && /---/.test(l)));
+function tbParse(txt){
+  const L = String(txt || '').replace(/\r/g, '').replace(/\t/g, '    ').split('\n'), cols = [];
+  let name = '', bpm = 0, beats = 0, seen = false;
+  for (let i = 0; i < L.length; i++) {
+    if (!seen && L[i].trim() && !tbIsStr(L[i])) {
+      const m = L[i].match(/^(.*?) · (\d+) bpm · (\d+)\/4\s*$/);
+      if (m) { name = m[1]; bpm = +m[2]; beats = +m[3]; } else if (!name) name = L[i].trim().slice(0, 60);
+    }
+    if (i + 5 >= L.length || ![0, 1, 2, 3, 4, 5].every(k => tbIsStr(L[i + k]))) continue;
+    seen = true;
+    const B = L.slice(i, i + 6), from = B.map(l => { const m = l.match(/^\s*(?:[A-Ga-g][#b♯♭]?\s*)?[|:]?/); return m ? m[0].length : 0; });
+    const above = i > 0 && L[i - 1].trim() && !tbIsStr(L[i - 1]) ? L[i - 1] : '', below = L[i + 6] || '';
+    const rh = /^[\sWHQES.3r]+$/.test(below) && /[WHQES]/.test(below) ? below : '';
+    const labs = []; if (above) { const re = /\S+(?: \S+)*/g; let m; while ((m = re.exec(above))) labs.push({x:m.index, t:m[0]}); }
+    const width = Math.max(...B.map(l => l.length), rh.length), here = [];
+    for (let x = 0; x < width; x++) {
+      const n = [];
+      B.forEach((l, r) => {
+        if (x < from[r]) return;
+        const ch = l[x], pr = x > from[r] ? l[x - 1] : '', s = 5 - r;
+        if (/\d/.test(ch) && !/\d/.test(pr)) {
+          let j = x; if (/\d/.test(l[x + 1] || '') && +l.slice(x, x + 2) <= 24) j = x + 1;
+          const f = +l.slice(x, j + 1), nx = l[j + 1] || ''; if (f > 24) return;
+          const t = /[hH]/.test(pr) ? 'h' : /[pP]/.test(pr) ? 'p' : /[\/\\sS]/.test(pr) ? 's' : nx === 'b' ? 'b' : nx === '~' ? 'v' : '';
+          n.push(Object.assign({s, f}, t ? {t} : {}));
+        } else if (/[xX]/.test(ch) && !/[xX]/.test(pr)) n.push({s, f:0, t:'x'});
+      });
+      const tk = rh ? rh.slice(x).match(/^([WHQES])(\.|3)?(r)?/) : null, gap = rh && x > 0 && rh[x - 1] !== ' ';
+      if (!n.length && !(tk && tk[3] && !gap)) continue;
+      const base = tk && !gap ? TBASE.find(z => z[3] === tk[1])[0] : 12, d = tk && !gap ? tbMake(base, tk[2] === '.' ? 'dot' : tk[2] === '3' ? 'tri' : '') : 12;
+      here.push({x, col:{d, n:n.filter((q, k) => n.findIndex(z => z.s === q.s) === k)}});
+    }
+    labs.forEach(lb => { const h = here.find(z => z.x >= lb.x); if (h && !h.col.lab) h.col.lab = lb.t.slice(0, 24); });
+    cols.push(...here.map(h => h.col));
+    i += 5 + (rh ? 1 : 0);
+  }
+  if (!cols.length) return null;
+  return tbClean({id:Date.now(), name:name || 'Pasted tab', bpm:bpm || 90, beats:beats || 4, cols});
+}
+/* ---- playing it: legato notes (h p /) have no pick attack, a slide glides, a bend rises, a new note on a string stops the last ---- */
+const tbp = {on:false, srcs:[], events:[], timer:0, raf:0, lit:[], k:-1};
+function tbStop(quiet){
+  clearTimeout(tbp.timer); cancelAnimationFrame(tbp.raf);
+  tbp.srcs.forEach(s => { try { s.stop(); } catch (e) {} });
+  tbp.lit.forEach(e => e.classList.remove('playing'));
+  Object.assign(tbp, {on:false, srcs:[], events:[], lit:[], k:-1});
+  document.querySelectorAll('.tbc.on').forEach(e => e.classList.remove('on'));
+  if (!quiet) render();
+}
+function tbStart(from){
+  const T0 = tbDoc(); if (!T0 || !T0.cols.slice(from).some(c => c.n.length)) return;
+  if (sp.on) scalePlayStop(true);
+  tbStop(true);
+  const a = getAudio(); if (!a) return;
+  if (a.state !== 'running') a.resume().catch(() => {});
+  tbp.on = true;
+  const click = (when, acc) => { const cs = a.createBufferSource(), g = a.createGain(); cs.buffer = clickBuf(acc ? 'acc' : 'beat'); g.gain.value = 0.25; cs.connect(g); g.connect(master); cs.start(when); tbp.srcs.push(cs); };
+  const cycle = (t0, first) => {
+    const T = tbDoc(); if (!tbp.on || !T || !T.cols.slice(from).some(c => c.n.length)) { tbStop(); return; }
+    const spt = 60 / T.bpm / TQ, bt = T.beats * TQ, tun = TUNINGS[state.tuning].midi, onStr = [], lastF = [];
+    let t = t0, tick = T.cols.slice(0, from).reduce((x, c) => x + c.d, 0);
+    T.cols.slice(0, from).forEach(c => c.n.forEach(q => { if (q.t !== 'x') lastF[q.s] = q.f; }));
+    if (first && state.tabCount) { for (let k = 0; k < T.beats; k++) click(t + k * TQ * spt, !k); t += bt * spt; }
+    const cut = (o, when) => { if (!o.stop || o.stop > when) { o.g.gain.setTargetAtTime(0, when, 0.012); try { o.src.stop(when + 0.08); } catch (e) {} } };
+    T.cols.slice(from).forEach((c, j) => {
+      const dt = c.d * spt;
+      if (state.tabClick) for (let x = Math.ceil(tick / TQ) * TQ; x < tick + c.d; x += TQ) click(t + (x - tick) * spt, x % bt === 0);
+      if (!c.n.length) onStr.forEach((o, s) => { if (o) { cut(o, t); onStr[s] = null; } });      // a rest stops everything
+      c.n.forEach(q => {
+        const m = tun[q.s] + q.f, src = a.createBufferSource(), g = a.createGain(), bend = q.t === 'b';
+        let stopAt = 0;
+        src.buffer = makeBuf(bend ? m + 2 : m); const rate = src.buffer.rate; src.playbackRate.value = rate; src.connect(g);
+        if (q.t === 'x') {
+          const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
+          g.gain.setValueAtTime(0.5, t); g.gain.setTargetAtTime(0, t + 0.02, 0.02); g.connect(lp); lp.connect(master); stopAt = t + 0.25;
+        } else if (q.t === 'h' || q.t === 'p' || q.t === 's') { const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1500; g.gain.value = 0.3; g.connect(lp); lp.connect(master); }
+        else { g.gain.value = 0.32; g.connect(master); }
+        if (bend) { src.playbackRate.setValueAtTime(rate * Math.pow(2, -2 / 12), t); src.playbackRate.linearRampToValueAtTime(rate, t + Math.min(0.2, dt * 0.6)); }
+        if (q.t === 's' && lastF[q.s] != null && lastF[q.s] !== q.f) { src.playbackRate.setValueAtTime(rate * Math.pow(2, (lastF[q.s] - q.f) / 12), t); src.playbackRate.exponentialRampToValueAtTime(rate, t + Math.min(0.12, dt * 0.5)); }
+        if (q.t === 'v' && src.detune) {
+          const o = a.createOscillator(), og = a.createGain(); o.frequency.value = 5.5;
+          og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(35, t + Math.min(0.25, dt * 0.4));
+          o.connect(og); og.connect(src.detune); o.start(t); o.stop(t + dt + 1); tbp.srcs.push(o);
+        }
+        if (onStr[q.s]) cut(onStr[q.s], t);
+        onStr[q.s] = {src, g, stop:stopAt};
+        src.start(t); if (stopAt) src.stop(stopAt); tbp.srcs.push(src);
+        if (q.t !== 'x') lastF[q.s] = q.f;
+      });
+      tbp.events.push({t, k:from + j}); t += dt; tick += c.d;
+    });
+    const end = t;
+    tbp.srcs = tbp.srcs.slice(-400); tbp.events = tbp.events.filter(e => e.t > a.currentTime - 1);
+    tbp.timer = setTimeout(() => { if (!tbp.on) return; if (state.tabLoop) cycle(end, false); else tbp.timer = setTimeout(() => tbStop(), Math.max(400, (end - a.currentTime) * 1000 + 300)); }, Math.max(0, (end - a.currentTime - 0.25) * 1000));
+  };
+  cycle(a.currentTime + 0.08, true);
+  const paint = () => {
+    if (!tbp.on) return;
+    const now = a.currentTime; let cur = null;
+    for (const e of tbp.events) if (e.t <= now + 0.01) cur = e;
+    const k = cur ? cur.k : -1, col = k >= 0 ? document.querySelector(`.tbc[data-c="${k}"]`) : null;
+    if (k !== tbp.k || (col && !col.classList.contains('on')) || tbp.lit.some(e => !e.isConnected)) {
+      tbp.k = k; document.querySelectorAll('.tbc.on').forEach(e => { if (e !== col) e.classList.remove('on'); });
+      if (col) { col.classList.add('on'); const sh = col.closest('.tbsheet'); if (sh && sh.scrollHeight > sh.clientHeight) { const r = col.getBoundingClientRect(), R = sh.getBoundingClientRect(); if (r.top < R.top || r.bottom > R.bottom) sh.scrollTop += r.top - R.top - 8; } }
+      tbp.lit.forEach(e => e.classList.remove('playing'));
+      const T = tbDoc(), c = T && T.cols[k];
+      tbp.lit = c ? c.n.map(q => document.querySelector(`.cell[data-s="${q.s}"][data-f="${q.f}"]`)).filter(Boolean) : [];
+      tbp.lit.forEach(e => e.classList.add('playing'));
+    }
+    tbp.raf = requestAnimationFrame(paint);
+  };
+  tbp.raf = requestAnimationFrame(paint);
+}
+/* ---- drawing it ---- */
+function tbSheet(T){
+  const bt = T.beats * TQ, bars = tbBars(T), last = [], tun = TUNINGS[state.tuning].midi; let tick = 0;
+  const col = k => {
+    const c = T.cols[k], ghost = !c, cur = k === tbc.c, d = ghost ? state.tabDur : c.d, dc = tbDec(d) || {b:12, m:''};
+    const w = Math.round(24 + 9 * Math.log2(d / 6)), beat = !ghost && tick % TQ === 0 ? (tick % bt) / TQ + 1 : '';
+    const rows = [5, 4, 3, 2, 1, 0].map(s => {
+      const q = c && c.n.find(z => z.s === s), at = cur && tbc.s === s;
+      return `<i data-act="tbcell" data-c="${k}" data-s="${s}"${at ? ' class="at"' : ''}>${q ? `<b${q.t ? ` class="t-${q.t}"` : ''}>${tbPre(q, last[s]) + tbCore(q)}</b>` : ''}</i>`;
+    }).join('');
+    if (c) { c.n.forEach(q => { if (q.t !== 'x') last[q.s] = q.f; }); tick += c.d; }
+    const len = TSYM[dc.b] + (dc.m === 'dot' ? '.' : dc.m === 'tri' ? '³' : '');
+    return `<span class="tbc${cur ? ' cur' : ''}${ghost ? ' ghost' : c.n.length ? '' : ' rest'}" data-c="${k}" style="--w:${w}px" title="${ghost ? 'A new column' : (c.n.length ? '' : 'Rest · ') + TBASE.find(x => x[0] === dc.b)[2] + (dc.m === 'dot' ? ', dotted' : dc.m === 'tri' ? ', triplet' : '')}"><em>${ghost ? '＋' : c.lab ? esc(c.lab) : ''}</em>${rows}<u>${ghost ? '' : (c.n.length ? '' : 'rest ') + len}</u><s>${beat}</s></span>`;
+  };
+  const names = [5, 4, 3, 2, 1, 0].map(s => `<i>${pn(noteName(tun[s]))}</i>`).join('');
+  return `<div class="tbsheet" id="tbsheet" tabindex="0" role="application" aria-label="Tab, ${T.cols.length} columns. Arrows move, numbers type a fret, Delete removes."><div class="tbnames"><small></small><em></em>${names}</div>${bars.map((b, n) => {
+    const ks = []; for (let k = b.from; k < b.to; k++) ks.push(k); if (n === bars.length - 1) ks.push(T.cols.length);
+    return `<div class="tbbar${b.ticks > bt ? ' over' : ''}"${b.ticks > bt ? ` title="This bar is longer than ${T.beats} beats"` : ''}><small>${n + 1}</small><div class="tbcols">${ks.map(col).join('')}</div></div>`;
+  }).join('')}</div>`;
+}
+function renderTab(){
+  if (!tbDurOk(state.tabDur)) state.tabDur = 12;
+  const T = tbDoc();
+  const imp = `<textarea id="tbpaste" class="tbpaste" rows="7" spellcheck="false" placeholder="e|-----0-----|&#10;B|---1---1---|&#10;G|-2-------2-|&#10;D|-----------|&#10;A|-----------|&#10;E|-----------|" aria-label="Text tab to read in"></textarea>
+    <div class="row"><button type="button" class="btn" data-act="tbimport">Read it in as a new tab</button></div>
+    <span class="hint tip">Six lines, high e on top. The rhythm comes from a line of W H Q E S under them, as in a tab copied from here. Without one, every note is an 8th.</span>`;
+  const list = tabs.map(t => `<div class="phfav"><button type="button" class="btn${t === T ? ' sel' : ''}" data-act="tbopen" data-v="${t.id}" aria-pressed="${t === T}"><b>${esc(t.name)}</b><small>${t.cols.length} column${t.cols.length === 1 ? '' : 's'} · ${t.bpm} bpm · ${t.beats}/4</small></button><button type="button" class="ib" data-act="tbdel" data-v="${t.id}" aria-label="${tbDelArm === t.id ? 'Tap again to delete' : 'Delete'} ${esc(t.name)}">${tbDelArm === t.id ? 'Delete?' : '✕'}</button></div>`).join('');
+  if (!T) return `<div class="tbx"><div class="empty"><h3>Write tab</h3>
+      <p class="tip">Tap the neck to write notes, a column at a time, then play it back at any tempo. Hammer-ons, pull-offs, slides, bends, vibrato and rests.</p>
+      <div class="row"><button type="button" class="btn primary" data-act="tbnew">＋ New tab</button></div></div>
+    ${tabs.length ? fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div>`, true) : ''}
+    ${fold('tbtext', 'Paste a text tab', '', imp)}</div>`;
+  const c = tbAt(T), q = c && c.n.find(z => z.s === tbc.s), dc = tbCurDur(), bars = tbBars(T), bi = bars.findIndex(b => tbc.c >= b.from && (tbc.c < b.to || b === bars[bars.length - 1]));
+  const rd = c && c.n.length > 1 ? readings(c.n.filter(z => z.t !== 'x')).sel : null, ph = tbPhLayer();
+  const where = c ? `Column ${tbc.c + 1} of ${T.cols.length} · bar ${bi + 1} · ${STRING_ORD[tbc.s]} string${rd ? ` · sounds like <b>${rd.name}</b>` : ''}${bars[bi] && bars[bi].ticks > T.beats * TQ ? ` · this bar is longer than ${T.beats} beats` : ''}` : `New column · bar ${bi + 1}. Tap the neck to put a note in it.`;
+  return `<div class="tbx">
+    <div class="row tbhead"><input class="task-in tbname" id="tbname" type="text" maxlength="60" autocomplete="off" aria-label="Tab name" value="${esc(T.name)}">
+      <span class="sp-tempo"><button type="button" class="ib" data-act="tbbpm" data-v="-5" aria-label="5 bpm slower">−5</button><b>${T.bpm}</b> bpm<button type="button" class="ib" data-act="tbbpm" data-v="5" aria-label="5 bpm faster">+5</button></span>
+      <span class="sp-tempo"><button type="button" class="ib" data-act="tbbeats" data-v="-1" aria-label="Fewer beats a bar"${T.beats <= 1 ? ' disabled' : ''}>−</button><b>${T.beats}/4</b><button type="button" class="ib" data-act="tbbeats" data-v="1" aria-label="More beats a bar"${T.beats >= 12 ? ' disabled' : ''}>+</button></span></div>
+    <div class="row"><button type="button" class="btn${tbp.on ? ' primary' : ''}" data-act="tbplay" aria-pressed="${tbp.on}"${T.cols.some(x => x.n.length) ? '' : ' disabled'}>${tbp.on ? '■ Stop' : '▶ Play'}</button>
+      ${tbc.c > 0 && tbc.c < T.cols.length && !tbp.on ? `<button type="button" class="btn" data-act="tbplayhere">▶ From here</button>` : ''}
+      <button type="button" class="chip${state.tabLoop ? ' sel' : ''}" data-act="tbloop" aria-pressed="${!!state.tabLoop}">↻ Loop</button>
+      <button type="button" class="chip${state.tabClick ? ' sel' : ''}" data-act="tbclick" aria-pressed="${!!state.tabClick}" title="A click on every beat">Click</button>
+      <button type="button" class="chip${state.tabCount ? ' sel' : ''}" data-act="tbcount" aria-pressed="${!!state.tabCount}" title="One bar of clicks first">Count in</button></div>
+    ${tbSheet(T)}
+    <div class="tbtools">
+      <div class="row"><div class="seg" aria-label="Length">${TBASE.map(([b, t, h]) => `<button type="button" data-act="tbdur" data-v="${b}" aria-pressed="${dc.b === b}" title="${h}">${t}</button>`).join('')}</div>
+        <button type="button" class="chip${dc.m === 'dot' ? ' sel' : ''}" data-act="tbdot" aria-pressed="${dc.m === 'dot'}" title="Half as long again">Dotted</button>
+        <button type="button" class="chip${dc.m === 'tri' ? ' sel' : ''}" data-act="tbtri" aria-pressed="${dc.m === 'tri'}" title="Three in the time of two">Triplet</button></div>
+      <div class="row"><div class="seg" aria-label="Technique">${Object.entries(TTECH).map(([k, [t, h]]) => `<button type="button" data-act="tbtech" data-v="${k}" aria-pressed="${!!q && q.t === k}" title="${h}"${q || k === 'x' ? '' : ' disabled'}>${t === '/' ? '/ \\' : t}</button>`).join('')}</div>
+        <button type="button" class="chip tog${state.tabStep ? ' sel' : ''}" data-act="tbstep" aria-pressed="${!!state.tabStep}" title="After each note tapped on the neck, move to the next column. Turn off to stack a chord.">Step on</button></div>
+      <div class="row tbedit"><button type="button" class="ib" data-act="tbmove" data-v="-1" aria-label="Previous column"${tbc.c <= 0 ? ' disabled' : ''}>◀</button><button type="button" class="ib" data-act="tbmove" data-v="1" aria-label="Next column"${tbc.c >= T.cols.length ? ' disabled' : ''}>▶</button>
+        <button type="button" class="btn" data-act="tbrest" title="Make this column a rest">Rest</button>
+        <button type="button" class="btn" data-act="tbins" title="A new empty column here">Insert</button>
+        <button type="button" class="btn" data-act="tbdelnote"${q ? '' : ' disabled'}>✕ Note</button>
+        <button type="button" class="btn" data-act="tbdelcol"${c ? '' : ' disabled'}>✕ Column</button>
+        <button type="button" class="ib" data-act="tbundo" aria-label="Undo"${tbUndo.length ? '' : ' disabled'}>↶</button><button type="button" class="ib" data-act="tbredo" aria-label="Redo"${tbRedo.length ? '' : ' disabled'}>↷</button></div>
+      <span class="info tbwhere">${where}</span>
+    </div>
+    ${fold('tbmore', 'More', '', `<div class="row"><input class="task-in" id="tblab" type="text" maxlength="24" autocomplete="off" placeholder="Label: a chord or a part (Verse, Chorus)" aria-label="Label above this column" value="${esc(c && c.lab || '')}"${c ? '' : ' disabled'}>
+        <button type="button" class="btn" data-act="tbdup"${T.cols.length ? '' : ' disabled'} title="Copy this bar right after itself">Repeat this bar</button></div>
+      <div class="row"><button type="button" class="btn" data-act="tbaddph"${ph ? '' : ' disabled'} title="${ph ? 'The phrase from the Layers tab' : 'Pick a scale position on the Layers tab first'}">＋ Phrase #${PHR.n}</button>
+        <button type="button" class="btn" data-act="tbaddpins"${state.pins.length ? '' : ' disabled'}>＋ Pinned chords${state.pins.length ? ` (${state.pins.length})` : ''}</button>
+        <button type="button" class="btn" data-act="tbaddpicks"${state.picks.length ? '' : ' disabled'}>＋ Chord finder notes</button></div>
+      <span class="hint tip">These go in at the cursor. The phrase comes from the hammer and pluck phrases on the Layers tab, with its chords as labels.</span>`)}
+    ${fold('tbtext', 'Copy or paste text tab', '', `<div class="row"><button type="button" class="btn" data-act="tbcopy">Copy as text</button></div>${imp}`)}
+    ${fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div><div class="row"><button type="button" class="btn" data-act="tbnew">＋ New tab</button></div>`)}
+    <span class="hint tip">On a keyboard: click the tab, then arrows move, numbers type a fret (two quickly for 10 and up), H P S B V X mark a technique, Delete removes, R makes a rest, + and − change the length, Space plays, Ctrl+Z undoes.</span>
+  </div>`;
+}
+/* redraw, keeping the tab focused (for the keyboard) and the cursor in sight */
+function tbRender(){
+  const sh0 = $('#tbsheet'), had = document.activeElement === sh0, top = sh0 ? sh0.scrollTop : 0;
+  render();
+  const sh = $('#tbsheet'); if (!sh) return;
+  sh.scrollTop = top; if (had) sh.focus({preventScroll:true});
+  const cur = sh.querySelector('.tbc.cur'); if (cur) { const r = cur.getBoundingClientRect(), R = sh.getBoundingClientRect(); if (r.top < R.top) sh.scrollTop += r.top - R.top - 4; else if (r.bottom > R.bottom) sh.scrollTop += r.bottom - R.bottom + 4; }
+}
+function handleTab(act, b){
+  const v = b.dataset.v, T = tbDoc();
+  switch (act) {
+    case 'tbnew': {
+      const t = tbClean({id:Date.now(), name:'Tab ' + (tabs.length + 1), bpm:state.metro.bpm || 90, beats:4, cols:[]});
+      tabs.unshift(t); storeTabs(); tbOpen(t.id); tbDelArm = null; render(); const s = $('#tbsheet'); if (s) s.focus({preventScroll:true}); return true;
+    }
+    case 'tbopen': tbOpen(+v); tbDelArm = null; render(); return true;
+    case 'tbdel':
+      if (tbDelArm !== +v) { tbDelArm = +v; render(); return true; }
+      tabs = tabs.filter(t => t.id !== +v); storeTabs(); tbDelArm = null; if (state.tabCur === +v) tbOpen(null); render(); return true;
+    case 'tbimport': {
+      const el = $('#tbpaste'), t = el && tbParse(el.value);
+      if (!t) { toast('No tab found there. It needs six lines, one a string.'); return true; }
+      t.id = Date.now(); tabs.unshift(t); storeTabs(); tbOpen(t.id); render(); toast(`Read in ${t.cols.length} columns`); return true;
+    }
+  }
+  if (!T) return false;
+  switch (act) {
+    case 'tbcell': tbc = {c:Math.min(+b.dataset.c, T.cols.length), s:+b.dataset.s}; tbNum = null; { const z = tbAt(T), q = z && z.n.find(x => x.s === tbc.s); if (q && q.t !== 'x') pluck(TUNINGS[state.tuning].midi[q.s] + q.f); } break;
+    case 'tbbpm': T.bpm = Math.max(30, Math.min(300, T.bpm + +v)); storeTabs(); break;
+    case 'tbbeats': tbEdit(T => { T.beats = Math.max(1, Math.min(12, T.beats + +v)); }); break;
+    case 'tbplay': if (tbp.on) tbStop(true); else tbStart(0); break;
+    case 'tbplayhere': tbStart(tbc.c); break;
+    case 'tbloop': state.tabLoop = !state.tabLoop; break;
+    case 'tbclick': state.tabClick = !state.tabClick; if (tbp.on) tbStart(0); break;
+    case 'tbcount': state.tabCount = !state.tabCount; break;
+    case 'tbdur': tbSetDur(+v, tbCurDur().m); break;
+    case 'tbdot': { const d = tbCurDur(); tbSetDur(d.b, d.m === 'dot' ? '' : 'dot'); break; }
+    case 'tbtri': { const d = tbCurDur(); tbSetDur(d.b, d.m === 'tri' ? '' : 'tri'); break; }
+    case 'tbtech': tbTech(v); break;
+    case 'tbstep': state.tabStep = !state.tabStep; break;
+    case 'tbmove': tbc.c = Math.max(0, Math.min(T.cols.length, tbc.c + +v)); tbNum = null; break;
+    case 'tbrest': if (tbc.c >= T.cols.length) { tbEdit(T => T.cols.push(tbNew())); tbc.c = T.cols.length; } else tbEdit(T => { T.cols[tbc.c].n = []; }); break;
+    case 'tbins': tbEdit(T => T.cols.splice(tbc.c, 0, tbNew())); break;
+    case 'tbdelnote': tbEdit(T => { const z = T.cols[tbc.c]; if (z) z.n = z.n.filter(x => x.s !== tbc.s); }); break;
+    case 'tbdelcol': tbEdit(T => T.cols.splice(tbc.c, 1)); break;
+    case 'tbundo': if (!tbUndoDo(false)) return true; break;
+    case 'tbredo': if (!tbUndoDo(true)) return true; break;
+    case 'tbdup': tbDupBar(); break;
+    case 'tbaddph': tbFromPhrase(); break;
+    case 'tbaddpins': tbFromPins(); break;
+    case 'tbaddpicks': tbFromPicks(); break;
+    case 'tbcopy': {
+      const txt = tbText(T), done = () => toast('Copied. Paste it anywhere.'), fail = () => { const el = $('#tbpaste'); if (el) { el.value = txt; el.select(); } toast('Copy it from the box below.'); };
+      try { navigator.clipboard.writeText(txt).then(done, fail); } catch (e) { fail(); }
+      return true;
+    }
+    default: return false;
+  }
+  tbRender(); return true;
+}
+/* the keyboard, while the tab has focus */
+function tbKey(e){
+  const T = tbDoc(); if (!T) return;
+  const k = e.key, ctl = e.ctrlKey || e.metaKey, lk = k.length === 1 ? k.toLowerCase() : k;
+  const go = () => { e.preventDefault(); tbRender(); };
+  if (ctl && lk === 'z') { tbUndoDo(e.shiftKey); return go(); }
+  if (ctl && lk === 'y') { tbUndoDo(true); return go(); }
+  if (ctl || e.altKey) return;
+  if (/^[0-9]$/.test(k)) {
+    const d = +k, now = Date.now();
+    if (tbNum && now - tbNum.at < 900 && tbNum.c === tbc.c && tbNum.s === tbc.s && tbNum.v * 10 + d <= 24) { tbPut(tbc.s, tbNum.v * 10 + d); tbNum = null; }
+    else { tbPut(tbc.s, d); tbNum = d >= 1 && d <= 2 ? {c:tbc.c, s:tbc.s, v:d, at:now} : null; }
+    return go();
+  }
+  tbNum = null;
+  const n = T.cols.length;
+  switch (lk) {
+    case 'ArrowLeft': tbc.c = Math.max(0, tbc.c - 1); return go();
+    case 'ArrowRight': tbc.c = Math.min(n, tbc.c + 1); return go();
+    case 'ArrowUp': tbc.s = Math.min(5, tbc.s + 1); return go();
+    case 'ArrowDown': tbc.s = Math.max(0, tbc.s - 1); return go();
+    case 'Home': tbc.c = 0; return go();
+    case 'End': tbc.c = n; return go();
+    case 'Delete': case 'Backspace': {
+      const c = tbAt(T);
+      if (c && c.n.some(x => x.s === tbc.s)) tbEdit(T => { T.cols[tbc.c].n = T.cols[tbc.c].n.filter(x => x.s !== tbc.s); });
+      else if (c) tbEdit(T => T.cols.splice(tbc.c, 1));
+      else if (k === 'Backspace' && tbc.c > 0) tbc.c--;
+      return go();
+    }
+    case 'Insert': case 'i': tbEdit(T => T.cols.splice(tbc.c, 0, tbNew())); return go();
+    case 'r': handleTab('tbrest', {dataset:{}}); e.preventDefault(); return;
+    case 'h': case 'p': case 's': case 'b': case 'v': case 'x': tbTech(lk); return go();
+    case '/': case '\\': tbTech('s'); return go();
+    case '~': tbTech('v'); return go();
+    case '+': case '=': case '-': case '_': {
+      const d = tbCurDur(), at = TBASE.findIndex(x => x[0] === d.b), to = TBASE[Math.max(0, Math.min(TBASE.length - 1, at + (lk === '+' || lk === '=' ? -1 : 1)))][0];
+      tbSetDur(to, d.m); return go();
+    }
+    case '.': { const d = tbCurDur(); tbSetDur(d.b, d.m === 'dot' ? '' : 'dot'); return go(); }
+    case 't': { const d = tbCurDur(); tbSetDur(d.b, d.m === 'tri' ? '' : 'tri'); return go(); }
+    case ' ': case 'Enter': if (tbp.on) tbStop(true); else tbStart(k === 'Enter' && tbc.c < n ? tbc.c : 0); return go();
+  }
+}
+
 /* ================= chord identification ================= */
 function identify(pcs, bass){
   const uniq = [...new Set(pcs)];
@@ -1790,8 +2242,8 @@ function fold(key, title, sum, body, def, cls){
 }
 /* three tabs, by what you came to do: Explore (layers, chord finder), Write (the progression, the circle) and Practice */
 const grpOf = t => t === 'layers' || t === 'finder' ? 'explore' : t === 'practice' ? 'practice' : 'write';
-const SUBS = {explore:[['layers', 'Layers'], ['finder', 'Chord finder']], write:[['pins', 'Progression'], ['circle', 'Circle of fifths']]};
-function fixSub(){ const o = state.lastSub || {}; state.lastSub = {explore:o.explore === 'finder' ? 'finder' : 'layers', write:o.write === 'circle' ? 'circle' : 'pins'}; }
+const SUBS = {explore:[['layers', 'Layers'], ['finder', 'Chord finder']], write:[['pins', 'Progression'], ['circle', 'Circle of fifths'], ['tab', 'Tab']]};
+function fixSub(){ const o = state.lastSub || {}; state.lastSub = {explore:o.explore === 'finder' ? 'finder' : 'layers', write:['circle', 'tab'].includes(o.write) ? o.write : 'pins'}; }
 function subNav(){
   const g = grpOf(state.tab), L = SUBS[g]; if (!L) return '';
   return `<div class="ptabs subtabs" role="tablist" aria-label="${g === 'explore' ? 'Explore' : 'Write'}">${L.map(([v, n]) => `<button type="button" role="tab" data-act="subtab" data-v="${v}" aria-selected="${state.tab === v}"${v === 'pins' ? ' id="pinsTab"' : ''}>${n}${v === 'pins' && state.pins.length ? ` · ${state.pins.length} pinned` : ''}${v === 'pins' && loop.on ? '<i class="live" title="Running"></i>' : ''}</button>`).join('')}</div>`;
@@ -1842,8 +2294,9 @@ function renderBoard(){
   const playPin = loopShape(), follow = followView();
   const viewPin = playPin || (state.tab === 'pins' && !follow ? state.pins.find(p => p.id === state.pinView) : null);
   const pinShape = viewPin && viewPin.shape ? viewPin.shape : null;
-  const pickMode = state.tab === 'finder' || !!pinShape;
-  const picks = pinShape || state.picks;
+  const tabDoc = state.tab === 'tab' && !follow && !playPin ? tbDoc() : null, tabCol = tabDoc ? (tbAt(tabDoc) || {n:[]}).n.filter(q => q.t !== 'x') : null;
+  const pickMode = state.tab === 'finder' || !!pinShape || !!tabCol;
+  const picks = pinShape || tabCol || state.picks;
   const maps = state.layers.map(L => L.visible ? layerMap(L) : null);
   const main = state.layers[0];
   const pickPcs = new Set(picks.map(p => mod(tun[p.s] + p.f)));
@@ -5570,6 +6023,7 @@ function handlePractice(act, b){
   if (act[0] === 'g' && handleGuide(act, b)) return true;
   if (act[0] === 'c' && act[1] === 'p' && handleCompose(act, b)) return true;
   if ((act[0] === 't' && (act[1] === 'c' || act[1] === 'k')) && handleTime(act, b)) return true;
+  if (act[0] === 't' && act[1] === 'b' && handleTab(act, b)) return true;
   if (tc && ['ttstart', 'calstart', 'calself', 'tunstart', 'bstart', 'dstart', 'mtoggle', 'qstart', 'wdrill', 'sessstart', 'sessnext', 'sessprev', 'todaygo', 'todaystart'].includes(act)) tcEnd(true);
   if (rec && ['ttstart', 'calstart', 'calself', 'tunstart', 'tcstart'].includes(act)) { toast('Stop the recording first.'); return true; }
   const goTo = {calstart:state.ptab === 'time' ? 'time' : 'metro', calself:'time', ttstart:'metro', qstart:'quiz', wdrill:'quiz', tunstart:'tuner'}[act];
@@ -5839,6 +6293,15 @@ panel.addEventListener('input', e => { if (e.target.dataset.act === 'spnum') phr
 panel.addEventListener('focusin', e => { if (e.target.dataset.act === 'spnum') e.target.select(); });
 panel.addEventListener('focusout', e => { if (e.target.dataset.act === 'spnum') { e.target.value = PHR.n; const L = state.layers[+e.target.dataset.i]; if (phrResume) { phrResume = false; if (L && L.pos && e.target.isConnected) setTimeout(() => { if (!sp.on && L.pos && phraseFor(L).notes.length) scalePlayStart(L, true); }, 250); } } });
 panel.addEventListener('keydown', e => { if (e.target.dataset.act !== 'spnum') return; const d = {ArrowUp:1, ArrowDown:-1}[e.key]; if (d) { e.preventDefault(); e.target.value = Math.max(1, Math.min(PHR_MAX, PHR.n + d)); phrTyped(e.target); } else if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+panel.addEventListener('keydown', e => { if (e.target.id === 'tbsheet') tbKey(e); else if ((e.target.id === 'tbname' || e.target.id === 'tblab') && e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+/* the tab's name and a column's label: saved as typed in, without redrawing (a tap elsewhere would be lost) */
+panel.addEventListener('change', e => {
+  const T = tbDoc(), id = e.target.id; if (!T || (id !== 'tbname' && id !== 'tblab')) return;
+  if (id === 'tbname') { T.name = e.target.value.trim().slice(0, 60) || 'Untitled tab'; storeTabs(); return; }
+  const v = e.target.value.trim().slice(0, 24), k = tbc.c; if (!T.cols[k]) return;
+  tbEdit(T => { if (v) T.cols[k].lab = v; else delete T.cols[k].lab; });
+  const em = panel.querySelector(`.tbc[data-c="${k}"] em`); if (em) em.textContent = v;
+});
 panel.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'newTask') { e.preventDefault(); handlePractice('iaddtask', e.target); } });
 /* Looper chord search: update the results only, so the box keeps focus while typing; Enter adds the top match */
 panel.addEventListener('input', e => { if (e.target.id !== 'laneFind') return; state.laneQ = e.target.value; const f = $('#laneFound'); if (f) f.innerHTML = foundHtml(state.laneQ); });
@@ -5961,7 +6424,7 @@ try { if (navigator.storage && navigator.storage.persist) navigator.storage.pers
 lessonsToNps();
 if (state.guideBack) guideRestore();      // the page closed in the middle of a guide: put the neck back
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, get phrFavs(){ return phrFavs; }, phrFavOk, get sp(){ return sp; }, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, scalesForChord, followView, loopShape, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
@@ -5980,13 +6443,14 @@ function render(){
   if (hold) panel.style.minHeight = panel.offsetHeight + 'px';
   // the scale player stops when its layer no longer has a scale position to play (changed, cleared or removed)
   if (sp.on) { const pl = state.layers.find(x => x.id === sp.layerId); if (!pl || pl.kind !== 'scale' || !pl.pos) scalePlayStop(true); }
+  if (tbp.on && state.tab !== 'tab') tbStop(true);      // a tab only plays while it's open
   renderToolbar();
   renderBoard();
   renderPview();
   renderStrip();
   pvFollow();
   if (state.tab !== 'practice') state.lastSub[grpOf(state.tab)] = state.tab;
-  panel.innerHTML = subNav() + (state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'practice' ? renderPractice() : renderLayers());
+  panel.innerHTML = subNav() + (state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'tab' ? renderTab() : state.tab === 'practice' ? renderPractice() : renderLayers());
   { const r = panel.querySelector('.ptabs:not(.subtabs)'), b = r && r.querySelector('[aria-selected="true"]'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - r.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; }     // keep the open section in sight
 
   if (hold) { panel.style.minHeight = ''; if (mm.scrollTop !== m0) mm.scrollTop = m0; if (Math.abs(window.scrollY - y0) > 1 && !landQ.matches) scrollTo({top:y0, behavior:'instant'}); }
@@ -6038,6 +6502,7 @@ board.addEventListener('click', e => {
   const s = +cell.dataset.s, f = +cell.dataset.f;
   const tun = TUNINGS[state.tuning].midi, midi = tun[s] + f, pc = mod(midi);
   if (quiz) { quizTap(s, f); return; }
+  if (state.tab === 'tab' && !pvOn()) { if (!tbDoc()) handleTab('tbnew', {dataset:{}}); tbPut(s, f, true); tbRender(); return; }     // writing tab: the note goes in at the cursor
   if (pvOn() || (guide && state.tab === 'practice') || (state.tab !== 'finder' && (followView() || loopShape()))) { pluck(midi); return; }     // practicing: tapping the neck only sounds the note
   if (heatOn) {     // the heatmap view explains a fret instead of changing the root
     const b = quizAgg(state.heatFam || 'all').cells.get(s + ':' + f);
