@@ -1142,7 +1142,7 @@ const DEF = {
   layers:[{id:1, kind:'scale', root:9, type:'dorian', hidden:[], notes:[], visible:true, color:0}],
   picks:[], tap:null, circle:{i:0, minor:false, sevenths:false, pin:false}, nextId:2,
   pins:[], nextPin:1, pinView:null,
-  tabCur:null, tabStep:true, tabDur:12, tabLoop:true, tabClick:false, tabCount:false,      // Write > Tab: the open tab and how it's written and played
+  tabCur:null, tabAdv:false, tabDur:12, tabLoop:true, tabClick:false, tabCount:false,      // Write > Tab: the open tab and how it's written and played
   playCfg:{bpm:90, per:4, dir:'up', loop:false, tone:'ring'},     // playing a scale or arpeggio: tempo, notes per beat, direction, ring/staccato/muted
   metro:{bpm:80, beats:4, sub:1, accent:true, vol:0.8, clickMode:'all',
     gap:{on:false, play:2, rest:2}, ladder:{on:false, step:5, bars:4, max:140}},
@@ -1786,7 +1786,7 @@ function tbPut(s, f, fromNeck){
     else c.n.push({s, f});
   });
   tbc.s = s;
-  if (!off) { pluck(TUNINGS[state.tuning].midi[s] + f); if (fromNeck && state.tabStep) tbc.c = Math.min(tbc.c + 1, T.cols.length); }
+  if (!off) { pluck(TUNINGS[state.tuning].midi[s] + f); if (fromNeck && state.tabAdv) tbc.c = Math.min(tbc.c + 1, T.cols.length); }
 }
 function tbTech(t){
   const T = tbDoc(), c = T && tbAt(T), q = c && c.n.find(z => z.s === tbc.s);
@@ -1822,7 +1822,7 @@ function tbChordAdd(root, type){
   tbEdit(T => { if (tbc.c >= T.cols.length) T.cols.push(tbNew()); Object.assign(T.cols[tbc.c], {n:v.shape.map(q => ({s:q.s, f:q.f})), lab:name.slice(0, 24)}); });
   tbLast = {root, type, name, vs, k:vs.indexOf(v), c:tbc.c};
   strumMidis(v.shape.map(q => TUNINGS[state.tuning].midi[q.s] + q.f), .035, true);
-  if (state.tabStep) tbc.c = Math.min(tbc.c + 1, T.cols.length);
+  if (state.tabAdv) tbc.c = Math.min(tbc.c + 1, T.cols.length);
 }
 function tbChordNext(){
   const T = tbDoc(), L = tbLast; if (!T || !L || !T.cols[L.c] || L.vs.length < 2) return;
@@ -2028,7 +2028,7 @@ function renderTab(){
     ${fold('tbtext', 'Paste a text tab', '', imp)}</div>`;
   const c = tbAt(T), q = c && c.n.find(z => z.s === tbc.s), dc = tbCurDur(), bars = tbBars(T), bi = bars.findIndex(b => tbc.c >= b.from && (tbc.c < b.to || b === bars[bars.length - 1]));
   const rd = c && c.n.length > 1 ? readings(c.n.filter(z => z.t !== 'x')).sel : null, ph = tbPhLayer();
-  const where = c ? `Column ${tbc.c + 1} of ${T.cols.length} · bar ${bi + 1} · ${STRING_ORD[tbc.s]} string${rd ? ` · sounds like <b>${rd.name}</b>` : ''}${bars[bi] && bars[bi].ticks > T.beats * TQ ? ` · this bar is longer than ${T.beats} beats` : ''}` : `New column · bar ${bi + 1}. Tap the neck to put a note in it.`;
+  const where = c ? `Column ${tbc.c + 1} of ${T.cols.length} · bar ${bi + 1} · ${STRING_ORD[tbc.s]} string${rd ? ` · sounds like <b>${rd.name}</b>` : ''}${bars[bi] && bars[bi].ticks > T.beats * TQ ? ` · this bar is longer than ${T.beats} beats` : ''}` : `New column · bar ${bi + 1}. Tap the neck to put notes in it${state.tabAdv ? '' : ', then Next ▶'}.`;
   return `<div class="tbx">
     <div class="row tbhead"><input class="task-in tbname" id="tbname" type="text" maxlength="60" autocomplete="off" aria-label="Tab name" value="${esc(T.name)}">
       <span class="sp-tempo"><button type="button" class="ib" data-act="tbbpm" data-v="-5" aria-label="5 bpm slower">−5</button><b>${T.bpm}</b> bpm<button type="button" class="ib" data-act="tbbpm" data-v="5" aria-label="5 bpm faster">+5</button></span>
@@ -2044,10 +2044,10 @@ function renderTab(){
         <button type="button" class="chip${dc.m === 'dot' ? ' sel' : ''}" data-act="tbdot" aria-pressed="${dc.m === 'dot'}" title="Half as long again">Dotted</button>
         <button type="button" class="chip${dc.m === 'tri' ? ' sel' : ''}" data-act="tbtri" aria-pressed="${dc.m === 'tri'}" title="Three in the time of two">Triplet</button></div>
       <div class="row"><div class="seg" aria-label="Technique">${Object.entries(TTECH).map(([k, [t, h]]) => `<button type="button" data-act="tbtech" data-v="${k}" aria-pressed="${!!q && q.t === k}" title="${h}"${q || k === 'x' ? '' : ' disabled'}>${t === '/' ? '/ \\' : t}</button>`).join('')}</div>
-        <button type="button" class="chip tog${state.tabStep ? ' sel' : ''}" data-act="tbstep" aria-pressed="${!!state.tabStep}" title="After each note (or chord), move to the next column. Turn off to tap several notes into one column.">Step on</button></div>
+        <button type="button" class="chip tog${state.tabAdv ? ' sel' : ''}" data-act="tbstep" aria-pressed="${!!state.tabAdv}" title="For single-note lines: after each note (or chord), go to the next column by itself">Move on after each note</button></div>
       <div class="row tbchord"><input class="task-in" id="tbchord" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="Chord: Am7, G, F#m…" aria-label="Put in a chord by name" value="${esc(tbChordQ)}"><span id="tbfound" class="row">${tbFound(tbChordQ)}</span>
         ${tbLast && T.cols[tbLast.c] && tbLast.vs.length > 1 ? `<button type="button" class="btn" data-act="tbchordnext" title="The same chord, another place on the neck">Other ${esc(tbLast.name)} shape (${tbLast.k + 1} of ${tbLast.vs.length})</button>` : ''}</div>
-      <div class="row tbedit"><button type="button" class="ib" data-act="tbmove" data-v="-1" aria-label="Previous column"${tbc.c <= 0 ? ' disabled' : ''}>◀</button><button type="button" class="ib" data-act="tbmove" data-v="1" aria-label="Next column"${tbc.c >= T.cols.length ? ' disabled' : ''}>▶</button>
+      <div class="row tbedit"><button type="button" class="ib" data-act="tbmove" data-v="-1" aria-label="Previous column"${tbc.c <= 0 ? ' disabled' : ''}>◀</button><button type="button" class="btn primary" data-act="tbmove" data-v="1" title="Move to the next column"${tbc.c >= T.cols.length ? ' disabled' : ''}>Next ▶</button>
         <button type="button" class="btn" data-act="tbrest" title="Make this column a rest">Rest</button>
         <button type="button" class="btn" data-act="tbins" title="A new empty column here">Insert</button>
         <button type="button" class="btn" data-act="tbdelnote"${q ? '' : ' disabled'}>✕ Note</button>
@@ -2105,7 +2105,7 @@ function handleTab(act, b){
     case 'tbdot': { const d = tbCurDur(); tbSetDur(d.b, d.m === 'dot' ? '' : 'dot'); break; }
     case 'tbtri': { const d = tbCurDur(); tbSetDur(d.b, d.m === 'tri' ? '' : 'tri'); break; }
     case 'tbtech': tbTech(v); break;
-    case 'tbstep': state.tabStep = !state.tabStep; break;
+    case 'tbstep': state.tabAdv = !state.tabAdv; break;
     case 'tbmove': tbc.c = Math.max(0, Math.min(T.cols.length, tbc.c + +v)); tbNum = null; break;
     case 'tbrest': if (tbc.c >= T.cols.length) { tbEdit(T => T.cols.push(tbNew())); tbc.c = T.cols.length; } else tbEdit(T => { T.cols[tbc.c].n = []; }); break;
     case 'tbins': tbEdit(T => T.cols.splice(tbc.c, 0, tbNew())); break;
