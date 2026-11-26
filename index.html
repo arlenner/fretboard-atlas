@@ -446,7 +446,9 @@ body.pv-done .neck-wrap{display:none !important}
 .tbx{display:grid; gap:10px; min-width:0}
 .tbx > .row{gap:8px}
 .tbname{flex:1 1 160px; min-width:0; max-width:320px}
-.tbsheet{display:flex; flex-wrap:wrap; row-gap:12px; padding:8px 8px 4px; border:1px solid var(--line); border-radius:10px; background:var(--surface); max-height:62vh; overflow:auto; outline:none; min-width:0}
+.tbsheet{display:flex; flex-wrap:nowrap; padding:8px 8px 4px 0; border:1px solid var(--line); border-radius:10px; background:var(--surface); overflow-x:auto; overflow-y:hidden; outline:none; min-width:0; overscroll-behavior-x:contain; scroll-padding:0 40px}
+.tbnames{position:sticky; left:0; z-index:3; background:var(--surface); padding-left:6px; box-shadow:4px 0 6px -4px color-mix(in srgb, var(--ink, #000) 25%, transparent)}
+.tbbar{flex:none}
 .tbsheet:focus-visible, .tbsheet:focus{box-shadow:0 0 0 2px var(--accent)}
 .tbnames, .tbbar{display:flex; flex-direction:column}
 .tbbar{border-right:1px solid var(--muted)}
@@ -462,10 +464,14 @@ body.pv-done .neck-wrap{display:none !important}
 .tbc i b.t-h, .tbc i b.t-p, .tbc i b.t-s{color:var(--accent)}
 .tbc i b.t-x{color:var(--muted)}
 .tbc i b.t-n, .tbc i b.t-a{color:var(--accent); font-style:italic}
-.tbtop{gap:8px}
+.tbtr{display:inline-flex; align-items:center; gap:6px; color:var(--ink, inherit)}
+.tbtr .btn{padding:3px 12px; white-space:nowrap; flex:none}
+.tbtr .ib{height:26px; min-width:28px; padding:0 6px}
+.tbtr .chip{height:26px; min-width:30px}
+.tbtr b{font-size:13px; min-width:24px; text-align:center}
+@media (max-width: 700px){ .lg-tip, .tbtr small{display:none} .tbtr{gap:4px} .tbtr b{min-width:22px} }
 @media (max-width: 700px){
   .tbx{gap:8px}
-  .tbsheet{max-height:max(196px, 30vh)}
   .tbtools{gap:6px}
   .tbtools .row.nw, .tbx > .row.nw{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-bottom:1px}
   .tbtools .row.nw::-webkit-scrollbar, .tbx > .row.nw::-webkit-scrollbar{display:none}
@@ -1173,7 +1179,7 @@ const DEF = {
   layers:[{id:1, kind:'scale', root:9, type:'dorian', hidden:[], notes:[], visible:true, color:0}],
   picks:[], tap:null, circle:{i:0, minor:false, sevenths:false, pin:false}, nextId:2,
   pins:[], nextPin:1, pinView:null,
-  tabCur:null, tabAdv:false, tabPm:false, tabDur:12, tabLoop:true, tabClick:false, tabCount:false,      // Write > Tab: the open tab and how it's written and played
+  tabCur:null, tabAdv:false, tabPm:false, tabFromCur:false, tabDur:12, tabLoop:true, tabClick:false, tabCount:false,      // Write > Tab: the open tab and how it's written and played
   playCfg:{bpm:90, per:4, dir:'up', loop:false, tone:'ring'},     // playing a scale or arpeggio: tempo, notes per beat, direction, ring/staccato/muted
   metro:{bpm:80, beats:4, sub:1, accent:true, vol:0.8, clickMode:'all',
     gap:{on:false, play:2, rest:2}, ladder:{on:false, step:5, bars:4, max:140}},
@@ -2114,7 +2120,7 @@ function tbStart(from){
     const k = cur ? cur.k : -1, col = k >= 0 ? document.querySelector(`.tbc[data-c="${k}"]`) : null;
     if (k !== tbp.k || (col && !col.classList.contains('on')) || tbp.lit.some(e => !e.isConnected)) {
       tbp.k = k; document.querySelectorAll('.tbc.on').forEach(e => { if (e !== col) e.classList.remove('on'); });
-      if (col) { col.classList.add('on'); const sh = col.closest('.tbsheet'); if (sh && sh.scrollHeight > sh.clientHeight) { const r = col.getBoundingClientRect(), R = sh.getBoundingClientRect(); if (r.top < R.top || r.bottom > R.bottom) sh.scrollTop += r.top - R.top - 8; } }
+      if (col) { col.classList.add('on'); const sh = col.closest('.tbsheet'), r = col.getBoundingClientRect(), R = sh && sh.getBoundingClientRect(); if (sh && (r.left < R.left + 40 || r.right > R.right - 8)) sh.scrollLeft += r.left - R.left - R.width / 4; }      // the note playing stays in sight
       tbp.lit.forEach(e => e.classList.remove('playing'));
       const T = tbDoc(), c = T && T.cols[k];
       tbp.lit = c ? c.n.map(q => document.querySelector(`.cell[data-s="${q.s}"][data-f="${q.f}"]`)).filter(Boolean) : [];
@@ -2171,10 +2177,6 @@ function renderTab(){
   const muteRow = ring ? `<button type="button" class="btn" data-act="tbmutehere" title="Stop the note ringing on this string right here">◼ Mute the ${tbCore(ring.q)} here</button>${ring.q.len ? '<span class="info">it is muted earlier now</span>' : ''}`
     : `<span class="info">Mute after</span><div class="seg" aria-label="Mute this note after">${[[0, 'Rings'], ...TBASE.slice().reverse().map(([b, l]) => [b, l])].map(([d, l]) => `<button type="button" data-act="tbmute" data-v="${d}" aria-pressed="${!!q && (q.len || 0) === d}" title="${d ? 'Stop it ringing after a ' + tbLenName(d) : 'Let it ring until the next note on this string'}"${q && q.t !== 'x' ? '' : ' disabled'}>${l}</button>`).join('')}</div>${q && q.len && !tbDec(q.len) ? `<span class="info">muted after ${tbLenName(q.len)}</span>` : ''}`;
   return `<div class="tbx">
-    <div class="row nw tbtop"><button type="button" class="btn${tbp.on ? ' primary' : ''}" data-act="tbplay" aria-pressed="${tbp.on}"${T.cols.some(x => x.n.length) ? '' : ' disabled'}>${tbp.on ? '■ Stop' : '▶ Play'}</button>
-      ${tbc.c > 0 && tbc.c < T.cols.length && !tbp.on ? `<button type="button" class="btn" data-act="tbplayhere">▶ Here</button>` : ''}
-      <span class="sp-tempo"><button type="button" class="ib" data-act="tbbpm" data-v="-5" aria-label="5 bpm slower">−5</button><b>${T.bpm}</b> bpm<button type="button" class="ib" data-act="tbbpm" data-v="5" aria-label="5 bpm faster">+5</button></span>
-      <button type="button" class="chip${state.tabLoop ? ' sel' : ''}" data-act="tbloop" aria-pressed="${!!state.tabLoop}" aria-label="Loop">↻</button></div>
     ${tbSheet(T)}
     <div class="tbtools">
       <div class="row nw tbedit"><button type="button" class="ib" data-act="tbmove" data-v="-1" aria-label="Previous column"${tbc.c <= 0 ? ' disabled' : ''}>◀</button><button type="button" class="btn primary" data-act="tbmove" data-v="1" title="Move to the next column"${tbc.c >= T.cols.length ? ' disabled' : ''}>Next ▶</button>
@@ -2204,21 +2206,36 @@ function renderTab(){
     ${fold('tbset', 'Tab settings', `${esc(T.name)} · ${T.beats}/4${state.tabClick ? ' · click' : ''}${state.tabCount ? ' · count-in' : ''}`, `<div class="row"><input class="task-in tbname" id="tbname" type="text" maxlength="60" autocomplete="off" aria-label="Tab name" value="${esc(T.name)}">
         <span class="sp-tempo"><button type="button" class="ib" data-act="tbbeats" data-v="-1" aria-label="Fewer beats a bar"${T.beats <= 1 ? ' disabled' : ''}>−</button><b>${T.beats}/4</b><button type="button" class="ib" data-act="tbbeats" data-v="1" aria-label="More beats a bar"${T.beats >= 12 ? ' disabled' : ''}>+</button></span></div>
       <div class="row"><button type="button" class="chip${state.tabClick ? ' sel' : ''}" data-act="tbclick" aria-pressed="${!!state.tabClick}" title="A click on every beat">Click</button>
-        <button type="button" class="chip${state.tabCount ? ' sel' : ''}" data-act="tbcount" aria-pressed="${!!state.tabCount}" title="One bar of clicks first">Count in</button></div>`)}
+        <button type="button" class="chip${state.tabCount ? ' sel' : ''}" data-act="tbcount" aria-pressed="${!!state.tabCount}" title="One bar of clicks first">Count in</button>
+        <button type="button" class="chip tog${state.tabFromCur ? ' sel' : ''}" data-act="tbfromcur" aria-pressed="${!!state.tabFromCur}" title="Play starts where the cursor is, not at the beginning">Play from the cursor</button></div>`)}
     ${fold('tbtext', 'Copy or paste text tab', '', `<div class="row"><button type="button" class="btn" data-act="tbcopy">Copy as text</button></div>${imp}`)}
     ${fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div><div class="row"><button type="button" class="btn" data-act="tbnew">＋ New tab</button></div>`)}
-    <span class="hint tip">On a keyboard: click the tab, then arrows move, numbers type a fret (two quickly for 10 and up), H P S B V X mark a technique, N and A natural and pinch harmonics, M palm-mutes, O mutes the ringing note at the cursor, Delete removes, R makes a rest, + and − change the length, Space plays, Ctrl+Z undoes. Shift with the arrows (or a click) selects; Ctrl+C, X and V copy, cut and paste.</span>
+    <span class="hint tip">On a keyboard: click the tab, then arrows move, numbers type a fret (two quickly for 10 and up), H P S B V X mark a technique, N and A natural and pinch harmonics, M palm-mutes, O mutes the ringing note at the cursor, Delete removes, R makes a rest, + and − change the length, Space plays, Ctrl+Z undoes. Play, tempo and loop are under the neck. Shift with the arrows (or a click) selects; Ctrl+C, X and V copy, cut and paste.</span>
   </div>`;
 }
 /* on a phone, scroll so the editor starts just under the pinned neck: the tab and its tools then fit on one screen */
-function tbScrollFit(){ const top = $('.tbtop'), w = $('.neck-wrap'); if (!top || !w) return; const pin = getComputedStyle(w).position === 'sticky' ? w.offsetHeight : 0; scrollTo({top:Math.max(0, top.getBoundingClientRect().top + scrollY - pin - 6), behavior:'instant'}); }
+function tbScrollFit(){ const top = $('#tbsheet'), w = $('.neck-wrap'); if (!top || !w) return; const pin = getComputedStyle(w).position === 'sticky' ? w.offsetHeight : 0; scrollTo({top:Math.max(0, top.getBoundingClientRect().top + scrollY - pin - 6), behavior:'instant'}); }
+/* Play, tempo and loop: under the neck, so they never scroll away */
+function tbTransport(){
+  const T = tbDoc(); if (!T) return '';
+  const c = tbAt(T), rd = c && c.n.length > 1 ? readings(c.n.filter(z => z.t !== 'x')).sel : null;
+  return `<span class="tbtr"><button type="button" class="btn${tbp.on ? ' primary' : ''}" data-act="tbplay" aria-pressed="${tbp.on}"${T.cols.some(x => x.n.length) ? '' : ' disabled'}>${tbp.on ? '■ Stop' : '▶ Play'}</button>
+    <button type="button" class="ib" data-act="tbbpm" data-v="-5" aria-label="5 bpm slower">−</button><b>${T.bpm}</b><button type="button" class="ib" data-act="tbbpm" data-v="5" aria-label="5 bpm faster">+</button><small>bpm</small>
+    <button type="button" class="chip${state.tabLoop ? ' sel' : ''}" data-act="tbloop" aria-pressed="${!!state.tabLoop}" aria-label="Loop" title="Loop">↻</button></span>${rd ? `<span class="lg-tip">sounds like <b>${rd.name}</b></span>` : ''}`;
+}
+/* scroll the tab sideways so a column is in sight (past the pinned string names), with some of what follows it */
+function tbSeeCol(sh, col){
+  if (!sh || !col) return;
+  const r = col.getBoundingClientRect(), R = sh.getBoundingClientRect(), nm = sh.querySelector('.tbnames'), lo = R.left + (nm ? nm.offsetWidth : 0) + 4;
+  if (r.left < lo) sh.scrollLeft -= lo - r.left + 30; else if (r.right > R.right - 8) sh.scrollLeft += r.right - R.right + Math.min(120, R.width / 3);
+}
 /* redraw, keeping the tab focused (for the keyboard) and the cursor in sight */
 function tbRender(){
-  const sh0 = $('#tbsheet'), had = document.activeElement === sh0, top = sh0 ? sh0.scrollTop : 0;
+  const sh0 = $('#tbsheet'), had = document.activeElement === sh0, left = sh0 ? sh0.scrollLeft : 0;
   render();
   const sh = $('#tbsheet'); if (!sh) return;
-  sh.scrollTop = top; if (had) sh.focus({preventScroll:true});
-  const cur = sh.querySelector('.tbc.cur'); if (cur) { const r = cur.getBoundingClientRect(), R = sh.getBoundingClientRect(); if (r.top < R.top) sh.scrollTop += r.top - R.top - 4; else if (r.bottom > R.bottom) sh.scrollTop += r.bottom - R.bottom + 4; }
+  sh.scrollLeft = left; if (had) sh.focus({preventScroll:true});
+  tbSeeCol(sh, sh.querySelector('.tbc.cur'));
 }
 function handleTab(act, b){
   const v = b.dataset.v, T = tbDoc();
@@ -2242,7 +2259,8 @@ function handleTab(act, b){
     case 'tbcell': if (tbShift && !tbSel) tbSel = {a:Math.min(tbc.c, Math.max(0, T.cols.length - 1))}; tbc = {c:Math.min(+b.dataset.c, T.cols.length), s:+b.dataset.s}; tbNum = null; { const z = tbAt(T), q = z && z.n.find(x => x.s === tbc.s); if (q && q.t !== 'x') pluck(TUNINGS[state.tuning].midi[q.s] + q.f); } break;
     case 'tbbpm': T.bpm = Math.max(30, Math.min(300, T.bpm + +v)); storeTabs(); break;
     case 'tbbeats': tbEdit(T => { T.beats = Math.max(1, Math.min(12, T.beats + +v)); }); break;
-    case 'tbplay': if (tbp.on) tbStop(true); else tbStart(0); break;
+    case 'tbplay': if (tbp.on) tbStop(true); else tbStart(state.tabFromCur && tbc.c < T.cols.length && T.cols.slice(tbc.c).some(x => x.n.length) ? tbc.c : 0); break;
+    case 'tbfromcur': state.tabFromCur = !state.tabFromCur; break;
     case 'tbplayhere': tbStart(tbc.c); break;
     case 'tbloop': state.tabLoop = !state.tabLoop; break;
     case 'tbclick': state.tabClick = !state.tabClick; if (tbp.on) tbStart(0); break;
@@ -2631,8 +2649,9 @@ function renderBoard(){
     if (seen.size) key = `<span class="key">${[...seen.entries()].sort((a, b) => a[0] - b[0]).map(([n, l]) => `<span class="dot sv kd s${degOf(l)}" style="--c:var(--i${n})" title="${intervalName(n)}">${shapeSvg(degOf(l))}${pl(l)}</span>`).join('')}</span>`;
   }
   let pickNote = '';
-  if (pickMode && reading && !pinShape) pickNote = ` · reading as <b>${reading.name}</b>${byIv() ? ` · colored by interval from ${pn(rootName(pickRoot, reading.labels))}` : ''}`;
+  if (pickMode && reading && !pinShape) pickNote = ` · reading as <b>${reading.name}</b>${byIv() ? `<span class="lg-tip"> · colored by interval from ${pn(rootName(pickRoot, reading.labels))}</span>` : ''}`;
   else if (pinShape && reading && byIv()) pickNote = ` · colored by interval from ${pn(rootName(pickRoot, reading.labels))}`;
+  if (tabDoc) { $('#legend').innerHTML = tbTransport(); return; }
   if (heatAgg) {
     $('#legend').innerHTML = `<span><b>Weak spots · ${FAMILIES[state.heatFam || 'all'].label}</b> · % right per fret from ${heatAgg.n} answers</span>
       <span><i style="--c:var(--ok)"></i>solid</span><span><i style="--c:#f59f00"></i>slow or shaky</span><span><i style="--c:var(--bad)"></i>often missed</span><span>faint = fewer than 3 answers · tap a fret for details</span>`;
@@ -2662,9 +2681,9 @@ function renderBoard(){
   $('#legend').innerHTML = playPin
     ? `<span><i style="--c:var(--pick)"></i><b>${playPin.name}</b> playing · ${tabText(playPin.shape)}</span>${nxL ? `<span class="lg-next">next <b>${nxL.name}</b></span>` : ''}`
     : pinShape
-    ? `<span><i style="--c:var(--pick)"></i><b>Pinned shape: ${viewPin.name}</b>${pickNote} · tap the neck to go back to your layers</span>`
+    ? `<span><i style="--c:var(--pick)"></i><b>Pinned shape: ${viewPin.name}</b>${pickNote}<span class="lg-tip"> · tap the neck to go back to your layers</span></span>`
     : pickMode
-    ? `<span><i style="--c:var(--pick)"></i><b>Picked notes</b> · tap frets to add or remove${pickNote}</span>`
+    ? `<span><i style="--c:var(--pick)"></i><b>Picked notes</b><span class="lg-tip"> · tap frets to add or remove</span>${pickNote}</span>`
     : (lg ? lg + key + foci.map(posNote).join('') : '<span>All layers are hidden</span>');
 }
 
@@ -6434,6 +6453,7 @@ document.addEventListener('keydown', e => {
   e.preventDefault(); handlePractice(state.session.done ? 'sessstop' : go, {dataset:{}});
 });
 document.addEventListener('keyup', e => { if (e.key === ' ' && pvOn() && !(e.target.closest && e.target.closest('input, textarea, select'))) e.preventDefault(); });   // and not also the focused button
+$('#legend').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) handlePractice(b.dataset.act, b); });      // the tab's Play, tempo and loop
 $('#strip').addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) handlePractice(b.dataset.act, b); });
 $('#focusBtn').addEventListener('click', () => setFocus(true));
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && focusOn() && !e.defaultPrevented) setFocus(false); });
@@ -6650,6 +6670,7 @@ function render(){
   panel.innerHTML = subNav() + (state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'tab' ? renderTab() : state.tab === 'practice' ? renderPractice() : renderLayers());
   { const r = panel.querySelector('.ptabs:not(.subtabs)'), b = r && r.querySelector('[aria-selected="true"]'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - r.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; }     // keep the open section in sight
 
+  if (state.tab === 'tab') { const sh = $('#tbsheet'); if (sh) tbSeeCol(sh, sh.querySelector('.tbc.cur')); }      // the cursor in sight
   if (!hold && state.tab === 'tab' && thumbQ.matches && !landQ.matches) setTimeout(tbScrollFit, 0);      // a phone: the editor sits right under the neck
   if (hold) { panel.style.minHeight = ''; if (mm.scrollTop !== m0) mm.scrollTop = m0; if (Math.abs(window.scrollY - y0) > 1 && !landQ.matches) scrollTo({top:y0, behavior:'instant'}); }
   tunerPaint();
