@@ -463,6 +463,9 @@ body.pv-done .neck-wrap{display:none !important}
 .tbc i b.t-x{color:var(--muted)}
 .tbc i.at{box-shadow:inset 0 0 0 2px var(--accent); border-radius:5px}
 .tbc.cur{background:color-mix(in srgb, var(--accent) 9%, transparent)}
+.tbc.sel{background:color-mix(in srgb, var(--accent) 24%, transparent)}
+.tbc.sel + .tbc.sel{box-shadow:none}
+.tbselrow{gap:8px}
 .tbc.on{background:color-mix(in srgb, var(--accent) 30%, transparent)}
 .tbc.ghost i{background:repeating-linear-gradient(90deg, var(--line) 0 3px, transparent 3px 6px) center/100% 1px no-repeat}
 .tbc.ghost em{color:var(--muted); text-align:center; padding:0}
@@ -1764,7 +1767,7 @@ try { const x = JSON.parse(localStorage.getItem(TABKEY)); if (Array.isArray(x)) 
 function storeTabs(){ try { localStorage.setItem(TABKEY, JSON.stringify(tabs)); } catch (e) { toast('Could not save: the browser storage is full.'); } }
 const tbDoc = () => tabs.find(t => t.id === state.tabCur) || null;
 let tbc = {c:0, s:5}, tbUndo = [], tbRedo = [], tbDelArm = null, tbNum = null;     // the cursor (column, string), undo, a delete waiting for its second tap, a number being typed
-function tbOpen(id){ tbLast = null; state.tabCur = id; const T = tbDoc(); tbc = {c:T ? T.cols.length : 0, s:5}; tbUndo = []; tbRedo = []; tbNum = null; if (tbp.on) tbStop(true); }
+function tbOpen(id){ tbLast = null; tbSel = null; state.tabCur = id; const T = tbDoc(); tbc = {c:T ? T.cols.length : 0, s:5}; tbUndo = []; tbRedo = []; tbNum = null; if (tbp.on) tbStop(true); }
 function tbEdit(fn){ const T = tbDoc(); if (!T) return; tbUndo.push(JSON.stringify(T)); if (tbUndo.length > 200) tbUndo.shift(); tbRedo = []; fn(T); tbc.c = Math.max(0, Math.min(tbc.c, T.cols.length)); storeTabs(); }
 function tbUndoDo(redo){
   const T = tbDoc(), from = redo ? tbRedo : tbUndo, to = redo ? tbUndo : tbRedo; if (!T || !from.length) return false;
@@ -1798,6 +1801,21 @@ function tbMuteHere(){
   const r = tbRinging(T, tbc.c, tbc.s); if (!r) { toast('Nothing is ringing on this string here.'); return; }
   const st = tbStarts(T); tbEdit(T => { T.cols[r.j].n.find(x => x.s === tbc.s).len = st[tbc.c] - st[r.j]; });
 }
+/* selecting columns: from the anchor to the cursor. The copied columns stay while the page is open, for any tab. */
+let tbSel = null, tbClip = null, tbShift = false;
+const tbRange = T => { if (!tbSel || !T.cols.length) return null; const a = Math.max(0, Math.min(tbSel.a, tbc.c, T.cols.length - 1)), b = Math.min(T.cols.length - 1, Math.max(tbSel.a, tbc.c)); return b >= a ? [a, b] : null; };
+function tbCopy(cut){
+  const T = tbDoc(), r = T && tbRange(T); if (!r) return;
+  tbClip = clone(T.cols.slice(r[0], r[1] + 1)); tbSel = null;
+  if (cut) { tbEdit(T => T.cols.splice(r[0], r[1] - r[0] + 1)); tbc.c = r[0]; }
+  toast(`${cut ? 'Cut' : 'Copied'} ${tbClip.length} column${tbClip.length === 1 ? '' : 's'}. Paste puts ${tbClip.length === 1 ? 'it' : 'them'} in at the cursor.`);
+}
+function tbSelDel(){ const T = tbDoc(), r = T && tbRange(T); if (!r) return; tbSel = null; tbEdit(T => T.cols.splice(r[0], r[1] - r[0] + 1)); tbc.c = r[0]; }
+function tbPasteCols(){
+  const T = tbDoc(); if (!T || !tbClip || !tbClip.length) return;
+  if (T.cols.length + tbClip.length > TMAX) { toast('That would make the tab too long.'); return; }
+  const n = tbClip.length; tbSel = null; tbEdit(T => T.cols.splice(tbc.c, 0, ...clone(tbClip))); tbc.c += n;
+}
 /* palm mute: the column at the cursor, and the ones written after it, until it's turned off */
 function tbPmToggle(){
   const T = tbDoc(); if (!T) return;
@@ -1816,7 +1834,7 @@ const tbPre = (q, pf) => q.t === 'h' ? 'h' : q.t === 'p' ? 'p' : q.t === 's' ? (
 const tbCore = q => q.t === 'x' ? 'x' : String(q.f) + (q.t === 'b' ? 'b' : q.t === 'v' ? '~' : '');
 /* put a note on string s at fret f in the cursor's column. From the neck, the same note again takes it off; Step moves on. */
 function tbPut(s, f, fromNeck){
-  const T = tbDoc(); if (!T) return;
+  const T = tbDoc(); if (!T) return; tbSel = null;
   if (tbc.c >= T.cols.length && T.cols.length >= TMAX) { toast('That tab is as long as it can be.'); return; }
   let off = false;
   tbEdit(T => {
@@ -2057,7 +2075,7 @@ function tbStart(from){
 }
 /* ---- drawing it ---- */
 function tbSheet(T){
-  const bt = T.beats * TQ, bars = tbBars(T), last = [], tun = TUNINGS[state.tuning].midi, mutes = tbMutes(T); let tick = 0;
+  const bt = T.beats * TQ, bars = tbBars(T), last = [], tun = TUNINGS[state.tuning].midi, mutes = tbMutes(T), rg = tbRange(T); let tick = 0;
   const col = k => {
     const c = T.cols[k], ghost = !c, cur = k === tbc.c, d = ghost ? state.tabDur : c.d, dc = tbDec(d) || {b:12, m:''};
     const w = Math.round(24 + 9 * Math.log2(d / 6)), beat = !ghost && tick % TQ === 0 ? (tick % bt) / TQ + 1 : '';
@@ -2069,7 +2087,7 @@ function tbSheet(T){
     if (c) { c.n.forEach(q => { if (q.t !== 'x') last[q.s] = q.f; }); tick += c.d; }
     const len = TSYM[dc.b] + (dc.m === 'dot' ? '.' : dc.m === 'tri' ? '³' : '');
     const pm = ghost ? state.tabPm : !!c.pm, pmPrev = k > 0 && T.cols[k - 1] && T.cols[k - 1].pm, pmNext = ghost ? false : (T.cols[k + 1] ? !!T.cols[k + 1].pm : k + 1 === tbc.c && state.tabPm);
-    return `<span class="tbc${cur ? ' cur' : ''}${ghost ? ' ghost' : c.n.length ? '' : ' rest'}${pm ? ' pm' : ''}" data-c="${k}" style="--w:${w}px" title="${ghost ? 'A new column' : (c.n.length ? '' : 'Rest · ') + TBASE.find(x => x[0] === dc.b)[2] + (dc.m === 'dot' ? ', dotted' : dc.m === 'tri' ? ', triplet' : '') + (pm ? ', palm-muted' : '')}"><em>${ghost ? '＋' : c.lab ? esc(c.lab) : ''}</em><q class="${pm ? (pmPrev ? 'on' : 'on st') + (pmNext ? '' : ' en') : ''}">${pm && !pmPrev ? '<span>PM</span>' : ''}</q>${rows}<u>${ghost ? '' : (c.n.length ? '' : 'rest ') + len}</u><s>${beat}</s></span>`;
+    return `<span class="tbc${cur ? ' cur' : ''}${rg && k >= rg[0] && k <= rg[1] ? ' sel' : ''}${ghost ? ' ghost' : c.n.length ? '' : ' rest'}${pm ? ' pm' : ''}" data-c="${k}" style="--w:${w}px" title="${ghost ? 'A new column' : (c.n.length ? '' : 'Rest · ') + TBASE.find(x => x[0] === dc.b)[2] + (dc.m === 'dot' ? ', dotted' : dc.m === 'tri' ? ', triplet' : '') + (pm ? ', palm-muted' : '')}"><em>${ghost ? '＋' : c.lab ? esc(c.lab) : ''}</em><q class="${pm ? (pmPrev ? 'on' : 'on st') + (pmNext ? '' : ' en') : ''}">${pm && !pmPrev ? '<span>PM</span>' : ''}</q>${rows}<u>${ghost ? '' : (c.n.length ? '' : 'rest ') + len}</u><s>${beat}</s></span>`;
   };
   const names = [5, 4, 3, 2, 1, 0].map(s => `<i>${pn(noteName(tun[s]))}</i>`).join('');
   return `<div class="tbsheet" id="tbsheet" tabindex="0" role="application" aria-label="Tab, ${T.cols.length} columns. Arrows move, numbers type a fret, Delete removes."><div class="tbnames"><small></small><em></em><q></q>${names}</div>${bars.map((b, n) => {
@@ -2119,6 +2137,9 @@ function renderTab(){
         <button type="button" class="btn" data-act="tbdelnote"${q ? '' : ' disabled'}>✕ Note</button>
         <button type="button" class="btn" data-act="tbdelcol"${c ? '' : ' disabled'}>✕ Column</button>
         <button type="button" class="ib" data-act="tbundo" aria-label="Undo"${tbUndo.length ? '' : ' disabled'}>↶</button><button type="button" class="ib" data-act="tbredo" aria-label="Redo"${tbRedo.length ? '' : ' disabled'}>↷</button></div>
+      <div class="row tbselrow">${(() => { const rg = tbRange(T), pst = tbClip && tbClip.length ? `<button type="button" class="btn" data-act="tbpastecols" title="Put the copied columns in at the cursor">Paste ${tbClip.length}</button>` : '';
+        if (!tbSel) return `<button type="button" class="btn" data-act="tbselect"${T.cols.length ? '' : ' disabled'} title="Select columns to copy, cut or delete">Select</button>${pst}`;
+        return `<span class="info"><b>${rg ? rg[1] - rg[0] + 1 : 0}</b> selected · tap the last column</span><button type="button" class="btn" data-act="tbcopycols"${rg ? '' : ' disabled'}>Copy</button><button type="button" class="btn" data-act="tbcut"${rg ? '' : ' disabled'}>Cut</button><button type="button" class="btn" data-act="tbseldel"${rg ? '' : ' disabled'}>Delete</button><button type="button" class="ib" data-act="tbselclear" aria-label="Stop selecting">✕</button>${pst}`; })()}</div>
       <span class="info tbwhere">${where}</span>
     </div>
     ${fold('tbmore', 'More', '', `<div class="row"><input class="task-in" id="tblab" type="text" maxlength="24" autocomplete="off" placeholder="Label: a chord or a part (Verse, Chorus)" aria-label="Label above this column" value="${esc(c && c.lab || '')}"${c ? '' : ' disabled'}>
@@ -2129,7 +2150,7 @@ function renderTab(){
       <span class="hint tip">These go in at the cursor. The phrase comes from the hammer and pluck phrases on the Layers tab, with its chords as labels.</span>`)}
     ${fold('tbtext', 'Copy or paste text tab', '', `<div class="row"><button type="button" class="btn" data-act="tbcopy">Copy as text</button></div>${imp}`)}
     ${fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div><div class="row"><button type="button" class="btn" data-act="tbnew">＋ New tab</button></div>`)}
-    <span class="hint tip">On a keyboard: click the tab, then arrows move, numbers type a fret (two quickly for 10 and up), H P S B V X mark a technique, M palm-mutes, O mutes the ringing note at the cursor, Delete removes, R makes a rest, + and − change the length, Space plays, Ctrl+Z undoes.</span>
+    <span class="hint tip">On a keyboard: click the tab, then arrows move, numbers type a fret (two quickly for 10 and up), H P S B V X mark a technique, M palm-mutes, O mutes the ringing note at the cursor, Delete removes, R makes a rest, + and − change the length, Space plays, Ctrl+Z undoes. Shift with the arrows (or a click) selects; Ctrl+C, X and V copy, cut and paste.</span>
   </div>`;
 }
 /* redraw, keeping the tab focused (for the keyboard) and the cursor in sight */
@@ -2159,7 +2180,7 @@ function handleTab(act, b){
   }
   if (!T) return false;
   switch (act) {
-    case 'tbcell': tbc = {c:Math.min(+b.dataset.c, T.cols.length), s:+b.dataset.s}; tbNum = null; { const z = tbAt(T), q = z && z.n.find(x => x.s === tbc.s); if (q && q.t !== 'x') pluck(TUNINGS[state.tuning].midi[q.s] + q.f); } break;
+    case 'tbcell': if (tbShift && !tbSel) tbSel = {a:Math.min(tbc.c, Math.max(0, T.cols.length - 1))}; tbc = {c:Math.min(+b.dataset.c, T.cols.length), s:+b.dataset.s}; tbNum = null; { const z = tbAt(T), q = z && z.n.find(x => x.s === tbc.s); if (q && q.t !== 'x') pluck(TUNINGS[state.tuning].midi[q.s] + q.f); } break;
     case 'tbbpm': T.bpm = Math.max(30, Math.min(300, T.bpm + +v)); storeTabs(); break;
     case 'tbbeats': tbEdit(T => { T.beats = Math.max(1, Math.min(12, T.beats + +v)); }); break;
     case 'tbplay': if (tbp.on) tbStop(true); else tbStart(0); break;
@@ -2172,6 +2193,12 @@ function handleTab(act, b){
     case 'tbtri': { const d = tbCurDur(); tbSetDur(d.b, d.m === 'tri' ? '' : 'tri'); break; }
     case 'tbtech': tbTech(v); break;
     case 'tbpm': tbPmToggle(); break;
+    case 'tbselect': tbSel = {a:Math.min(tbc.c, T.cols.length - 1)}; break;
+    case 'tbselclear': tbSel = null; break;
+    case 'tbcopycols': tbCopy(false); break;
+    case 'tbcut': tbCopy(true); break;
+    case 'tbseldel': tbSelDel(); break;
+    case 'tbpastecols': tbPasteCols(); break;
     case 'tbmute': tbEdit(T => { const z = T.cols[tbc.c], q = z && z.n.find(x => x.s === tbc.s); if (q) { if (+v) q.len = +v; else delete q.len; } }); break;
     case 'tbmutehere': tbMuteHere(); break;
     case 'tbstep': state.tabAdv = !state.tabAdv; break;
@@ -2204,6 +2231,13 @@ function tbKey(e){
   const go = () => { e.preventDefault(); tbRender(); };
   if (ctl && lk === 'z') { tbUndoDo(e.shiftKey); return go(); }
   if (ctl && lk === 'y') { tbUndoDo(true); return go(); }
+  if (ctl && lk === 'a') { tbSel = {a:0}; tbc.c = T.cols.length; return go(); }
+  if (ctl && lk === 'c') { if (tbRange(T)) { tbCopy(false); return go(); } return; }
+  if (ctl && lk === 'x') { if (tbRange(T)) { tbCopy(true); return go(); } return; }
+  if (ctl && lk === 'v') { if (tbClip) { tbPasteCols(); return go(); } return; }
+  if (k === 'Escape' && tbSel) { tbSel = null; return go(); }
+  if ((k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Home' || k === 'End') && !ctl) { if (e.shiftKey) { if (!tbSel) tbSel = {a:Math.min(tbc.c, Math.max(0, T.cols.length - 1))}; } else tbSel = null; }
+  if ((k === 'Delete' || k === 'Backspace') && tbSel && tbRange(T)) { tbSelDel(); return go(); }
   if (ctl || e.altKey) return;
   if (/^[0-9]$/.test(k)) {
     const d = +k, now = Date.now();
@@ -6396,6 +6430,7 @@ panel.addEventListener('keydown', e => {
   e.preventDefault(); const h = findChords(e.target.value)[0]; if (!h) return;
   tbChordAdd(h.root, h.type); tbChordQ = ''; tbRender(); const i = $('#tbchord'); if (i) i.focus({preventScroll:true});
 });
+panel.addEventListener('click', e => { tbShift = e.shiftKey; }, true);      // shift-click selects columns
 panel.addEventListener('keydown', e => { if (e.target.id === 'tbsheet') tbKey(e); else if ((e.target.id === 'tbname' || e.target.id === 'tblab') && e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
 /* the tab's name and a column's label: saved as typed in, without redrawing (a tap elsewhere would be lost) */
 panel.addEventListener('change', e => {
