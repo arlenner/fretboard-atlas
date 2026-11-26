@@ -461,6 +461,17 @@ body.pv-done .neck-wrap{display:none !important}
 .tbc i b{font-size:12px; font-weight:650; padding:0 2px; background:var(--surface); line-height:16px; font-variant-numeric:tabular-nums; border-radius:4px; white-space:nowrap}
 .tbc i b.t-h, .tbc i b.t-p, .tbc i b.t-s{color:var(--accent)}
 .tbc i b.t-x{color:var(--muted)}
+.tbc i b.t-n, .tbc i b.t-a{color:var(--accent); font-style:italic}
+.tbtop{gap:8px}
+@media (max-width: 700px){
+  .tbx{gap:8px}
+  .tbsheet{max-height:max(196px, 30vh)}
+  .tbtools{gap:6px}
+  .tbtools .row.nw, .tbx > .row.nw{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-bottom:1px}
+  .tbtools .row.nw::-webkit-scrollbar, .tbx > .row.nw::-webkit-scrollbar{display:none}
+  .tbtools .row.nw > *{flex:none}
+  .tbwhere{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-height:1.3em}
+}
 .tbc i.at{box-shadow:inset 0 0 0 2px var(--accent); border-radius:5px}
 .tbc.cur{background:color-mix(in srgb, var(--accent) 9%, transparent)}
 .tbc.sel{background:color-mix(in srgb, var(--accent) 24%, transparent)}
@@ -1756,7 +1767,10 @@ function chordMidis(rootPc, type){ const base = 48 + mod(rootPc); return CHORDS[
 const TABKEY = 'fretboard-atlas-tabs-v1', TQ = 24, TMAX = 2000;
 const TBASE = [[96, '1/1', 'Whole note', 'W'], [48, '1/2', 'Half note', 'H'], [24, '1/4', 'Quarter note', 'Q'], [12, '1/8', '8th note', 'E'], [6, '1/16', '16th note', 'S']];
 const TSYM = {96:'1', 48:'½', 24:'¼', 12:'⅛', 6:'16'};
-const TTECH = {h:['h', 'Hammer-on'], p:['p', 'Pull-off'], s:['/', 'Slide into it'], b:['b', 'Bend it up a whole step'], v:['~', 'Vibrato'], x:['x', 'Dead (muted) note']};
+const TTECH = {h:['h', 'Hammer-on'], p:['p', 'Pull-off'], s:['/', 'Slide into it'], b:['b', 'Bend it up a whole step'], v:['~', 'Vibrato'], x:['x', 'Dead (muted) note'], n:['<>', 'Natural harmonic: touch the string over the fret wire, not pressing it down'], a:['PH', 'Pinch harmonic: catch the string with the thumb as you pick']};
+/* what a natural harmonic sounds, above the open string, by fret (where there is one); a pinch harmonic, an octave and a fifth over the note */
+const TB_NH = {3:31, 4:28, 5:24, 7:19, 9:28, 12:12, 16:28, 19:19, 24:24};
+const tbHarmPitch = q => { const o = TUNINGS[state.tuning].midi[q.s]; return q.t === 'n' ? o + (TB_NH[q.f] || 12) : o + q.f + 19; };
 const tbDec = d => { for (const [b] of TBASE) { if (d === b) return {b, m:''}; if (d === b * 1.5) return {b, m:'dot'}; if (d === b * 2 / 3) return {b, m:'tri'}; } return null; };
 const tbLenName = d => { const x = tbDec(d); return x ? TBASE.find(z => z[0] === x.b)[2].replace(' note', '').toLowerCase() + (x.m === 'dot' ? ', dotted' : x.m === 'tri' ? ' triplet' : '') : (d / TQ).toFixed(2).replace(/\.?0+$/, '') + ' beats'; };
 const tbDurOk = d => Number.isInteger(d) && !!tbDec(d);
@@ -1854,8 +1868,8 @@ function tbBars(T){
   return bars;
 }
 /* a note as tab text: h7 p5 /9 \5 7b 7~ x. A slide shows which way it goes from the last note on that string. */
-const tbPre = (q, pf) => q.t === 'h' ? 'h' : q.t === 'p' ? 'p' : q.t === 's' ? (pf != null && pf > q.f ? '\\' : '/') : '';
-const tbCore = q => q.t === 'x' ? 'x' : String(q.f) + (q.t === 'b' ? 'b' : q.t === 'v' ? '~' : '');
+const tbPre = (q, pf) => q.t === 'n' ? '<' : q.t === 'h' ? 'h' : q.t === 'p' ? 'p' : q.t === 's' ? (pf != null && pf > q.f ? '\\' : '/') : '';
+const tbCore = q => q.t === 'x' ? 'x' : String(q.f) + (q.t === 'b' ? 'b' : q.t === 'v' ? '~' : q.t === 'n' ? '>' : q.t === 'a' ? 'PH' : '');
 /* put a note on string s at fret f in the cursor's column. From the neck, the same note again takes it off; Step moves on. */
 function tbPut(s, f, fromNeck){
   const T = tbDoc(); if (!T) return; tbSel = null;
@@ -1874,6 +1888,7 @@ function tbPut(s, f, fromNeck){
 function tbTech(t){
   const T = tbDoc(), c = T && tbAt(T), q = c && c.n.find(z => z.s === tbc.s);
   if (!q && t !== 'x') { toast('Put a note on this string first.'); return; }
+  if (t === 'n' && q.t !== 'n' && !TB_NH[q.f]) { toast('No natural harmonic at that fret. They ring at frets 3, 4, 5, 7, 9, 12, 16, 19 and 24.'); return; }
   tbEdit(T => {
     if (tbc.c >= T.cols.length) T.cols.push(tbNew());
     const c = T.cols[tbc.c], q = c.n.find(z => z.s === tbc.s);
@@ -1972,7 +1987,7 @@ function tbText(T){
   blocks.forEach(b => { out.push(''); if (b.lab.trim()) out.push(b.lab.trimEnd()); if (b.pm.trim()) out.push(b.pm.trimEnd()); out.push(...b.str, b.rh.trimEnd()); if (b.tp.trim()) out.push(b.tp.trimEnd()); });
   return out.join('\n') + '\n';
 }
-const TB_STR = /^\s*[A-Ga-g][#b♯♭]?\s*[|:]/, TB_BARE = /^\s*\|?[-0-9hpbsx\/\\~|r() ]+$/;
+const TB_STR = /^\s*[A-Ga-g][#b♯♭]?\s*[|:]/, TB_BARE = /^\s*\|?[-0-9hpbsx\/\\~|r() *<>PH]+$/;
 const tbIsStr = l => typeof l === 'string' && (TB_STR.test(l) || (TB_BARE.test(l) && /---/.test(l)));
 function tbParse(txt){
   const L = String(txt || '').replace(/\r/g, '').replace(/\t/g, '    ').split('\n'), cols = [];
@@ -2000,7 +2015,7 @@ function tbParse(txt){
         if (/\d/.test(ch) && !/\d/.test(pr)) {
           let j = x; if (/\d/.test(l[x + 1] || '') && +l.slice(x, x + 2) <= 24) j = x + 1;
           const f = +l.slice(x, j + 1), nx = l[j + 1] || ''; if (f > 24) return;
-          const t = /[hH]/.test(pr) ? 'h' : /[pP]/.test(pr) ? 'p' : /[\/\\sS]/.test(pr) ? 's' : nx === 'b' ? 'b' : nx === '~' ? 'v' : '';
+          const t = pr === '<' ? 'n' : nx === 'P' && l[j + 2] === 'H' ? 'a' : /[hH]/.test(pr) ? 'h' : /[pP]/.test(pr) ? 'p' : /[\/\\sS]/.test(pr) ? 's' : nx === 'b' ? 'b' : nx === '~' ? 'v' : '';
           n.push(Object.assign({s, f}, t ? {t} : {}));
         } else if (/[xX]/.test(ch) && !/[xX]/.test(pr)) n.push({s, f:0, t:'x'});
         else if (ch === '*') stars.push({x, s});
@@ -2056,10 +2071,14 @@ function tbStart(from){
       if (state.tabClick) for (let x = Math.ceil(tick / TQ) * TQ; x < tick + c.d; x += TQ) click(t + (x - tick) * spt, x % bt === 0);
       if (!c.n.length) onStr.forEach((o, s) => { if (o) { cut(o, t); onStr[s] = null; } });      // a rest stops everything
       c.n.forEach(q => {
-        const m = tun[q.s] + q.f, src = a.createBufferSource(), g = a.createGain(), bend = q.t === 'b';
-        let stopAt = 0;
-        src.buffer = makeBuf(bend ? m + 2 : m); const rate = src.buffer.rate; src.playbackRate.value = rate; src.connect(g);
-        if (q.t === 'x') {
+        const m = tun[q.s] + q.f, harm = q.t === 'n' || q.t === 'a', src = harm ? a.createOscillator() : a.createBufferSource(), g = a.createGain(), bend = q.t === 'b';
+        let stopAt = 0, rate = 1;
+        if (harm) { src.type = q.t === 'a' ? 'triangle' : 'sine'; src.frequency.value = 440 * Math.pow(2, (tbHarmPitch(q) - 69) / 12); }
+        else { src.buffer = makeBuf(bend ? m + 2 : m); rate = src.buffer.rate; src.playbackRate.value = rate; }
+        src.connect(g);
+        if (harm) {      // a harmonic: a pure, bell-like tone that rings a long time
+          g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(q.t === 'a' ? 0.2 : 0.26, t + 0.006); g.gain.exponentialRampToValueAtTime(0.001, t + 2.4); g.connect(master); stopAt = t + 2.5;
+        } else if (q.t === 'x') {
           const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
           g.gain.setValueAtTime(0.5, t); g.gain.setTargetAtTime(0, t + 0.02, 0.02); g.connect(lp); lp.connect(master); stopAt = t + 0.25;
         } else if (c.pm) {
@@ -2144,49 +2163,55 @@ function renderTab(){
   const c = tbAt(T), q = c && c.n.find(z => z.s === tbc.s), dc = tbCurDur(), bars = tbBars(T), bi = bars.findIndex(b => tbc.c >= b.from && (tbc.c < b.to || b === bars[bars.length - 1]));
   const rd = c && c.n.length > 1 ? readings(c.n.filter(z => z.t !== 'x')).sel : null, ph = tbPhLayer();
   const where = c ? `Column ${tbc.c + 1} of ${T.cols.length} · bar ${bi + 1} · ${STRING_ORD[tbc.s]} string${rd ? ` · sounds like <b>${rd.name}</b>` : ''}${bars[bi] && bars[bi].ticks > T.beats * TQ ? ` · this bar is longer than ${T.beats} beats` : ''}` : `New column · bar ${bi + 1}. Tap the neck to put notes in it${state.tabAdv ? '' : ', then Next ▶'}.`;
+  const sel = (() => { const rg = tbRange(T), pst = tbClip && tbClip.length ? `<button type="button" class="btn" data-act="tbpastecols" title="Put the copied columns in at the cursor">Paste ${tbClip.length}</button>` : '';
+    if (!tbSel) return {bar:pst ? `<div class="row nw tbselrow">${pst}<span class="info">at the cursor</span></div>` : '', btn:`<button type="button" class="btn" data-act="tbselect"${T.cols.length ? '' : ' disabled'} title="Select columns to copy, cut or delete">Select</button>`};
+    return {bar:`<div class="row nw tbselrow"><span class="info"><b>${rg ? rg[1] - rg[0] + 1 : 0}</b> selected · tap the last column</span><button type="button" class="btn" data-act="tbcopycols"${rg ? '' : ' disabled'}>Copy</button><button type="button" class="btn" data-act="tbcut"${rg ? '' : ' disabled'}>Cut</button><button type="button" class="btn" data-act="tbseldel"${rg ? '' : ' disabled'}>Delete</button><button type="button" class="ib" data-act="tbselclear" aria-label="Stop selecting">✕</button>${pst}</div>`, btn:''};
+  })();
+  const ring = !q && tbc.c > 0 ? tbRinging(T, tbc.c, tbc.s) : null;
+  const muteRow = ring ? `<button type="button" class="btn" data-act="tbmutehere" title="Stop the note ringing on this string right here">◼ Mute the ${tbCore(ring.q)} here</button>${ring.q.len ? '<span class="info">it is muted earlier now</span>' : ''}`
+    : `<span class="info">Mute after</span><div class="seg" aria-label="Mute this note after">${[[0, 'Rings'], ...TBASE.slice().reverse().map(([b, l]) => [b, l])].map(([d, l]) => `<button type="button" data-act="tbmute" data-v="${d}" aria-pressed="${!!q && (q.len || 0) === d}" title="${d ? 'Stop it ringing after a ' + tbLenName(d) : 'Let it ring until the next note on this string'}"${q && q.t !== 'x' ? '' : ' disabled'}>${l}</button>`).join('')}</div>${q && q.len && !tbDec(q.len) ? `<span class="info">muted after ${tbLenName(q.len)}</span>` : ''}`;
   return `<div class="tbx">
-    <div class="row tbhead"><input class="task-in tbname" id="tbname" type="text" maxlength="60" autocomplete="off" aria-label="Tab name" value="${esc(T.name)}">
+    <div class="row nw tbtop"><button type="button" class="btn${tbp.on ? ' primary' : ''}" data-act="tbplay" aria-pressed="${tbp.on}"${T.cols.some(x => x.n.length) ? '' : ' disabled'}>${tbp.on ? '■ Stop' : '▶ Play'}</button>
+      ${tbc.c > 0 && tbc.c < T.cols.length && !tbp.on ? `<button type="button" class="btn" data-act="tbplayhere">▶ Here</button>` : ''}
       <span class="sp-tempo"><button type="button" class="ib" data-act="tbbpm" data-v="-5" aria-label="5 bpm slower">−5</button><b>${T.bpm}</b> bpm<button type="button" class="ib" data-act="tbbpm" data-v="5" aria-label="5 bpm faster">+5</button></span>
-      <span class="sp-tempo"><button type="button" class="ib" data-act="tbbeats" data-v="-1" aria-label="Fewer beats a bar"${T.beats <= 1 ? ' disabled' : ''}>−</button><b>${T.beats}/4</b><button type="button" class="ib" data-act="tbbeats" data-v="1" aria-label="More beats a bar"${T.beats >= 12 ? ' disabled' : ''}>+</button></span></div>
-    <div class="row"><button type="button" class="btn${tbp.on ? ' primary' : ''}" data-act="tbplay" aria-pressed="${tbp.on}"${T.cols.some(x => x.n.length) ? '' : ' disabled'}>${tbp.on ? '■ Stop' : '▶ Play'}</button>
-      ${tbc.c > 0 && tbc.c < T.cols.length && !tbp.on ? `<button type="button" class="btn" data-act="tbplayhere">▶ From here</button>` : ''}
-      <button type="button" class="chip${state.tabLoop ? ' sel' : ''}" data-act="tbloop" aria-pressed="${!!state.tabLoop}">↻ Loop</button>
-      <button type="button" class="chip${state.tabClick ? ' sel' : ''}" data-act="tbclick" aria-pressed="${!!state.tabClick}" title="A click on every beat">Click</button>
-      <button type="button" class="chip${state.tabCount ? ' sel' : ''}" data-act="tbcount" aria-pressed="${!!state.tabCount}" title="One bar of clicks first">Count in</button></div>
+      <button type="button" class="chip${state.tabLoop ? ' sel' : ''}" data-act="tbloop" aria-pressed="${!!state.tabLoop}" aria-label="Loop">↻</button></div>
     ${tbSheet(T)}
     <div class="tbtools">
-      <div class="row"><div class="seg" aria-label="Length">${TBASE.map(([b, t, h]) => `<button type="button" data-act="tbdur" data-v="${b}" aria-pressed="${dc.b === b}" title="${h}">${t}</button>`).join('')}</div>
+      <div class="row nw tbedit"><button type="button" class="ib" data-act="tbmove" data-v="-1" aria-label="Previous column"${tbc.c <= 0 ? ' disabled' : ''}>◀</button><button type="button" class="btn primary" data-act="tbmove" data-v="1" title="Move to the next column"${tbc.c >= T.cols.length ? ' disabled' : ''}>Next ▶</button>
+        <button type="button" class="btn" data-act="tbrest" title="Make this column a rest">Rest</button>
+        <button type="button" class="btn" data-act="tbdelnote"${q ? '' : ' disabled'}>✕ Note</button>
+        <button type="button" class="ib" data-act="tbundo" aria-label="Undo"${tbUndo.length ? '' : ' disabled'}>↶</button><button type="button" class="ib" data-act="tbredo" aria-label="Redo"${tbRedo.length ? '' : ' disabled'}>↷</button></div>
+      ${sel.bar}
+      <div class="row nw"><div class="seg" aria-label="Length">${TBASE.map(([b, t, h]) => `<button type="button" data-act="tbdur" data-v="${b}" aria-pressed="${dc.b === b}" title="${h}">${t}</button>`).join('')}</div>
         <button type="button" class="chip${dc.m === 'dot' ? ' sel' : ''}" data-act="tbdot" aria-pressed="${dc.m === 'dot'}" title="Half as long again">Dotted</button>
         <button type="button" class="chip${dc.m === 'tri' ? ' sel' : ''}" data-act="tbtri" aria-pressed="${dc.m === 'tri'}" title="Three in the time of two">Triplet</button></div>
-      <div class="row"><div class="seg" aria-label="Technique">${Object.entries(TTECH).map(([k, [t, h]]) => `<button type="button" data-act="tbtech" data-v="${k}" aria-pressed="${!!q && q.t === k}" title="${h}"${q || k === 'x' ? '' : ' disabled'}>${t === '/' ? '/ \\' : t}</button>`).join('')}</div>
-        <button type="button" class="chip${(c ? c.pm : state.tabPm) ? ' sel' : ''}" data-act="tbpm" aria-pressed="${!!(c ? c.pm : state.tabPm)}" title="Palm mute: rest the picking hand on the strings by the bridge. Stays on for the columns you write next.">PM</button>
-        <button type="button" class="chip tog${state.tabAdv ? ' sel' : ''}" data-act="tbstep" aria-pressed="${!!state.tabAdv}" title="For single-note lines: after each note (or chord), go to the next column by itself">Move on after each note</button></div>
-      ${q && q.t !== 'x' ? `<div class="row"><span class="info">Mute after</span><div class="seg" aria-label="Mute this note after">${[[0, 'Rings'], ...TBASE.slice().reverse().map(([b, l]) => [b, l])].map(([d, l]) => `<button type="button" data-act="tbmute" data-v="${d}" aria-pressed="${(q.len || 0) === d}" title="${d ? 'Stop it ringing after a ' + tbLenName(d) : 'Let it ring until the next note on this string'}">${l}</button>`).join('')}</div>${q.len && !tbDec(q.len) ? `<span class="info">muted after ${tbLenName(q.len)}</span>` : ''}</div>`
-        : !q && tbRinging(T, tbc.c, tbc.s) && tbc.c > 0 ? `<div class="row"><button type="button" class="btn" data-act="tbmutehere" title="Stop the note ringing on this string right here">◼ Mute the ${tbCore(tbRinging(T, tbc.c, tbc.s).q)} here</button>${tbRinging(T, tbc.c, tbc.s).q.len ? '<span class="info">it is muted earlier now</span>' : ''}</div>` : ''}
-      <div class="row tbchord"><input class="task-in" id="tbchord" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="Chord: Am7, G, F#m…" aria-label="Put in a chord by name" value="${esc(tbChordQ)}"><span id="tbfound" class="row">${tbFound(tbChordQ)}</span>
-        ${tbLast && T.cols[tbLast.c] && tbLast.vs.length > 1 ? `<button type="button" class="btn" data-act="tbchordnext" title="The same chord, another place on the neck">Other ${esc(tbLast.name)} shape (${tbLast.k + 1} of ${tbLast.vs.length})</button>` : ''}</div>
-      <div class="row tbedit"><button type="button" class="ib" data-act="tbmove" data-v="-1" aria-label="Previous column"${tbc.c <= 0 ? ' disabled' : ''}>◀</button><button type="button" class="btn primary" data-act="tbmove" data-v="1" title="Move to the next column"${tbc.c >= T.cols.length ? ' disabled' : ''}>Next ▶</button>
-        <button type="button" class="btn" data-act="tbrest" title="Make this column a rest">Rest</button>
-        <button type="button" class="btn" data-act="tbins" title="A new empty column here">Insert</button>
-        <button type="button" class="btn" data-act="tbdelnote"${q ? '' : ' disabled'}>✕ Note</button>
-        <button type="button" class="btn" data-act="tbdelcol"${c ? '' : ' disabled'}>✕ Column</button>
-        <button type="button" class="ib" data-act="tbundo" aria-label="Undo"${tbUndo.length ? '' : ' disabled'}>↶</button><button type="button" class="ib" data-act="tbredo" aria-label="Redo"${tbRedo.length ? '' : ' disabled'}>↷</button></div>
-      <div class="row tbselrow">${(() => { const rg = tbRange(T), pst = tbClip && tbClip.length ? `<button type="button" class="btn" data-act="tbpastecols" title="Put the copied columns in at the cursor">Paste ${tbClip.length}</button>` : '';
-        if (!tbSel) return `<button type="button" class="btn" data-act="tbselect"${T.cols.length ? '' : ' disabled'} title="Select columns to copy, cut or delete">Select</button>${pst}`;
-        return `<span class="info"><b>${rg ? rg[1] - rg[0] + 1 : 0}</b> selected · tap the last column</span><button type="button" class="btn" data-act="tbcopycols"${rg ? '' : ' disabled'}>Copy</button><button type="button" class="btn" data-act="tbcut"${rg ? '' : ' disabled'}>Cut</button><button type="button" class="btn" data-act="tbseldel"${rg ? '' : ' disabled'}>Delete</button><button type="button" class="ib" data-act="tbselclear" aria-label="Stop selecting">✕</button>${pst}`; })()}</div>
+      <div class="row nw"><div class="seg" aria-label="Technique">${Object.entries(TTECH).map(([k, [t, h]]) => `<button type="button" data-act="tbtech" data-v="${k}" aria-pressed="${!!q && q.t === k}" title="${h}"${q || k === 'x' ? '' : ' disabled'}>${t === '/' ? '/ \\' : esc(t)}</button>`).join('')}</div>
+        <button type="button" class="chip${(c ? c.pm : state.tabPm) ? ' sel' : ''}" data-act="tbpm" aria-pressed="${!!(c ? c.pm : state.tabPm)}" title="Palm mute: rest the picking hand on the strings by the bridge. Stays on for the columns you write next.">PM</button></div>
+      <div class="row nw tbmuterow">${muteRow}</div>
       <span class="info tbwhere">${where}</span>
     </div>
-    ${fold('tbmore', 'More', '', `<div class="row"><input class="task-in" id="tblab" type="text" maxlength="24" autocomplete="off" placeholder="Label: a chord or a part (Verse, Chorus)" aria-label="Label above this column" value="${esc(c && c.lab || '')}"${c ? '' : ' disabled'}>
-        <button type="button" class="btn" data-act="tbdup"${T.cols.length ? '' : ' disabled'} title="Copy this bar right after itself">Repeat this bar</button></div>
+    ${fold('tbmore', 'More tools', 'insert, chords, select, labels', `<div class="row"><button type="button" class="btn" data-act="tbins" title="A new empty column here">Insert</button>
+        <button type="button" class="btn" data-act="tbdelcol"${c ? '' : ' disabled'}>✕ Column</button>${sel.btn}
+        <button type="button" class="btn" data-act="tbdup"${T.cols.length ? '' : ' disabled'} title="Copy this bar right after itself">Repeat this bar</button>
+        <button type="button" class="chip tog${state.tabAdv ? ' sel' : ''}" data-act="tbstep" aria-pressed="${!!state.tabAdv}" title="For single-note lines: after each note (or chord), go to the next column by itself">Move on after each note</button></div>
+      <div class="row tbchord"><input class="task-in" id="tbchord" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="Chord: Am7, G, F#m…" aria-label="Put in a chord by name" value="${esc(tbChordQ)}"><span id="tbfound" class="row">${tbFound(tbChordQ)}</span>
+        ${tbLast && T.cols[tbLast.c] && tbLast.vs.length > 1 ? `<button type="button" class="btn" data-act="tbchordnext" title="The same chord, another place on the neck">Other ${esc(tbLast.name)} shape (${tbLast.k + 1} of ${tbLast.vs.length})</button>` : ''}</div>
+      <div class="row"><input class="task-in" id="tblab" type="text" maxlength="24" autocomplete="off" placeholder="Label: a chord or a part (Verse, Chorus)" aria-label="Label above this column" value="${esc(c && c.lab || '')}"${c ? '' : ' disabled'}></div>
       <div class="row"><button type="button" class="btn" data-act="tbaddph"${ph ? '' : ' disabled'} title="${ph ? 'The phrase from the Layers tab' : 'Pick a scale position on the Layers tab first'}">＋ Phrase #${PHR.n}</button>
         <button type="button" class="btn" data-act="tbaddpins"${state.pins.length ? '' : ' disabled'}>＋ Pinned chords${state.pins.length ? ` (${state.pins.length})` : ''}</button>
         <button type="button" class="btn" data-act="tbaddpicks"${state.picks.length ? '' : ' disabled'}>＋ Chord finder notes</button></div>
       <span class="hint tip">These go in at the cursor. The phrase comes from the hammer and pluck phrases on the Layers tab, with its chords as labels.</span>`)}
+    ${fold('tbset', 'Tab settings', `${esc(T.name)} · ${T.beats}/4${state.tabClick ? ' · click' : ''}${state.tabCount ? ' · count-in' : ''}`, `<div class="row"><input class="task-in tbname" id="tbname" type="text" maxlength="60" autocomplete="off" aria-label="Tab name" value="${esc(T.name)}">
+        <span class="sp-tempo"><button type="button" class="ib" data-act="tbbeats" data-v="-1" aria-label="Fewer beats a bar"${T.beats <= 1 ? ' disabled' : ''}>−</button><b>${T.beats}/4</b><button type="button" class="ib" data-act="tbbeats" data-v="1" aria-label="More beats a bar"${T.beats >= 12 ? ' disabled' : ''}>+</button></span></div>
+      <div class="row"><button type="button" class="chip${state.tabClick ? ' sel' : ''}" data-act="tbclick" aria-pressed="${!!state.tabClick}" title="A click on every beat">Click</button>
+        <button type="button" class="chip${state.tabCount ? ' sel' : ''}" data-act="tbcount" aria-pressed="${!!state.tabCount}" title="One bar of clicks first">Count in</button></div>`)}
     ${fold('tbtext', 'Copy or paste text tab', '', `<div class="row"><button type="button" class="btn" data-act="tbcopy">Copy as text</button></div>${imp}`)}
     ${fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div><div class="row"><button type="button" class="btn" data-act="tbnew">＋ New tab</button></div>`)}
-    <span class="hint tip">On a keyboard: click the tab, then arrows move, numbers type a fret (two quickly for 10 and up), H P S B V X mark a technique, M palm-mutes, O mutes the ringing note at the cursor, Delete removes, R makes a rest, + and − change the length, Space plays, Ctrl+Z undoes. Shift with the arrows (or a click) selects; Ctrl+C, X and V copy, cut and paste.</span>
+    <span class="hint tip">On a keyboard: click the tab, then arrows move, numbers type a fret (two quickly for 10 and up), H P S B V X mark a technique, N and A natural and pinch harmonics, M palm-mutes, O mutes the ringing note at the cursor, Delete removes, R makes a rest, + and − change the length, Space plays, Ctrl+Z undoes. Shift with the arrows (or a click) selects; Ctrl+C, X and V copy, cut and paste.</span>
   </div>`;
 }
+/* on a phone, scroll so the editor starts just under the pinned neck: the tab and its tools then fit on one screen */
+function tbScrollFit(){ const top = $('.tbtop'), w = $('.neck-wrap'); if (!top || !w) return; const pin = getComputedStyle(w).position === 'sticky' ? w.offsetHeight : 0; scrollTo({top:Math.max(0, top.getBoundingClientRect().top + scrollY - pin - 6), behavior:'instant'}); }
 /* redraw, keeping the tab focused (for the keyboard) and the cursor in sight */
 function tbRender(){
   const sh0 = $('#tbsheet'), had = document.activeElement === sh0, top = sh0 ? sh0.scrollTop : 0;
@@ -2297,7 +2322,7 @@ function tbKey(e){
     }
     case 'Insert': case 'i': tbEdit(T => T.cols.splice(tbc.c, 0, tbNew())); return go();
     case 'r': handleTab('tbrest', {dataset:{}}); e.preventDefault(); return;
-    case 'h': case 'p': case 's': case 'b': case 'v': case 'x': tbTech(lk); return go();
+    case 'h': case 'p': case 's': case 'b': case 'v': case 'x': case 'n': case 'a': tbTech(lk); return go();
     case 'm': tbPmToggle(); return go();
     case 'o': { const z = tbAt(T), q = z && z.n.find(x => x.s === tbc.s); if (q) tbEdit(() => { delete q.len; }); else tbMuteHere(); return go(); }
     case '/': case '\\': tbTech('s'); return go();
@@ -6625,6 +6650,7 @@ function render(){
   panel.innerHTML = subNav() + (state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'tab' ? renderTab() : state.tab === 'practice' ? renderPractice() : renderLayers());
   { const r = panel.querySelector('.ptabs:not(.subtabs)'), b = r && r.querySelector('[aria-selected="true"]'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - r.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; }     // keep the open section in sight
 
+  if (!hold && state.tab === 'tab' && thumbQ.matches && !landQ.matches) setTimeout(tbScrollFit, 0);      // a phone: the editor sits right under the neck
   if (hold) { panel.style.minHeight = ''; if (mm.scrollTop !== m0) mm.scrollTop = m0; if (Math.abs(window.scrollY - y0) > 1 && !landQ.matches) scrollTo({top:y0, behavior:'instant'}); }
   tunerPaint();
   tickUI();
