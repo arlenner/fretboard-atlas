@@ -1665,48 +1665,60 @@ function motifFor(L){
   const chords = degs.map(g => { const d = seven && D[g]; return d ? (d.stack ? d.name + CHORDS[d.stack].sym : d.name + ' in thirds') : layerTitle(L).replace(/<[^>]+>/g, ''); });
   const rootOf = bar => seven ? pcs[degs[bar]] : pcs[0];
   const tonesOf = bar => seven ? [0, 2, 4].map(k => pcs[(degs[bar] + k) % 7]) : pcs.filter(x => [0, 3, 4, 7].includes(mod(x - pcs[0])));
-  const nS = per === 1 ? 2 : 4, slots = 8 / nS * per;
-  // a rhythm of k notes in a statement: mostly on the beat, now and then starting just after it
-  const rhythm = k => {
-    const s0 = rnd() < .8 ? 0 : 1, free = []; for (let u = s0 + 1; u < slots; u++) free.push(u);
-    const on = [s0];
-    while (on.length < k && free.length) { const w = free.map(u => u % per ? 1 : 2.5), tot = w.reduce((a, b) => a + b, 0); let r = rnd() * tot, j = 0; while ((r -= w[j]) > 0) j++; on.push(free.splice(j, 1)[0]); }
-    return on.sort((a, b) => a - b);
-  };
-  const path = (i0, st) => { let i = Math.max(0, Math.min(U.length - 1, i0)); const out = [i]; st.forEach(x => { let j = i + x; if (j < 0 || j >= U.length) j = i - x; i = Math.max(0, Math.min(U.length - 1, j)); out.push(i); }); return out; };
+  // the grid: 16ths, or triplet 8ths. A statement is two beats (four at quarter notes), built a beat at a time from figures
+  // that suit the note value picked: long notes and held beats, dotted rhythms, off-beats, now and then a figure over two beats
+  const G = per === 3 ? 3 : 4, nS = per === 1 ? 2 : 4, beats = 8 / nS, slots = beats * G;
+  const F1 = {1:[[[0], 5], [[], 2.5], [[0, 2], 2], [[2], 1], [[0, 3], .6]],
+    2:[[[0, 2], 4], [[0], 2.5], [[2], 2], [[0, 3], 1.5], [[0, 2, 3], 1], [[0, 1, 2], 1], [[], 1.2]],
+    3:[[[0, 1, 2], 2.5], [[0, 2], 3], [[0], 1.5], [[1, 2], 1.2], [[2], 1], [[0, 1], .8], [[], .8]],
+    4:[[[0, 1, 2, 3], 3], [[0, 2, 3], 2], [[0, 1, 2], 2], [[0, 2], 2], [[0, 3], 1], [[1, 2, 3], 1], [[0, 1, 3], 1], [[2, 3], .8], [[0], .6]]}[per];
+  const F2 = per === 3 ? [[[0, 2, 4], 1.5], [[0, 4], 1], [[0, 1, 2, 4], .8]] : per === 4 ? [[[0, 3, 6], 1], [[0, 3, 6, 7], 1], [[0, 2, 6], .8], [[2, 4, 6], .6]] : [[[0, 3, 6], 1], [[0, 6], 1], [[2, 6], .6], [[0, 2, 6], .8]];
+  const wpick = a => { let r = rnd() * a.reduce((s, x) => s + x[1], 0); for (const x of a) if ((r -= x[1]) <= 0) return x[0]; return a[a.length - 1][0]; };
+  const lo = 3, hi = per === 4 ? 7 : 6;
+  const fig = b => { const on = []; for (let k = 0; k < beats; ) { if (k + 2 <= beats && rnd() < .25) { wpick(F2).forEach(u => on.push((b + k) * G + u)); k += 2; } else { wpick(F1).forEach(u => on.push((b + k) * G + u)); k++; } } return on; };
+  const okR = on => on.length >= lo && on.length <= hi && on[0] < G;
+  const rhythm = () => { let on = fig(0); for (let t = 0; t < 40 && !okR(on); t++) on = fig(0); return okR(on) ? on : [0, Math.floor(slots / 2), slots - G]; };
+  // the same rhythm with one beat changed
+  const rhythm1 = on => { const b = Math.floor(rnd() * beats), keep = on.filter(u => Math.floor(u / G) !== b), nw = wpick(F1).map(u => b * G + u); return keep.concat(nw).sort((x, y) => x - y); };
+  const path = (i0, st, n) => { let i = Math.max(0, Math.min(U.length - 1, i0)); const out = [i]; st.slice(0, n - 1).forEach(x => { let j = i + x; if (j < 0 || j >= U.length) j = i - x; i = Math.max(0, Math.min(U.length - 1, j)); out.push(i); }); return out; };
   const nearPc = (i, tones) => { const c = U.map((m, j) => j).filter(j => tones.includes(mod(U[j]))); return c.length ? c.sort((a, b) => Math.abs(a - i) - Math.abs(b - i))[0] : i; };
   // the idea: starts on one of bar 1's chord tones, near the middle, and moves mostly by step
-  const k = Math.min(slots, 3 + Math.floor(rnd() * 3)), on0 = rhythm(k);
+  const on0 = rhythm(), n0 = on0.length;
   const i0 = nearPc(Math.floor(U.length / 2) + Math.floor(rnd() * 3) - 1, tonesOf(0));
-  const st = Array.from({length:on0.length - 1}, () => pick([1, 1, 2, -1, -1, -2, 0, 3, -3]));
-  if (st.every(x => x === 0)) st[0] = 1;
-  const idea = {on:on0, idx:path(i0, st), name:'the idea'};
+  const st = Array.from({length:12}, () => pick([1, 1, 2, -1, -1, -2, 0, 3, -3]));
+  if (st.slice(0, n0 - 1).every(x => x === 0)) st[0] = 1;
+  const idea = {on:on0, idx:path(i0, st, n0), name:'the idea'};
+  const rel = o => o.map(x => x - o[0]).join(), sh8 = G === 3 ? 1 : 2;
   const vars = [
-    () => { const sh = pick([1, -1, 2, -2]); return {on:on0, idx:path(i0 + sh, st), name:sh > 0 ? (sh > 1 ? 'a third up' : 'a step up') : (sh < -1 ? 'a third down' : 'a step down')}; },
-    () => { const rel = o => o.map(x => x - o[0]).join(); let on = on0; for (let t = 0; t < 8 && rel(on) === rel(on0); t++) on = rhythm(on0.length); return rel(on) === rel(on0) ? null : {on, idx:idea.idx, name:'new rhythm'}; },
-    () => st.some(x => x) ? {on:on0, idx:path(i0, st.map(x => -x)), name:'upside down'} : null,
+    () => { const sh = pick([1, -1, 2, -2]); return {on:on0, idx:path(i0 + sh, st, n0), name:sh > 0 ? (sh > 1 ? 'a third up' : 'a step up') : (sh < -1 ? 'a third down' : 'a step down')}; },
+    () => { let on = on0; for (let t = 0; t < 10 && (rel(on) === rel(on0) || !okR(on)); t++) on = rhythm1(on0); return rel(on) === rel(on0) || !okR(on) ? null : {on, idx:path(i0, st, on.length), name:'new rhythm'}; },
+    () => on0[0] + sh8 < G && on0[n0 - 1] + sh8 < slots ? {on:on0.map(u => u + sh8), idx:idea.idx, name:G === 3 ? 'a triplet later' : 'an 8th later'} : null,
+    () => st.slice(0, n0 - 1).some(x => x) ? {on:on0, idx:path(i0, st.map(x => -x), n0), name:'upside down'} : null,
     () => new Set(idea.idx).size > 1 ? {on:on0, idx:idea.idx.slice().reverse(), name:'backwards'} : null
   ];
   const sig = S => S.on.join() + '/' + S.idx.join();
-  // onto bar 2's chord: the smallest move that starts it on one of that chord's tones
+  // onto bar 2's chord: the smallest move that starts it on one of that chord's tones (sometimes with a beat of new rhythm)
   const t2 = tonesOf(1), sh2 = [0, 1, -1, 2, -2, 3, -3].find(x => i0 + x >= 0 && i0 + x < U.length && t2.includes(mod(U[i0 + x]))) || 0;
-  const moved = {on:on0, idx:path(i0 + sh2, st), name:sh2 ? 'moved to the new chord' : 'again'};
-  const end = moved.idx.slice(), last = end.length - 1, rt = nearPc(end[last], [rootOf(1)]);
-  end[last] = rt;      // it lands on the chord's root; if it did already, the note before it changes instead
+  let on3 = on0; if (rnd() < .35) { const r = rhythm1(on0); if (okR(r)) on3 = r; }
+  const moved = {on:on3, idx:path(i0 + sh2, st, on3.length), name:sh2 ? 'moved to the new chord' : on3 === on0 ? 'again' : 'again, new rhythm'};
+  // the ending lands on the chord's root, often a note early so it can ring
+  const onE = on3.length > 3 && rnd() < .5 ? on3.slice(0, -1) : on3;
+  const end = moved.idx.slice(0, onE.length), last = end.length - 1;
+  end[last] = nearPc(end[last], [rootOf(1)]);
   if (end.join() === moved.idx.join() || rnd() < .4) { const a = end[last] + (end[last - 1] > end[last] ? -1 : 1), b2 = end[last] - (end[last - 1] > end[last] ? -1 : 1); end[last - 1] = a >= 0 && a < U.length ? a : b2; }
   for (const x of [1, -1, 2, -2]) { if (end.join() !== moved.idx.join()) break; const j = end[last - 1] + x; if (j >= 0 && j < U.length) end[last - 1] = j; }
-  const ending = {on:on0, idx:end, name:'new ending'};
+  const ending = {on:onE, idx:end, name:'new ending'};
   // the variation has to sound different from the idea and from statement 3
-  let v2 = null; for (let t = 0; t < 12 && !v2; t++) { v2 = pick(vars)(); if (v2 && (sig(v2) === sig(idea) || sig(v2) === sig(moved))) v2 = null; }
+  let v2 = null; for (let t = 0; t < 14 && !v2; t++) { v2 = pick(vars)(); if (v2 && (sig(v2) === sig(idea) || sig(v2) === sig(moved))) v2 = null; }
   const NM = {1:'a step up', '-1':'a step down', 2:'a third up', '-2':'a third down', 3:'a fourth up', '-3':'a fourth down'};
-  for (const sh of [2, -2, 1, -1, 3, -3]) { if (v2 && sig(v2) !== sig(ending)) break; const c = {on:on0, idx:path(i0 + sh, st), name:NM[sh]}; if (![idea, moved, ending].some(S => sig(S) === sig(c))) v2 = c; }
+  for (const sh of [2, -2, 1, -1, 3, -3]) { if (v2 && sig(v2) !== sig(ending)) break; const c = {on:on0, idx:path(i0 + sh, st, n0), name:NM[sh]}; if (![idea, moved, ending].some(S => sig(S) === sig(c))) v2 = c; }
   const plan = nS === 4 ? [idea, v2 || moved, moved, ending] : [idea, Object.assign({}, ending, {name:'moved, new ending'})];
   // fingering: of the places a pitch can be played, the one nearest the last note
   const notes = []; let prev = null;
   plan.forEach((S, si) => S.idx.forEach((ix, j) => {
     const un = si * slots + S.on[j], d = (j + 1 < S.on.length ? S.on[j + 1] : si + 1 < plan.length ? slots + plan[si + 1].on[0] : slots) - S.on[j], m = U[ix];      // it lasts until the next note
     const q = by.get(m).slice().sort((a, b) => prev ? Math.abs(a.s - prev.s) + Math.abs(a.f - prev.f) / 3 - Math.abs(b.s - prev.s) - Math.abs(b.f - prev.f) / 3 : 0)[0]; prev = q;
-    notes.push({s:q.s, f:q.f, m, h:false, cell:si, start:j === 0, bar:Math.floor(un / (4 * per)), gi:0, gn:1, t:un / per, d:d / per, tri:per % 3 === 0 ? Math.round(un) % 3 : -1});
+    notes.push({s:q.s, f:q.f, m, h:false, cell:si, start:j === 0, bar:Math.floor(un / (4 * G)), gi:0, gn:1, t:un / G, d:d / G, tri:G === 3 ? Math.round(un) % 3 : -1});
   }));
   return {notes, chords, note:'', cells:[], per, kind:'motif', parts:plan.map(S => S.name), roots:[rootOf(0), rootOf(1)]};
 }
