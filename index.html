@@ -524,6 +524,16 @@ body.pv-done .neck-wrap{display:none !important}
 .fold-h i{font-style:normal; color:var(--muted); font-size:12px; margin-left:auto}
 .fold-b{display:grid; gap:10px; grid-template-columns:minmax(0, 1fr); padding:10px 2px 4px}
 .fold.shut > .fold-b{display:none}
+/* open: the header lights up and the contents sit in a box joined to it; shut: a plain bar with a chevron */
+.fold-h i{transition:transform .15s}
+.fold:not(.shut) > .fold-h{border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); background:color-mix(in srgb, var(--accent) 12%, var(--surface-2)); border-radius:10px 10px 0 0}
+.fold:not(.shut) > .fold-h b, .fold:not(.shut) > .fold-h i{color:var(--accent)}
+.fold:not(.shut) > .fold-b{border:1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-top:0; border-radius:0 0 10px 10px; padding:10px 10px 12px}
+.scfam{display:flex; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; overscroll-behavior-x:contain}
+.scfam::-webkit-scrollbar{display:none}
+.scfam button{flex:none; position:relative}
+.scfam .here{display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent); margin-left:5px; vertical-align:middle}
+.lsum button[aria-expanded="true"]{background:color-mix(in srgb, var(--accent) 12%, var(--surface-2))}
 body:not(.tips) .tip{display:none}
 .help-btn{border:1px solid var(--line); background:var(--surface); color:var(--ink); border-radius:8px; width:36px; height:31px; font-weight:700; padding:0}
 .help-btn[aria-pressed="true"]{background:var(--sel-bg); color:var(--sel-ink)}
@@ -551,7 +561,7 @@ body:not(.tips) .found:not(:has(> :not(.tip))){display:none}
   .toolbar2 [data-act="example"]{display:none}
   .sec:not(.open){display:none}
   .fold.insec > .fold-h{display:none}
-  .fold.insec > .fold-b{display:grid; padding:0}
+  .fold.insec > .fold-b{display:grid; padding:0; border:0}
 }
 @media (pointer: coarse){
   .chip, .btn, .panel .seg button{min-height:38px}
@@ -1157,6 +1167,10 @@ const ARP_TYPES = ['maj','min','7','maj7','m7','m7b5','dim7','dim','aug','mM7','
 const QUICK_ARPS = ['maj','min','7','maj7','m7','m7b5','dim7'];
 ARP_TYPES.forEach(cid => { SCALES['arp_' + cid] = {name:CHORDS[cid].name + ' arpeggio', labels:CHORDS[cid].labels.slice(), arp:true, chord:cid}; });
 OTHER_SCALES.push(['Arpeggios', ARP_TYPES.map(c => 'arp_' + c)]);
+/* the families the scale picker shows, with short names for its tabs */
+const SC_FAM_SHORT = {'Pentatonic & blues':'Pentatonic', 'World pentatonics':'World', 'Melodic minor & its modes':'Melodic minor', 'Harmonic minor & its modes':'Harmonic minor', 'Harmonic major & exotic':'Exotic'};
+const SC_FAMS = [['modes', 'Modes', MODES]].concat(OTHER_SCALES.map(([g, ids]) => [g, SC_FAM_SHORT[g] || g, ids]));
+const scFamOf = type => { const f = SC_FAMS.find(x => x[2].includes(type)); return f ? f[0] : 'modes'; };
 /* lesson ingredients come from the same lists as the rest of the app, so new scales and chords show up there too */
 const LESSON_SCALE_GROUPS = [['Modes', MODES.slice()]].concat(OTHER_SCALES.map(([g, ids]) => [g, ids.filter(id => id !== 'chromatic' && SCALES[id])])).filter(([, ids]) => ids.length);
 const LESSON_CHORD_GROUPS = () => CHORD_LIST.map(([g, list]) => [g, list.map(x => x[0]).filter(id => id !== '5')]);
@@ -2876,14 +2890,17 @@ function layerCard(L, i){
     }
   }
   if (L.kind === 'scale') {
-    h += `${sec('type')}<div class="row"><span class="rl">Modes</span><div class="seg" aria-label="Which modes"><button type="button" data-act="modeby" data-v="" aria-pressed="${!state.modeRel}">Same root (parallel)</button><button type="button" data-act="modeby" data-v="1" aria-pressed="${!!state.modeRel}">Same notes (relative)</button></div></div>
+    // the scale: a row of families, then that family's scales one tap each (and the ones you used last)
+    const fam = SC_FAMS.find(f => f[0] === state.scFam) || SC_FAMS.find(f => f[2].includes(L.type)) || SC_FAMS[0], curFam = scFamOf(L.type);
+    const sChip = id => `<button type="button" class="chip${L.type === id ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="${id}" title="${scaleTitle(L.root, id).replace(/<[^>]+>/g, '')}">${SCALES[id].arp ? pn(rootName(L.root, CHORDS[SCALES[id].chord].labels)) + CHORDS[SCALES[id].chord].sym : MODES.includes(id) ? SCALES[id].short : SCALES[id].name}</button>`;
+    const rec = (state.scRecent || []).filter(id => SCALES[id]).slice(0, 6);
+    h += `${sec('type')}${rec.length > 1 ? `<div class="row"><span class="rl">Recent</span>${rec.map(sChip).join('')}</div>` : ''}
+      <div class="seg scfam" aria-label="Scale family">${SC_FAMS.map(f => `<button type="button" data-act="scfam" data-i="${i}" data-v="${f[0]}" aria-pressed="${f === fam}"${f[0] === curFam && f !== fam ? ' title="The scale you have is in here"' : ''}>${f[1]}${f[0] === curFam && f !== fam ? '<i class="here" aria-label=" (yours is here)"></i>' : ''}</button>`).join('')}</div>
+      ${fam[0] === 'modes' ? `<div class="row"><div class="seg" aria-label="Which modes"><button type="button" data-act="modeby" data-v="" aria-pressed="${!state.modeRel}">Same root (parallel)</button><button type="button" data-act="modeby" data-v="1" aria-pressed="${!!state.modeRel}">Same notes (relative)</button></div></div>
       <div class="row">${MODES.map((m, k) => { const r = state.modeRel ? mod(modeParent(L) + MODE_OFF[k]) : L.root; return `<button type="button" class="chip${L.type === m ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="${m}" data-r="${r}">${pn(rootName(r, SCALES[m].labels))} ${SCALES[m].short}</button>`; }).join('')}</div>
-      ${state.modeRel ? `<span class="info">All from ${pn(rootName(modeParent(L), SCALES.ionian.labels))} major: the notes stay, the root moves.</span>` : MODES.includes(L.type) ? `<span class="info"><b>${SCALES[L.type].short}:</b> ${MODE_CHAR[MODES.indexOf(L.type)].replace(/^./, c => c.toLowerCase())}</span>` : ''}
-      ${fold('arps', 'Other scales and arpeggios', MODES.includes(L.type) ? '' : SCALES[L.type].name, `<div class="row"><span class="rl">Arpeggio</span>${QUICK_ARPS.map(c => `<button type="button" class="chip${L.type === 'arp_' + c ? ' sel' : ''}" data-act="stype" data-i="${i}" data-v="arp_${c}">${pn(rootName(L.root, CHORDS[c].labels))}${CHORDS[c].sym}</button>`).join('')}</div>
-      <div class="row"><span class="rl">Other scales</span><select class="sel" id="stype-${L.id}" data-act="stype-sel" data-i="${i}" aria-label="Other scales">
-        <option value="">${MODES.includes(L.type) || QUICK_ARPS.includes((SCALES[L.type].chord || '')) && SCALES[L.type].arp ? 'Choose a scale…' : ''}</option>
-        ${OTHER_SCALES.map(([g, ids]) => `<optgroup label="${g}">${ids.map(id => `<option value="${id}"${L.type === id ? ' selected' : ''}>${pn(rootName(L.root, SCALES[id].labels))} ${SCALES[id].name}</option>`).join('')}</optgroup>`).join('')}
-      </select></div>`)}</div>`;
+      ${state.modeRel ? `<span class="info">All from ${pn(rootName(modeParent(L), SCALES.ionian.labels))} major: the notes stay, the root moves.</span>` : MODES.includes(L.type) ? `<span class="info"><b>${SCALES[L.type].short}:</b> ${MODE_CHAR[MODES.indexOf(L.type)].replace(/^./, c => c.toLowerCase())}</span>` : ''}`
+      : `<div class="row">${fam[2].filter(id => SCALES[id]).map(sChip).join('')}</div>`}
+      ${MODES.includes(L.type) || fam[2].includes(L.type) ? '' : `<span class="info">Now: <b>${scaleTitle(L.root, L.type)}</b></span>`}</div>`;
     if (L.type !== 'chromatic') {
       const ps = scalePositions(L), arp = isArp(L);
       const same = p => L.pos && p.f === L.pos.f && (!arp || (p.s === (L.pos.s || 0) && p.d === (L.pos.d || 1)));
@@ -6722,6 +6739,7 @@ function render(){
   if (state.tab !== 'practice') state.lastSub[grpOf(state.tab)] = state.tab;
   panel.innerHTML = subNav() + (state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'tab' ? renderTab() : state.tab === 'practice' ? renderPractice() : renderLayers());
   { const r = panel.querySelector('.ptabs:not(.subtabs)'), b = r && r.querySelector('[aria-selected="true"]'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - r.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; }     // keep the open section in sight
+  panel.querySelectorAll('.scfam').forEach(r => { const b = r.querySelector('[aria-pressed="true"]'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; });      // and the scale family you're in
 
   if (state.tab === 'tab') { const sh = $('#tbsheet'); if (sh) tbSeeCol(sh, sh.querySelector('.tbc.cur')); }      // the cursor in sight
   if (!hold && state.tab === 'tab' && thumbQ.matches && !landQ.matches) setTimeout(tbScrollFit, 0);      // a phone: the editor sits right under the neck
@@ -7118,7 +7136,9 @@ panel.addEventListener('click', e => {
     case 'fitall': state.fitAll = !state.fitAll; break;
     case 'ctype': L.type = v; L.hidden = []; break;
     case 'modeby': state.modeRel = !!v; break;
-    case 'stype': if (b.dataset.r && L.root !== +b.dataset.r) { L.root = +b.dataset.r; if (i === 0) state.tap = null; } L.type = v; L.hidden = []; adjustPos(L); break;
+    case 'stype': if (b.dataset.r && L.root !== +b.dataset.r) { L.root = +b.dataset.r; if (i === 0) state.tap = null; } L.type = v; L.hidden = []; if (v === 'chromatic') L.pos = null; else adjustPos(L);
+      state.scRecent = [v].concat((state.scRecent || []).filter(x => x !== v && SCALES[x])).slice(0, 8); break;
+    case 'scfam': state.scFam = v; break;
     case 'note': { const pc = +v, k = L.notes.indexOf(pc); if (k >= 0) L.notes.splice(k, 1); else L.notes.push(pc); break; }
     case 'flt': { const k = L.hidden.indexOf(v); if (k >= 0) L.hidden.splice(k, 1); else L.hidden.push(v); break; }
     case 'fall': L.hidden = []; break;
