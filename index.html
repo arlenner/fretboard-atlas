@@ -472,7 +472,7 @@ body.pv-done .neck-wrap{display:none !important}
 .tbtr .ib{height:26px; min-width:28px; padding:0 6px}
 .tbtr .chip{height:26px; min-width:30px}
 .tbtr b{font-size:13px; min-width:24px; text-align:center}
-@media (max-width: 700px){ .lg-tip, .tbtr small{display:none} .tbtr{gap:4px} .tbtr b{min-width:22px} }
+@media (max-width: 700px){ .lg-tip, #legend .lg-tip, .tbtr small{display:none} .tbtr{gap:4px} .tbtr b{min-width:22px} }
 @media (max-width: 700px){
   .tbx{gap:8px}
   .tbtools{gap:6px}
@@ -2695,11 +2695,11 @@ function renderBoard(){
   }
   let pickNote = '';
   if (pickMode && reading && !pinShape) pickNote = ` · reading as <b>${reading.name}</b>${byIv() ? `<span class="lg-tip"> · colored by interval from ${pn(rootName(pickRoot, reading.labels))}</span>` : ''}`;
-  else if (pinShape && reading && byIv()) pickNote = ` · colored by interval from ${pn(rootName(pickRoot, reading.labels))}`;
+  else if (pinShape && reading && byIv()) pickNote = `<span class="lg-tip"> · colored by interval from ${pn(rootName(pickRoot, reading.labels))}</span>`;
   if (tabDoc) { $('#legend').innerHTML = tbTransport(); return; }
   if (heatAgg) {
-    $('#legend').innerHTML = `<span><b>Weak spots · ${FAMILIES[state.heatFam || 'all'].label}</b> · % right per fret from ${heatAgg.n} answers</span>
-      <span><i style="--c:var(--ok)"></i>solid</span><span><i style="--c:#f59f00"></i>slow or shaky</span><span><i style="--c:var(--bad)"></i>often missed</span><span>faint = fewer than 3 answers · tap a fret for details</span>`;
+    $('#legend').innerHTML = `<span><b>Weak spots · ${FAMILIES[state.heatFam || 'all'].label}</b><span class="lg-tip"> · % right per fret from ${heatAgg.n} answers</span></span>
+      <span><i style="--c:var(--ok)"></i>solid</span><span><i style="--c:#f59f00"></i>slow or shaky</span><span><i style="--c:var(--bad)"></i>often missed</span><span class="lg-tip">faint = fewer than 3 answers · tap a fret for details</span>`;
     return;
   }
   if (quiz) {
@@ -2707,20 +2707,20 @@ function renderBoard(){
     return;
   }
   if (fv) {
-    $('#legend').innerHTML = `<span><b>${fv.c.name}</b> · big notes are the chord, small ones ${scaleTitle(fv.sc.root, fv.sc.type)}</span>${fv.nx ? `<span class="lg-next${loop.preview ? ' on' : ''}">next <b>${fv.nx.name}</b> · ${leadText(fv.c, fv.nx)}</span>` : ''}`;
+    $('#legend').innerHTML = `<span><b>${fv.c.name}</b><span class="lg-tip"> · big notes are the chord, small ones ${scaleTitle(fv.sc.root, fv.sc.type)}</span></span>${fv.nx ? `<span class="lg-next${loop.preview ? ' on' : ''}">next <b>${fv.nx.name}</b> · ${leadText(fv.c, fv.nx)}</span>` : ''}`;
     return;
   }
   if (cmpMode) {
     const common = [...cmpPcs[0]].filter(pc => cmpPcs.every(set => set.has(pc)));
     $('#legend').innerHTML = cmp.map((p, k) => `<span><i style="--c:var(--l${k})"></i><b>${p.name}</b>${p.shape && (p.tuning || 'std') === state.tuning ? '' : ' · every position'}</span>`).join('')
-      + (cmp.length > 1 ? `<span>${common.length ? 'Common tones: <b>' + common.map(pc => pn(noteName(pc))).join(' ') + '</b>' : 'No common tones'} · a ring means two chords share that fret</span>` : '');
+      + (cmp.length > 1 ? `<span>${common.length ? 'Common tones: <b>' + common.map(pc => pn(noteName(pc))).join(' ') + '</b>' : 'No common tones'}<span class="lg-tip"> · a ring means two chords share that fret</span></span>` : '');
     return;
   }
   const posNote = F => {
     const P = state.layers[F.i], who = foci.length > 1 ? layerTitle(P) + ': ' : '';
-    if (isArp(P)) return `<span>${who || 'Arpeggio: '}${cagedOf(P.pos).n} shape, root on the ${STRING_ORD[P.pos.s || 0]} string, fret ${P.pos.f} · frets ${F.lo}–${F.hi} · ${P.pos.style === 'nps' ? 'sweep' : 'chord shape'}</span>`;
-    if (F.scale) return `<span>${who}Position ${scalePositions(P).find(p => p.f === P.pos.f)?.n || ''} · frets ${F.lo}–${F.hi} · ${P.pos.style === 'nps' ? (layerLabels(P).length >= 7 ? '3' : '2') + ' notes per string' : 'box'}</span>`;
-    return `<span>${who || 'Position: '}root on the ${STRING_ORD[P.pos.s]} string, fret ${P.pos.f}${F.shape ? ' · <b>' + tabText(F.shape) + '</b>' : ' · no playable shape here, showing chord tones'}</span>`;
+    if (isArp(P)) return `<span class="lg-tip">${who || 'Arpeggio: '}${cagedOf(P.pos).n} shape, root on the ${STRING_ORD[P.pos.s || 0]} string, fret ${P.pos.f} · frets ${F.lo}–${F.hi} · ${P.pos.style === 'nps' ? 'sweep' : 'chord shape'}</span>`;
+    if (F.scale) return `<span class="lg-tip">${who}Position ${scalePositions(P).find(p => p.f === P.pos.f)?.n || ''} · frets ${F.lo}–${F.hi} · ${P.pos.style === 'nps' ? (layerLabels(P).length >= 7 ? '3' : '2') + ' notes per string' : 'box'}</span>`;
+    return `<span class="lg-tip">${who || 'Position: '}root on the ${STRING_ORD[P.pos.s]} string, fret ${P.pos.f}${F.shape ? ' · <b>' + tabText(F.shape) + '</b>' : ' · no playable shape here, showing chord tones'}</span>`;
   };
   const nxL = playPin && loop.chords.length > 1 ? loop.chords[(loop.idx + 1) % loop.chords.length] : null;
   $('#legend').innerHTML = playPin
