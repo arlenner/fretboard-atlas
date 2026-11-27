@@ -959,6 +959,8 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
       <div class="cal-set"><span id="micText">Microphone: not used yet</span><button type="button" class="btn" data-act="micallow" id="micAllowBtn">Allow microphone</button></div>
       <span class="hint mic-help" id="micHelpText" hidden></span>
       <div class="cal-set"><span id="calText">Mic timing: not calibrated</span><button type="button" class="btn" data-act="calstart">Calibrate</button></div>
+      <div class="cal-set"><span id="avText">Sound delay: 0 ms</span><span class="row" style="gap:4px"><button type="button" class="ib" data-act="avlag" data-v="-10" aria-label="10 ms less sound delay">−</button><button type="button" class="ib" data-act="avlag" data-v="10" aria-label="10 ms more sound delay">+</button><button type="button" class="btn" data-act="avcal" id="avTapBtn">Tap along</button></span></div>
+      <span class="hint" id="avHint">Bluetooth headphones play sound late. This holds back the lit-up notes (tabs, phrases, scales, metronome dots, chord changes) by the same amount, so you see each note as you hear it. Tap along: tap the button on each of the clicks you hear.</span>
       <span class="hint">No sound? Turn the volume up. On iPhone, older iOS versions also mute the browser when the ring/silent switch is on.</span>
     </div>
   </details>
@@ -1186,7 +1188,7 @@ const DEF = {
   quizCfg:{type:'find-note', range:'0-12', pool:'core', length:'q10'},
   backing:{source:'prog', key:0, minor:false, prog:0, sevenths:false, style:'color', bpc:1, pattern:'strum1', drums:true, click:false, follow:true, vol:0.8},
   drone:{root:2, fifth:true, vol:0.35},
-  ttCfg:{step:4, need:3, slips:2, judge:'me', strict:'normal', bars:2}, ttLast:null, micCal:null,
+  ttCfg:{step:4, need:3, slips:2, judge:'me', strict:'normal', bars:2}, ttLast:null, micCal:null, avDelay:0,
   quizBest:{}, quizLast:null,
   lane:[],          // the Looper: [{root, type, name, bars, shape?, tuning?}]
   lesson:{items:[], nextItem:1, auto:true, cfg:{
@@ -1694,7 +1696,7 @@ function scalePlayStart(L, ph){
   // light up the note being played
   const paint = () => {
     if (!sp.on) return;
-    const now = a.currentTime; let cur = null;
+    const now = a.currentTime - avLag(); let cur = null;
     for (const e of sp.events) if (e.t <= now + 0.01) cur = e;
     const el = cur ? document.querySelector(`.cell[data-s="${cur.s}"][data-f="${cur.f}"]`) : null;
     if (el !== sp.lit) { if (sp.lit) sp.lit.classList.remove('playing'); if (el) el.classList.add('playing'); sp.lit = el; }
@@ -2135,7 +2137,7 @@ function tbStart(from){
   cycle(a.currentTime + 0.08, true);
   const paint = () => {
     if (!tbp.on) return;
-    const now = a.currentTime; let cur = null;
+    const now = a.currentTime - avLag(); let cur = null;
     for (const e of tbp.events) if (e.t <= now + 0.01) cur = e;
     const k = cur ? cur.k : -1, col = k >= 0 ? document.querySelector(`.tbc[data-c="${k}"]`) : null;
     if (k !== tbp.k || (col && !col.classList.contains('on')) || tbp.lit.some(e => !e.isConnected)) {
@@ -2508,6 +2510,7 @@ function renderToolbar(){
   $('#micAllowBtn').textContent = micPerm === 'granted' ? 'Test' : micPerm === 'denied' ? 'How to allow' : 'Allow microphone';
   const mh = $('#micHelpText'), helpTxt = micAllowMsg || (micPerm === 'denied' ? micHelp('NotAllowedError') : '');
   mh.hidden = !helpTxt; mh.textContent = helpTxt;
+  if (!avCal) $('#avText').textContent = `Sound delay: ${Math.round(avLag() * 1000)} ms`;
   $('#calText').textContent = state.micCal ? `Mic timing: ${Math.abs(state.micCal.ms)} ms ${state.micCal.ms >= 0 ? 'late' : 'early'} (±${state.micCal.sd})` : 'Mic timing: not calibrated';
   neck.classList.toggle('lefty', state.lefty);
 }
@@ -3579,6 +3582,26 @@ function playClick(kind, when){
   const a = getAudio(), src = a.createBufferSource(), g = a.createGain();
   src.buffer = clickBuf(micT.on && !(cal && cal.self) ? 'mic-' + kind : kind); g.gain.value = state.metro.vol; src.connect(g); g.connect(bus); src.start(when);
 }
+/* what you see waits for what you hear: Bluetooth headphones play the sound later than the browser schedules it */
+function avLag(){ return Math.max(0, Math.min(600, Math.round(+state.avDelay || 0))) / 1000; }
+var avCal = null;      // var: the settings are drawn before this line runs
+function avCalStart(){
+  const a = getAudio(); if (!a) return; if (a.state !== 'running') a.resume().catch(() => {});
+  const spb = 0.6, n = 12, t0 = a.currentTime + 0.4;
+  avCal = {t0, spb, n, taps:[]};
+  for (let k = 0; k < n; k++) { const s = a.createBufferSource(), g = a.createGain(); s.buffer = clickBuf(k % 4 ? 'beat' : 'acc'); g.gain.value = 0.4; s.connect(g); g.connect(master); s.start(t0 + k * spb); }
+  $('#avText').textContent = 'Tap the button on every click you hear…'; $('#avTapBtn').textContent = 'Tap'; $('#avTapBtn').classList.add('primary');
+  setTimeout(avCalEnd, (0.4 + n * spb + 0.6) * 1000);
+}
+function avCalTap(e){ if (!avCal || !ac) return; e.preventDefault(); avCal.taps.push(ac.currentTime + (e.timeStamp - performance.now()) / 1000); }
+function avCalEnd(){
+  const c = avCal; avCal = null; if (!c) return;
+  const ds = c.taps.map(x => { const k = Math.round((x - c.t0 - 0.1) / c.spb); return k >= 2 && k < c.n ? x - (c.t0 + k * c.spb) : null; }).filter(d => d != null && d > -0.15 && d < 0.5).sort((a, b) => a - b);
+  $('#avTapBtn').textContent = 'Tap along'; $('#avTapBtn').classList.remove('primary');
+  if (ds.length < 5) { toast('Not enough taps to measure. Tap the button on each click, starting with the third.'); render(); return; }
+  const med = ds[ds.length >> 1]; state.avDelay = Math.max(0, Math.min(600, Math.round(med * 100) * 10)); save();
+  toast(`Sound delay set to ${state.avDelay} ms. Nudge it with − and + if the notes still light up early or late.`); render();
+}
 function flashBeat(n, rest){
   document.querySelectorAll('.beats').forEach(el => [...el.children].forEach((d, k) => { d.classList.toggle('on', k === n && !rest); d.classList.toggle('rest', k === n && !!rest); }));
 }
@@ -3610,7 +3633,7 @@ function metroSchedule(){
     if (c.kind && (!loop.on || state.backing.click || (rec && c.bar < loop.bar0))) playClick(c.kind, metro.next);
     if (loop.on) loopTick(c, metro.next);
     metro.peak = Math.max(metro.peak || 0, m.bpm);
-    if (c.isBeat) { const n = c.beatNo, rest = c.resting; setTimeout(() => { if (metro.on) flashBeat(n, rest); }, Math.max(0, (metro.next - a.currentTime) * 1000)); }
+    if (c.isBeat) { const n = c.beatNo, rest = c.resting; setTimeout(() => { if (metro.on) flashBeat(n, rest); }, Math.max(0, (metro.next - a.currentTime + avLag()) * 1000)); }
     metro.tick++; metro.next += 60 / m.bpm / m.sub;
   }
 }
@@ -4186,12 +4209,12 @@ function loopTick(c, when){
   const {k, pos, len} = loopSlot(c.bar - loop.bar0, c.beatNo), lens = {[k]:len};
   const v = loop.voices[k], chordStart = pos === 0;
   if (chordStart) {
-    const delay = Math.max(0, (when - ac.currentTime) * 1000);
+    const delay = Math.max(0, (when - ac.currentTime + avLag()) * 1000);
     setTimeout(() => { if (!loop.on || !loop.chords[k]) return; loop.idx = k; loop.preview = false; if (neckView() === 'chord') loopShowChord(k); else loopPaint(); }, delay);
   }
   // the last beats of a chord show where the next one wants you
   if (loop.chords.length > 1 && pos === len - Math.max(1, Math.min(m.beats, Math.floor(len / 2)))) {
-    const delay = Math.max(0, (when - ac.currentTime) * 1000) + (chordStart ? 5 : 0);
+    const delay = Math.max(0, (when - ac.currentTime + avLag()) * 1000) + (chordStart ? 5 : 0);
     setTimeout(() => { if (loop.on && loop.idx === k && neckView() === 'tones') { loop.preview = true; loopPaint(); } }, delay);
   }
   const vol = 0.3 * b.vol;
@@ -6284,6 +6307,8 @@ function handlePractice(act, b){
     case 'qans': quizAnswer(+v); return true;
     case 'qreplay': quizPlay(); return true;
     case 'micallow': micAllowFlow(); return true;
+    case 'avlag': state.avDelay = Math.max(0, Math.min(600, Math.round(avLag() * 1000) + +v)); save(); render(); return true;
+    case 'avcal': if (!avCal) avCalStart(); return true;
     // tuner
     case 'tunstart': tunerStart(); return true;
     case 'tunstop': tunerStop(); return true;
@@ -6806,6 +6831,7 @@ function setSound(on){
   toast(on ? 'Sound on' : 'Sound off');
 }
 $('#setSound').addEventListener('change', e => setSound(e.target.checked));
+$('#avTapBtn').addEventListener('pointerdown', avCalTap);
 $('#viewBtn').addEventListener('click', () => { const on = $('.bar').classList.toggle('showview'); $('#viewBtn').setAttribute('aria-expanded', String(on)); });
 $('#tipsBtn').addEventListener('click', () => { state.tips = !state.tips; renderToolbar(); save(); toast(state.tips ? 'Explanations on' : 'Explanations off'); });
 $('#soundBtn').addEventListener('click', () => setSound(!state.sound));
