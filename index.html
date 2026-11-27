@@ -1520,7 +1520,7 @@ const PHR_MAX = 999999, num = (x, lo, hi, d) => Number.isInteger(x) && x >= lo &
 function phrLoad(){
   const x = state.playCfg.phr || {}, c = x.bpm === undefined && x.seen ? state.playCfg : x;       // before phrases had their own tempo they shared the scale's
   Object.keys(PHR).forEach(k => delete PHR[k]);
-  Object.assign(PHR, {tech:['1', '2', '3', 'mix'].includes(x.tech) ? x.tech : '1', pluck:['open', 'held', 'rot'].includes(x.pluck) ? x.pluck : 'open', n:num(x.n, 1, PHR_MAX, 1), turn:!!x.turn, old:typeof x.old === 'string' ? x.old : '', oldV:num(x.oldV, 1, 4, 1), trip:x.trip === 6 ? 6 : 3, same:x.same !== false,
+  Object.assign(PHR, {kind:x.kind === 'motif' ? 'motif' : 'hp', tech:['1', '2', '3', 'mix'].includes(x.tech) ? x.tech : '1', pluck:['open', 'held', 'rot'].includes(x.pluck) ? x.pluck : 'open', n:num(x.n, 1, PHR_MAX, 1), turn:!!x.turn, old:typeof x.old === 'string' ? x.old : '', oldV:num(x.oldV, 1, 4, 1), trip:x.trip === 6 ? 6 : 3, same:x.same !== false,
     bpm:num(c.bpm, 30, 300, 60), per:num(c.per, 1, 4, 4), tone:['ring', 'stacc', 'mute'].includes(c.tone) ? c.tone : 'ring', loop:c.loop === undefined ? true : !!c.loop});
   state.playCfg.phr = PHR;
 }phrLoad();
@@ -1547,6 +1547,7 @@ function phrCells(tech, len, rnd, tri){
 }
 /* a phrase, tried again (the same way each time) if it can't be fingered, or if looping round would hammer a fret just plucked */
 function phraseFor(L){
+  if (PHR.kind === 'motif') return motifFor(L);
   let keep = null;
   for (let salt = 0; salt < 6; salt++) {
     const r = phraseTry(L, salt); if (!r) return r;
@@ -1648,10 +1649,71 @@ function phraseTry(L, salt){
   }
   return {notes, chords, note, cells, per:c.per};
 }
-/* the phrase as tab: one column a note, H or P above it */
+/* ---- motif and variation: a short idea of 3 to 5 picked notes, then the same idea changed one way at a time ----
+   Two bars of four statements (two at quarter notes): the idea; a variation (moved up or down the scale, a new rhythm,
+   upside down or backwards); the idea moved onto bar 2's chord; and that again with a new ending on the chord's root. */
+function motifFor(L){
+  const fp = scalePosFor(L); if (!fp) return null;
+  const per = phrInfo(L).per, tun = TUNINGS[state.tuning].midi, labels = layerLabels(L), pcs = labels.map(l => mod(L.root + semi(l)));
+  const rnd = seeded(['motif', PHR.n, L.root, L.type, fp.lo, per, state.tuning].join('|')), pick = a => a[Math.floor(rnd() * a.length)];
+  for (let i = 0; i < 5; i++) rnd();
+  // the position's notes, low to high, each pitch once (with every place it can be fingered)
+  const by = new Map(); fp.shape.forEach(q => { const m = tun[q.s] + q.f; if (pcs.includes(mod(m))) (by.get(m) || by.set(m, []).get(m)).push({s:q.s, f:q.f, m}); });
+  const U = [...by.keys()].sort((a, b) => a - b);
+  if (U.length < 5) return {notes:[], chords:['', ''], note:'Not enough notes in this position for a motif. Try another position.', cells:[], per, kind:'motif', parts:[]};
+  const seven = labels.length === 7 && !isArp(L), D = seven ? chordsInScale(L) : null, degs = seven ? [0, pick([3, 4, 4, 5, 1])] : [0, 0];
+  const chords = degs.map(g => { const d = seven && D[g]; return d ? (d.stack ? d.name + CHORDS[d.stack].sym : d.name + ' in thirds') : layerTitle(L).replace(/<[^>]+>/g, ''); });
+  const rootOf = bar => seven ? pcs[degs[bar]] : pcs[0];
+  const tonesOf = bar => seven ? [0, 2, 4].map(k => pcs[(degs[bar] + k) % 7]) : pcs.filter(x => [0, 3, 4, 7].includes(mod(x - pcs[0])));
+  const nS = per === 1 ? 2 : 4, slots = 8 / nS * per;
+  // a rhythm of k notes in a statement: mostly on the beat, now and then starting just after it
+  const rhythm = k => {
+    const s0 = rnd() < .8 ? 0 : 1, free = []; for (let u = s0 + 1; u < slots; u++) free.push(u);
+    const on = [s0];
+    while (on.length < k && free.length) { const w = free.map(u => u % per ? 1 : 2.5), tot = w.reduce((a, b) => a + b, 0); let r = rnd() * tot, j = 0; while ((r -= w[j]) > 0) j++; on.push(free.splice(j, 1)[0]); }
+    return on.sort((a, b) => a - b);
+  };
+  const path = (i0, st) => { let i = Math.max(0, Math.min(U.length - 1, i0)); const out = [i]; st.forEach(x => { let j = i + x; if (j < 0 || j >= U.length) j = i - x; i = Math.max(0, Math.min(U.length - 1, j)); out.push(i); }); return out; };
+  const nearPc = (i, tones) => { const c = U.map((m, j) => j).filter(j => tones.includes(mod(U[j]))); return c.length ? c.sort((a, b) => Math.abs(a - i) - Math.abs(b - i))[0] : i; };
+  // the idea: starts on one of bar 1's chord tones, near the middle, and moves mostly by step
+  const k = Math.min(slots, 3 + Math.floor(rnd() * 3)), on0 = rhythm(k);
+  const i0 = nearPc(Math.floor(U.length / 2) + Math.floor(rnd() * 3) - 1, tonesOf(0));
+  const st = Array.from({length:on0.length - 1}, () => pick([1, 1, 2, -1, -1, -2, 0, 3, -3]));
+  if (st.every(x => x === 0)) st[0] = 1;
+  const idea = {on:on0, idx:path(i0, st), name:'the idea'};
+  const vars = [
+    () => { const sh = pick([1, -1, 2, -2]); return {on:on0, idx:path(i0 + sh, st), name:sh > 0 ? (sh > 1 ? 'a third up' : 'a step up') : (sh < -1 ? 'a third down' : 'a step down')}; },
+    () => { const rel = o => o.map(x => x - o[0]).join(); let on = on0; for (let t = 0; t < 8 && rel(on) === rel(on0); t++) on = rhythm(on0.length); return rel(on) === rel(on0) ? null : {on, idx:idea.idx, name:'new rhythm'}; },
+    () => st.some(x => x) ? {on:on0, idx:path(i0, st.map(x => -x)), name:'upside down'} : null,
+    () => new Set(idea.idx).size > 1 ? {on:on0, idx:idea.idx.slice().reverse(), name:'backwards'} : null
+  ];
+  const sig = S => S.on.join() + '/' + S.idx.join();
+  // onto bar 2's chord: the smallest move that starts it on one of that chord's tones
+  const t2 = tonesOf(1), sh2 = [0, 1, -1, 2, -2, 3, -3].find(x => i0 + x >= 0 && i0 + x < U.length && t2.includes(mod(U[i0 + x]))) || 0;
+  const moved = {on:on0, idx:path(i0 + sh2, st), name:sh2 ? 'moved to the new chord' : 'again'};
+  const end = moved.idx.slice(), last = end.length - 1, rt = nearPc(end[last], [rootOf(1)]);
+  end[last] = rt;      // it lands on the chord's root; if it did already, the note before it changes instead
+  if (end.join() === moved.idx.join() || rnd() < .4) { const a = end[last] + (end[last - 1] > end[last] ? -1 : 1), b2 = end[last] - (end[last - 1] > end[last] ? -1 : 1); end[last - 1] = a >= 0 && a < U.length ? a : b2; }
+  for (const x of [1, -1, 2, -2]) { if (end.join() !== moved.idx.join()) break; const j = end[last - 1] + x; if (j >= 0 && j < U.length) end[last - 1] = j; }
+  const ending = {on:on0, idx:end, name:'new ending'};
+  // the variation has to sound different from the idea and from statement 3
+  let v2 = null; for (let t = 0; t < 12 && !v2; t++) { v2 = pick(vars)(); if (v2 && (sig(v2) === sig(idea) || sig(v2) === sig(moved))) v2 = null; }
+  const NM = {1:'a step up', '-1':'a step down', 2:'a third up', '-2':'a third down', 3:'a fourth up', '-3':'a fourth down'};
+  for (const sh of [2, -2, 1, -1, 3, -3]) { if (v2 && sig(v2) !== sig(ending)) break; const c = {on:on0, idx:path(i0 + sh, st), name:NM[sh]}; if (![idea, moved, ending].some(S => sig(S) === sig(c))) v2 = c; }
+  const plan = nS === 4 ? [idea, v2 || moved, moved, ending] : [idea, Object.assign({}, ending, {name:'moved, new ending'})];
+  // fingering: of the places a pitch can be played, the one nearest the last note
+  const notes = []; let prev = null;
+  plan.forEach((S, si) => S.idx.forEach((ix, j) => {
+    const un = si * slots + S.on[j], d = (j + 1 < S.on.length ? S.on[j + 1] : si + 1 < plan.length ? slots + plan[si + 1].on[0] : slots) - S.on[j], m = U[ix];      // it lasts until the next note
+    const q = by.get(m).slice().sort((a, b) => prev ? Math.abs(a.s - prev.s) + Math.abs(a.f - prev.f) / 3 - Math.abs(b.s - prev.s) - Math.abs(b.f - prev.f) / 3 : 0)[0]; prev = q;
+    notes.push({s:q.s, f:q.f, m, h:false, cell:si, start:j === 0, bar:Math.floor(un / (4 * per)), gi:0, gn:1, t:un / per, d:d / per, tri:per % 3 === 0 ? Math.round(un) % 3 : -1});
+  }));
+  return {notes, chords, note:'', cells:[], per, kind:'motif', parts:plan.map(S => S.name), roots:[rootOf(0), rootOf(1)]};
+}
+/* the phrase as tab: one column a note, H or P above it (a motif: the statement's number over its first note) */
 function phraseTab(ph){
   return `<div class="phtab" tabindex="0" role="img" aria-label="Tab: ${ph.notes.map(n => `${n.h ? 'hammer' : 'pluck'} string ${6 - n.s} fret ${n.f}`).join(', ')}">${[0, 1].map(b => { const ns = ph.notes.map((n, k) => Object.assign({k}, n)).filter(n => n.bar === b);
-    return `<div class="phbar"><small>${ph.chords[b]}</small><div class="phcols">${ns.map(n => `<span class="phc${n.h ? ' h' : ' p'}${n.start ? ' st' : ''} g${n.gn}${n.gi ? '' : ' gs'}${n.gi === n.gn - 1 ? ' ge' : ''}" data-phk="${n.k}"><em>${n.h ? 'H' : 'P'}</em>${[5, 4, 3, 2, 1, 0].map(s => `<i>${n.s === s ? `<b>${n.f}</b>` : ''}</i>`).join('')}<u>${Math.abs(n.t - Math.round(n.t)) < 1e-6 ? Math.round(n.t) - b * 4 + 1 : n.tri === 1 ? '<i class="tr3" title="Triplet">3</i>' : ''}</u></span>`).join('')}</div></div>`; }).join('')}</div>`;
+    return `<div class="phbar"><small>${ph.chords[b]}</small><div class="phcols">${ns.map(n => `<span class="phc${n.h ? ' h' : ' p'}${n.start ? ' st' : ''} g${n.gn}${n.gi ? '' : ' gs'}${n.gi === n.gn - 1 ? ' ge' : ''}" data-phk="${n.k}"><em>${ph.kind === 'motif' ? (n.start ? n.cell + 1 : '') : n.h ? 'H' : 'P'}</em>${[5, 4, 3, 2, 1, 0].map(s => `<i>${n.s === s ? `<b>${n.f}</b>` : ''}</i>`).join('')}<u>${Math.abs(n.t - Math.round(n.t)) < 1e-6 ? Math.round(n.t) - b * 4 + 1 : n.tri === 1 ? '<i class="tr3" title="Triplet">3</i>' : ''}</u></span>`).join('')}</div></div>`; }).join('')}</div>`;
 }
 function scaleRun(L){
   const fp = scalePosFor(L); if (!fp) return [];
@@ -1738,22 +1800,23 @@ function scalePlayRestart(){ if (!sp.on) return; const L = state.layers.find(x =
 /* ---- favorite phrases: everything that makes the phrase (notes, spot, settings) and the tempo you last had it at ---- */
 const PHRKEY = 'fretboard-atlas-phrases-v1';
 const phrFavOk = f => f && typeof f === 'object' && SCALES[f.type] && f.type !== 'chromatic' && TUNINGS[f.tuning] && num(f.root, 0, 11, -1) >= 0 && PHR_TECH[f.tech] && PHR_PLUCK[f.pluck]
-  && num(f.n, 1, PHR_MAX, 0) && [1, 2, 3, 4, 6].includes(f.per) && num(f.bpm, 30, 300, 0) && [undefined, 1, 2, 3, 4].includes(f.v) && [undefined, true, false].includes(f.same) && f.pos && num(f.pos.f, 0, 24, -1) >= 0 && num(f.pos.s, 0, 5, -1) >= 0 && ['box', 'nps'].includes(f.pos.style) && [undefined, 1, -1].includes(f.pos.d);
+  && num(f.n, 1, PHR_MAX, 0) && [1, 2, 3, 4, 6].includes(f.per) && num(f.bpm, 30, 300, 0) && [undefined, 1, 2, 3, 4].includes(f.v) && [undefined, true, false].includes(f.same) && [undefined, 'motif'].includes(f.kind) && f.pos && num(f.pos.f, 0, 24, -1) >= 0 && num(f.pos.s, 0, 5, -1) >= 0 && ['box', 'nps'].includes(f.pos.style) && [undefined, 1, -1].includes(f.pos.d);
 let phrFavs = [];
 try { const x = JSON.parse(localStorage.getItem(PHRKEY)); if (Array.isArray(x)) phrFavs = x.filter(phrFavOk); } catch (e) {}
 function storePhr(){ syncDirty(); try { localStorage.setItem(PHRKEY, JSON.stringify(phrFavs)); } catch (e) { toast('Could not save: the browser storage is full.'); } }
-const phrBase = f => [f.root, f.type, f.pos.s || 0, f.pos.f, f.pos.d || 0, f.pos.style === 'nps' ? 'nps' : 'box', f.tuning, f.tech, f.pluck, f.n, f.per].join('|') + (f.same ? '|s' : '');
+const phrBase = f => [f.root, f.type, f.pos.s || 0, f.pos.f, f.pos.d || 0, f.pos.style === 'nps' ? 'nps' : 'box', f.tuning, f.tech, f.pluck, f.n, f.per].join('|') + (f.same ? '|s' : '') + (f.kind === 'motif' ? '|motif' : '');
 const phrKey = f => phrBase(f) + (f.v >= 2 ? '|' + f.v : '');
-const phrSpot = L => ({root:L.root, type:L.type, pos:Object.assign({s:L.pos.s || 0, f:L.pos.f, style:L.pos.style === 'nps' ? 'nps' : 'box'}, L.pos.d ? {d:L.pos.d} : {}), tuning:state.tuning, tech:PHR.tech, pluck:PHR.pluck, n:PHR.n, per:PHR.per, bpm:PHR.bpm, same:!!PHR.same});
+const phrSpot = L => Object.assign({root:L.root, type:L.type, pos:Object.assign({s:L.pos.s || 0, f:L.pos.f, style:L.pos.style === 'nps' ? 'nps' : 'box'}, L.pos.d ? {d:L.pos.d} : {}), tuning:state.tuning, tech:PHR.tech, pluck:PHR.pluck, n:PHR.n, per:PHR.per, bpm:PHR.bpm, same:!!PHR.same}, PHR.kind === 'motif' ? {kind:'motif'} : {});
 /* the note value and the generator in use. Triples and combos are on the triplet pulse (or sextuplets), so they play at the same speed.
    v4: rotating plucks follow the bar's chord in a pattern, close to the hammered notes, and the hammers move in a steady sequence.
    A favorite from before that keeps the rhythm and the notes it was saved with. */
 const phrUsesTrip = tech => tech === '3' || tech === 'mix';
+const phrTrip = () => PHR.kind !== 'motif' && phrUsesTrip(PHR.tech);       // motifs are in straight time, or triplets, as you pick
 const phrNewest = (tech, per, pluck) => pluck === 'rot' ? 4 : tech === 'mix' && per % 3 ? 3 : 2;
 function phrInfo(L){
-  const s = phrSpot(L), three = phrUsesTrip(PHR.tech);
+  const s = phrSpot(L), three = phrTrip();
   for (const p of three ? [PHR.trip, PHR.per] : [PHR.per]) if (PHR.old && PHR.old === phrBase(Object.assign(s, {per:p}))) return {per:p, v:PHR.oldV};
-  const per = three ? PHR.trip : PHR.per; return {per, v:phrNewest(PHR.tech, per, PHR.pluck)};
+  const per = three ? PHR.trip : PHR.per; return {per, v:PHR.kind === 'motif' ? 1 : phrNewest(PHR.tech, per, PHR.pluck)};
 }
 const phrNow = L => Object.assign(phrSpot(L), phrInfo(L));
 const phrFavOf = L => { const k = phrKey(phrNow(L)); return phrFavs.find(f => phrKey(f) === k); };
@@ -1761,11 +1824,11 @@ function phrFavTempo(L){ const f = L.pos && phrFavOf(L); if (f && f.bpm !== PHR.
 const phrFavName = f => `${scaleTitle(f.root, f.type).replace(/<[^>]+>/g, '')} · fret ${f.pos.f}`;
 function phrFavHtml(L, i){
   const cur = phrFavOf(L);
-  return phrFavs.length ? phrFavs.map((f, k) => `<div class="phfav"><button type="button" class="btn${f === cur ? ' sel' : ''}" data-act="spfavgo" data-i="${i}" data-v="${k}" aria-pressed="${f === cur}"><b>#${f.n} · ${PHR_TECH[f.tech][0]} · ${PHR_PLUCK[f.pluck]}</b><small>${phrFavName(f)} · ${PER_NAMES[f.per]} at ${f.bpm} bpm${f.tuning === state.tuning ? '' : ' · ' + TUNINGS[f.tuning].name}</small></button><button type="button" class="ib" data-act="spfavdel" data-i="${i}" data-v="${k}" aria-label="Remove phrase ${f.n} from favorites">✕</button></div>`).join('')
+  return phrFavs.length ? phrFavs.map((f, k) => `<div class="phfav"><button type="button" class="btn${f === cur ? ' sel' : ''}" data-act="spfavgo" data-i="${i}" data-v="${k}" aria-pressed="${f === cur}"><b>#${f.n} · ${f.kind === 'motif' ? 'Motif' : PHR_TECH[f.tech][0] + ' · ' + PHR_PLUCK[f.pluck]}</b><small>${phrFavName(f)} · ${PER_NAMES[f.per]} at ${f.bpm} bpm${f.tuning === state.tuning ? '' : ' · ' + TUNINGS[f.tuning].name}</small></button><button type="button" class="ib" data-act="spfavdel" data-i="${i}" data-v="${k}" aria-label="Remove phrase ${f.n} from favorites">✕</button></div>`).join('')
     : '<span class="info">Tap ☆ beside a phrase number to keep it here.</span>';
 }
 /* the parts that follow the phrase number, redrawn on their own while it is being typed */
-const phrOut = (L, ph) => `${ph.note ? `<span class="info">${ph.note}</span>` : ''}${ph.notes.length ? phraseTab(ph) : ''}`;
+const phrOut = (L, ph) => `${ph.note ? `<span class="info">${ph.note}</span>` : ''}${ph.notes.length ? phraseTab(ph) : ''}${ph.parts && ph.notes.length ? `<span class="info phparts">${ph.parts.map((p, k) => `<b>${k + 1}</b> ${p}`).join(' &middot; ')}</span>` : ''}`;
 const phrStar = (L, i, ph) => { const on = !!phrFavOf(L); return `<button type="button" class="chip${on ? ' sel' : ''}" data-act="spfav" data-i="${i}" aria-pressed="${on}" aria-label="${on ? 'Remove from favorites' : 'Add to favorites'}"${ph.notes.length ? '' : ' disabled'}>${on ? '★ Favorite' : '☆ Favorite'}</button>`; };
 let phrResume = false;       // it was playing when you started typing a number
 function phrTyped(el){
@@ -1778,7 +1841,7 @@ function phrTyped(el){
 }
 /* play, tempo and settings for one player: the scale (k '') or the phrase (k 'ph'). Each keeps its own. */
 function playCtl(i, L, k, what){
-  const c = k ? Object.assign({}, PHR, {per:phrInfo(L).per}) : state.playCfg, three = k && phrUsesTrip(PHR.tech), on = sp.on && sp.ph === !!k && sp.layerId === L.id, at = `data-i="${i}" data-k="${k}"`;
+  const c = k ? Object.assign({}, PHR, {per:phrInfo(L).per}) : state.playCfg, three = k && phrTrip(), on = sp.on && sp.ph === !!k && sp.layerId === L.id, at = `data-i="${i}" data-k="${k}"`;
   const nps = (c.bpm * c.per / 60).toFixed(1).replace(/\.0$/, '');
   const top = `<button type="button" class="btn${on ? ' primary' : ''}" data-act="splay" ${at} aria-pressed="${on}">${on ? '■ Stop' : `▶ Play the ${what}`}</button>
     <span class="sp-tempo"><button type="button" class="ib" data-act="spbpm" ${at} data-v="-5" aria-label="${what}: 5 bpm slower">−5</button>
@@ -1795,16 +1858,18 @@ function playCtl(i, L, k, what){
 function scalePlayHtml(i, L, arp){
   const ph = phraseFor(L), sg = (k, v, t, on2, h) => `<button type="button" data-act="${k}" data-i="${i}" data-v="${v}" aria-pressed="${on2}"${h ? ` title="${h}"` : ''}>${t}</button>`;
   const s = playCtl(i, L, '', arp ? 'arpeggio' : 'scale'), p = playCtl(i, L, 'ph', 'phrase');
-  const phUi = !ph ? '' : fold('phr', 'Hammer and pluck phrases', `#${PHR.n} · ${PHR_TECH[PHR.tech][0]} · ${PHR.bpm} bpm`, `<div class="phr">
-    <div class="row"><div class="seg wrapseg" aria-label="Technique">${Object.entries(PHR_TECH).map(([k, [t, h]]) => sg('sptech', k, t, PHR.tech === k, h)).join('')}</div>
+  const mo = PHR.kind === 'motif';
+  const phUi = !ph ? '' : fold('phr', 'Practice phrases', `#${PHR.n} · ${mo ? 'Motif' : PHR_TECH[PHR.tech][0]} · ${PHR.bpm} bpm`, `<div class="phr">
+    <div class="row"><div class="seg" aria-label="Kind of phrase">${sg('spkind', 'hp', 'Hammer &amp; pluck', !mo, 'Fret-hand hammers answered by plucks')}${sg('spkind', 'motif', 'Motif &amp; variation', mo, 'A short idea, then the same idea changed one way at a time')}</div></div>
+    ${mo ? '' : `<div class="row"><div class="seg wrapseg" aria-label="Technique">${Object.entries(PHR_TECH).map(([k, [t, h]]) => sg('sptech', k, t, PHR.tech === k, h)).join('')}</div>
       <div class="seg wrapseg" aria-label="What is plucked">${Object.entries(PHR_PLUCK).map(([k, t]) => sg('sppluck', k, t, PHR.pluck === k)).join('')}</div>
-      ${PHR.pluck === 'held' ? '' : `<button type="button" class="chip${PHR.same ? ' sel' : ''}" data-act="spsame" data-i="${i}" aria-pressed="${!!PHR.same}" title="Now and then, pluck a string you just hammered on">Same string sometimes</button>`}</div>
+      ${PHR.pluck === 'held' ? '' : `<button type="button" class="chip${PHR.same ? ' sel' : ''}" data-act="spsame" data-i="${i}" aria-pressed="${!!PHR.same}" title="Now and then, pluck a string you just hammered on">Same string sometimes</button>`}</div>`}
     <div class="row"><span class="phn">Phrase <button type="button" class="ib" data-act="spn" data-i="${i}" data-v="-1" aria-label="Previous phrase"${PHR.n <= 1 ? ' disabled' : ''}>◀</button><input class="task-in" id="phn-${L.id}" data-act="spnum" data-i="${i}" type="text" inputmode="numeric" enterkeyhint="done" maxlength="6" autocomplete="off" aria-label="Phrase number" value="${PHR.n}"><button type="button" class="ib" data-act="spn" data-i="${i}" data-v="1" aria-label="Next phrase"${PHR.n >= PHR_MAX ? ' disabled' : ''}>▶</button></span>
       <span class="phstar">${phrStar(L, i, ph)}</span></div>
     <div class="row">${p.top}
       <button type="button" class="chip${PHR.turn ? ' sel' : ''}" data-act="spturn" data-i="${i}" aria-pressed="${PHR.turn}" title="After each phrase, the same length with only a click">Your turn</button></div>
     <div class="phout">${phrOut(L, ph)}</div>
-    <span class="hint tip">H: hammer it with the fretting hand alone, no pick. P: pluck it. Start slow enough that every hammer is as loud as the pluck. A phrase number always gives the same phrase in this spot. ${PHR_TECH[PHR.tech][1].replace(/^./, c => c.toUpperCase())}.</span>
+    ${mo ? `<span class="hint tip">Each number starts a statement: the idea, then the same idea changed one way. Listen for what stays the same. Then play the idea yourself and make your own changes to it: that's how a solo is built. A phrase number always gives the same phrase in this spot.</span>` : `<span class="hint tip">H: hammer it with the fretting hand alone, no pick. P: pluck it. Start slow enough that every hammer is as loud as the pluck. A phrase number always gives the same phrase in this spot. ${PHR_TECH[PHR.tech][1].replace(/^./, c => c.toUpperCase())}.</span>`}
     ${p.adj}
     ${fold('phfav', 'Favorites', phrFavs.length || '', `<div class="phfavs">${phrFavHtml(L, i)}</div>`)}</div>`);
   return `<div class="splay">${s.top}${s.adj}</div>${phUi}`;
@@ -2015,7 +2080,9 @@ function tbFromPhrase(){
   const L = tbPhLayer(), ph = L && phraseFor(L);
   if (!ph || !ph.notes.length) { toast('Pick a scale position on the Layers tab first, so there is a phrase to add.'); return; }
   const T = tbDoc(); if (T && !T.cols.length) T.bpm = PHR.bpm;
-  tbInsert(ph.notes.map((n, j) => Object.assign({d:tbFit(Math.max(4, Math.round(n.d * TQ))), n:[Object.assign({s:n.s, f:n.f}, n.h ? {t:'h'} : {})]}, j === 0 || n.bar !== ph.notes[j - 1].bar ? {lab:String(ph.chords[n.bar]).slice(0, 24)} : {})), `phrase #${PHR.n}`);
+  const lead = tbRests(Math.round(ph.notes[0].t * TQ)) || [];      // a motif can start just after the beat
+  tbInsert(lead.map(x => ({d:x, n:[]})).concat(ph.notes.flatMap((n, j) => { const d = Math.max(4, Math.round(n.d * TQ)), d0 = tbFit(d), r = tbRests(d - d0) || [];
+    return [Object.assign({d:d0, n:[Object.assign({s:n.s, f:n.f}, n.h ? {t:'h'} : {})]}, j === 0 || n.bar !== ph.notes[j - 1].bar ? {lab:String(ph.chords[n.bar]).slice(0, 24)} : {}), ...r.map(x => ({d:x, n:[]}))]; })), `phrase #${PHR.n}`);
 }
 function tbFromPins(){
   const T = tbDoc(); if (!T) return;
@@ -7088,6 +7155,7 @@ panel.addEventListener('click', e => {
       L.pos = Object.assign({s:ps[k].s || 0, f:ps[k].f, style:(L.pos && L.pos.style) || 'box'}, ps[k].d ? {d:ps[k].d} : {}); setAnchor(L); state.tap = null; break;
     }
     case 'sstyle': if (L.pos) { L.pos = Object.assign({}, L.pos, {style:v}); setAnchor(L); } break;
+    case 'spkind': PHR.kind = v === 'motif' ? 'motif' : 'hp'; PHR.old = ''; if (sp.ph) scalePlayRestart(); break;
     case 'sptech': PHR.tech = v; if (sp.ph) scalePlayRestart(); break;
     case 'sppluck': PHR.pluck = v; if (sp.ph) scalePlayRestart(); break;
     case 'spsame': PHR.same = !PHR.same; if (sp.ph) scalePlayRestart(); break;
@@ -7109,14 +7177,14 @@ panel.addEventListener('click', e => {
       if (f.tuning !== state.tuning) { state.tuning = f.tuning; state.layers.forEach(x => { if (x !== L) adjustPos(x); }); toast('Tuning set to ' + TUNINGS[f.tuning].name); }
       if (L.type !== f.type) L.hidden = [];
       Object.assign(L, {root:f.root, type:f.type, pos:Object.assign({}, f.pos), visible:true}); setAnchor(L); state.tap = null;
-      ['tech', 'pluck', 'n', 'bpm'].forEach(k => PHR[k] = f[k]); PHR.same = f.same === true; if (phrUsesTrip(f.tech) && f.per % 3 === 0) PHR.trip = f.per; else PHR.per = f.per; PHR.old = phrBase(f); PHR.oldV = f.v || 1;
+      ['tech', 'pluck', 'n', 'bpm'].forEach(k => PHR[k] = f[k]); PHR.same = f.same === true; PHR.kind = f.kind === 'motif' ? 'motif' : 'hp'; if (f.kind !== 'motif' && phrUsesTrip(f.tech) && f.per % 3 === 0) PHR.trip = f.per; else PHR.per = f.per; PHR.old = phrBase(f); PHR.oldV = f.v || 1;
       if (was) scalePlayStart(L, true); break;
     }
     case 'splay': { const ph = b.dataset.k === 'ph'; if (sp.on && sp.layerId === L.id && sp.ph === ph) scalePlayStop(); else if (L.pos) scalePlayStart(L, ph); return; }
     case 'spbpm': case 'spper': case 'sptone': case 'sploop': case 'spmetro': {
       const ph = b.dataset.k === 'ph', c = ph ? PHR : state.playCfg;
       if (act === 'spbpm') c.bpm = Math.max(30, Math.min(300, c.bpm + +v));
-      else if (act === 'spper') { if (ph) PHR.old = ''; if (ph && phrUsesTrip(PHR.tech)) PHR.trip = +v === 6 ? 6 : 3; else c.per = +v; }
+      else if (act === 'spper') { if (ph) PHR.old = ''; if (ph && phrTrip()) PHR.trip = +v === 6 ? 6 : 3; else c.per = +v; }
       else if (act === 'sptone') c.tone = v;
       else if (act === 'spmetro') c.bpm = Math.max(30, Math.min(300, state.metro.bpm));
       else c.loop = !c.loop;       // switched off mid-run: finishes this pass
