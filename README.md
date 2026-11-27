@@ -54,6 +54,9 @@ python -m http.server 8000
 
 Then visit http://localhost:8000.
 
+## Sync with Google
+
+Settings > Sign in with Google keeps your tabs, favorite phrases, saved setups, settings and practice history the same on every device. The data is a single file in the hidden app folder of your own Google Drive (the `drive.appdata` scope: the app can't see anything else in your Drive). There's no server. Each device merges against what it last synced, so a change made on one device is never lost to an older copy on another. Sound delay, mic timing and where you are in the app stay per device. Recordings aren't synced.
 ## Files
 
 - `index.html` – the whole app (HTML, CSS and JS)

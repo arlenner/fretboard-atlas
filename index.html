@@ -218,6 +218,9 @@ body.focus .legend{padding-right:12px}
 .legend span{display:inline-flex; align-items:center; gap:6px}
 .legend i{width:10px; height:10px; border-radius:50%; background:var(--c); display:inline-block}
 .legend b{color:var(--ink); font-weight:650}
+.sync-pill{position:fixed; right:16px; bottom:calc(16px + env(safe-area-inset-bottom, 0px)); z-index:60; box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.sync-pill[hidden]{display:none}
+@media (max-width: 700px){ .sync-pill{bottom:calc(76px + env(safe-area-inset-bottom, 0px))} }
 .rotate-hint{display:none; margin:0 0 8px; font-size:12px; color:var(--muted)}
 @media (orientation: portrait) and (max-width: 700px){ .rotate-hint{display:block} }
 /* the neck stays pinned to the top while it's shown; hidden, its "Show neck" bar scrolls away with the page */
@@ -886,7 +889,7 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
 </style>
 </head>
 <body>
-
+<button type="button" class="btn primary sync-pill" id="syncPill" hidden title="Connect to Google to sync">☁ Sync</button>
 <p class="rotate-hint">Turn your phone sideways to see the whole neck. You can also swipe the neck left and right.</p>
 
 <div class="neck-wrap">
@@ -961,6 +964,8 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
       <div class="cal-set"><span id="calText">Mic timing: not calibrated</span><button type="button" class="btn" data-act="calstart">Calibrate</button></div>
       <div class="cal-set"><span id="avText">Sound delay: 0 ms</span><span class="row" style="gap:4px"><button type="button" class="ib" data-act="avlag" data-v="-10" aria-label="10 ms less sound delay">−</button><button type="button" class="ib" data-act="avlag" data-v="10" aria-label="10 ms more sound delay">+</button><button type="button" class="btn" data-act="avcal" id="avTapBtn">Tap along</button></span></div>
       <span class="hint" id="avHint">Bluetooth headphones play sound late. This holds back the lit-up notes (tabs, phrases, scales, metronome dots, chord changes) by the same amount, so you see each note as you hear it. Tap along: tap the button on each of the clicks you hear.</span>
+      <div class="cal-set"><span id="syncText">Google sync: off</span><span class="row" style="gap:4px"><button type="button" class="btn" id="syncBtn">Sign in with Google</button><button type="button" class="btn" id="syncOut" hidden>Sign out</button></span></div>
+      <span class="hint">Keeps your tabs, favorites, saved setups, settings and practice history the same on every device you sign in on. It's kept in a hidden folder in your own Google Drive that only this app can see. Each time you open the app, tap Sync once to connect.</span>
       <span class="hint">No sound? Turn the volume up. On iPhone, older iOS versions also mute the browser when the ring/silent switch is on.</span>
     </div>
   </details>
@@ -1206,6 +1211,7 @@ try {
   const s = JSON.parse(localStorage.getItem(KEY));
   if (s && Array.isArray(s.layers) && s.layers.length) state = Object.assign(clone(DEF), s);
 } catch (e) {}
+function normState(){
 state.layers = state.layers.filter(L => L && ['intervals','chord','scale','notes'].includes(L.kind)).slice(0, 4);
 if (!state.layers.length) state.layers = clone(DEF.layers);
 state.layers.forEach(L => {
@@ -1239,19 +1245,21 @@ if ((state.lesson.cfg.v || 0) < 2) state.lesson.cfg.quizzes = true;
 if ((state.lesson.cfg.v || 0) < 3) { ['ear-interval','ear-chord','ear-find'].forEach(k => { if (!state.lesson.cfg.quizPool.includes(k)) state.lesson.cfg.quizPool.push(k); }); }
 state.lesson.cfg.v = 3;
 state.lesson.items = (state.lesson.items || []).filter(it => it && (it.kind === 'text' || it.kind === 'quiz' || (it.kind === 'scale' && SCALES[it.type]) || (it.kind === 'chord' && CHORDS[it.type])));
+}
+normState();
 // a session that was running when the page closed comes back paused, with its time left intact
 if (state.session && !state.session.done) {
   if (!state.lesson.items[state.session.idx]) state.session = null;
   else if (!state.session.paused) { state.session.paused = true; state.session.remaining = Math.max(0, state.session.endsAt - Date.now()); }
 }
-function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} syncDirty(); }
 
 /* ================= saved setups: named snapshots of what's on the neck, the pins and the Looper; also as a link ================= */
 const SAVEKEY = 'fretboard-atlas-saves';
 const SNAP_KEYS = ['layers', 'picks', 'readName', 'tuning', 'labelMode', 'colorBy', 'extNames', 'pref', 'flip', 'lefty', 'allNames', 'tab', 'circle', 'pins', 'nextPin', 'nextId', 'lane', 'backing', 'playCfg'];
 let saves = [];
 try { saves = JSON.parse(localStorage.getItem(SAVEKEY)) || []; if (!Array.isArray(saves)) saves = []; } catch (e) { saves = []; }
-const storeSaves = () => { try { localStorage.setItem(SAVEKEY, JSON.stringify(saves)); return true; } catch (e) { toast('Could not save: the browser storage is full.'); return false; } };
+const storeSaves = () => { try { localStorage.setItem(SAVEKEY, JSON.stringify(saves)); syncDirty(); return true; } catch (e) { toast('Could not save: the browser storage is full.'); return false; } };
 function snapshot(){
   const o = {v:1};
   SNAP_KEYS.forEach(k => { if (state[k] !== undefined) o[k] = clone(state[k]); });
@@ -1719,7 +1727,7 @@ const phrFavOk = f => f && typeof f === 'object' && SCALES[f.type] && f.type !==
   && num(f.n, 1, PHR_MAX, 0) && [1, 2, 3, 4, 6].includes(f.per) && num(f.bpm, 30, 300, 0) && [undefined, 1, 2, 3, 4].includes(f.v) && [undefined, true, false].includes(f.same) && f.pos && num(f.pos.f, 0, 24, -1) >= 0 && num(f.pos.s, 0, 5, -1) >= 0 && ['box', 'nps'].includes(f.pos.style) && [undefined, 1, -1].includes(f.pos.d);
 let phrFavs = [];
 try { const x = JSON.parse(localStorage.getItem(PHRKEY)); if (Array.isArray(x)) phrFavs = x.filter(phrFavOk); } catch (e) {}
-function storePhr(){ try { localStorage.setItem(PHRKEY, JSON.stringify(phrFavs)); } catch (e) { toast('Could not save: the browser storage is full.'); } }
+function storePhr(){ syncDirty(); try { localStorage.setItem(PHRKEY, JSON.stringify(phrFavs)); } catch (e) { toast('Could not save: the browser storage is full.'); } }
 const phrBase = f => [f.root, f.type, f.pos.s || 0, f.pos.f, f.pos.d || 0, f.pos.style === 'nps' ? 'nps' : 'box', f.tuning, f.tech, f.pluck, f.n, f.per].join('|') + (f.same ? '|s' : '');
 const phrKey = f => phrBase(f) + (f.v >= 2 ? '|' + f.v : '');
 const phrSpot = L => ({root:L.root, type:L.type, pos:Object.assign({s:L.pos.s || 0, f:L.pos.f, style:L.pos.style === 'nps' ? 'nps' : 'box'}, L.pos.d ? {d:L.pos.d} : {}), tuning:state.tuning, tech:PHR.tech, pluck:PHR.pluck, n:PHR.n, per:PHR.per, bpm:PHR.bpm, same:!!PHR.same});
@@ -1814,7 +1822,7 @@ function tbClean(t){
 }
 let tabs = [];
 try { const x = JSON.parse(localStorage.getItem(TABKEY)); if (Array.isArray(x)) tabs = x.map(tbClean).filter(Boolean); } catch (e) {}
-function storeTabs(){ try { localStorage.setItem(TABKEY, JSON.stringify(tabs)); } catch (e) { toast('Could not save: the browser storage is full.'); } }
+function storeTabs(){ syncDirty(); try { localStorage.setItem(TABKEY, JSON.stringify(tabs)); } catch (e) { toast('Could not save: the browser storage is full.'); } }
 const tbDoc = () => tabs.find(t => t.id === state.tabCur) || null;
 let tbc = {c:0, s:5}, tbUndo = [], tbRedo = [], tbDelArm = null, tbNum = null;     // the cursor (column, string), undo, a delete waiting for its second tap, a number being typed
 function tbOpen(id){ tbLast = null; tbSel = null; state.tabCur = id; const T = tbDoc(); tbc = {c:T ? T.cols.length : 0, s:5}; tbUndo = []; tbRedo = []; tbNum = null; if (tbp.on) tbStop(true); }
@@ -3912,7 +3920,7 @@ const ANSKEY = 'fretboard-atlas-answers-v1';
 let answers = [];
 try { answers = JSON.parse(localStorage.getItem(ANSKEY)) || []; if (!Array.isArray(answers)) answers = []; } catch (e) { answers = []; }
 let ansTimer = null;
-function saveAnswers(){ clearTimeout(ansTimer); ansTimer = setTimeout(() => { try { localStorage.setItem(ANSKEY, JSON.stringify(answers.slice(-6000))); } catch (e) {} }, 400); }
+function saveAnswers(){ clearTimeout(ansTimer); ansTimer = setTimeout(() => { try { localStorage.setItem(ANSKEY, JSON.stringify(answers.slice(-6000))); } catch (e) {} syncDirty(); }, 400); }
 /* one row per answer: quiz type, right/wrong, response time, and the fret / note / interval involved */
 function recAnswer(o){
   if (!quiz) return;
@@ -4540,7 +4548,7 @@ function handleCompose(act, b){
 const LOGKEY = 'fretboard-atlas-log-v1';
 let practiceLog = [];
 try { practiceLog = JSON.parse(localStorage.getItem(LOGKEY)) || []; if (!Array.isArray(practiceLog)) practiceLog = []; } catch (e) { practiceLog = []; }
-function saveLog(){ try { localStorage.setItem(LOGKEY, JSON.stringify(practiceLog.slice(-3000))); } catch (e) {} }
+function saveLog(){ syncDirty(); try { localStorage.setItem(LOGKEY, JSON.stringify(practiceLog.slice(-3000))); } catch (e) {} }
 const dayKey = ts => { const d = new Date(ts); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 function itemKey(it){
   if (it.kind === 'text') return 'text|' + it.text.toLowerCase();
@@ -4577,7 +4585,7 @@ const ago = ts => { const d = Math.floor((Date.now() - ts) / 86400000); return d
 const REVKEY = 'fretboard-atlas-review-v1', REV_DAYS = [1, 2, 4, 8, 16, 32, 64], REV_KNOWN = 4;
 let review = {seeded:false, items:{}};
 try { const r = JSON.parse(localStorage.getItem(REVKEY)); if (r && r.items && typeof r.items === 'object' && !Array.isArray(r.items)) review = {seeded:!!r.seeded, items:r.items}; } catch (e) {}
-function saveReview(){ try { localStorage.setItem(REVKEY, JSON.stringify(review)); } catch (e) {} }
+function saveReview(){ syncDirty(); try { localStorage.setItem(REVKEY, JSON.stringify(review)); } catch (e) {} }
 const dayStart = (ts, plus) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); if (plus) d.setDate(d.getDate() + plus); return d.getTime(); };
 const revItemOk = it => !!it && (it.kind === 'text' ? typeof it.text === 'string' && !!it.text : it.kind === 'quiz' ? !!QUIZ_TYPES[it.quiz] : it.root >= 0 && it.root < 12 && (it.kind === 'scale' ? !!SCALES[it.type] : it.kind === 'chord' && !!CHORDS[it.type]));
 const bareItem = it => it.kind === 'text' ? {kind:'text', text:it.text} : it.kind === 'quiz' ? {kind:'quiz', quiz:it.quiz} : {kind:it.kind, root:it.root, type:it.type, pos:it.pos ? Object.assign({}, it.pos) : null};
@@ -5498,7 +5506,7 @@ const TC_HELD = 0.04;                 // a silence counts as held if you come ba
 const TIMEKEY = 'fretboard-atlas-time-v1';
 let timeLog = [];
 try { const t = JSON.parse(localStorage.getItem(TIMEKEY)); if (Array.isArray(t)) timeLog = t.filter(x => x && x.ts); } catch (e) {}
-function saveTimeLog(){ try { localStorage.setItem(TIMEKEY, JSON.stringify(timeLog.slice(-500))); } catch (e) {} }
+function saveTimeLog(){ syncDirty(); try { localStorage.setItem(TIMEKEY, JSON.stringify(timeLog.slice(-500))); } catch (e) {} }
 state.tcCfg = Object.assign({what:'quarters', plan:'grow'}, state.tcCfg || {});
 if (!TC_WHAT[state.tcCfg.what]) state.tcCfg.what = 'quarters';
 if (!TC_PLANS[state.tcCfg.plan]) state.tcCfg.plan = 'grow';
@@ -6830,6 +6838,154 @@ function setSound(on){
   renderToolbar(); save();
   toast(on ? 'Sound on' : 'Sound off');
 }
+/* ================= sync with Google: your data in a hidden app folder in your own Google Drive =================
+   No server. The browser signs in with Google (a token good for an hour), reads the file, merges, writes it back.
+   The merge is three-way, against what this device last synced (the base): whatever changed on only one side keeps that
+   change, deletions too. Changed on both: this device wins, except on its first sync, where what's in Drive wins.
+   Things that belong to one device (sound delay, mic timing, where you are in the app) are never synced. */
+var SYNC = null;
+const SYNC_CID = '798129945030-qmhaqovsp8kmfefd7f9mcrcjur3p1av5.apps.googleusercontent.com', SYNC_FILE = 'fretboard-atlas-sync.json';
+const SYNC_META = 'fretboard-atlas-sync-v1', SYNC_BASE = 'fretboard-atlas-sync-base-v1';
+const SYNC_LOCAL = ['tab', 'ptab', 'lastSub', 'pview', 'neckHidden', 'folds', 'secOpen', 'ingOpen', 'tap', 'pinView', 'tabCur', 'session', 'tkErr', 'sound', 'avDelay', 'micCal', 'rotated'];
+SYNC = {linked:false, token:null, exp:0, fid:null, busy:false, again:false, timer:0, last:0, err:'', gis:null, client:null, pushed:''};
+try { const m = JSON.parse(localStorage.getItem(SYNC_META)); if (m && m.linked) Object.assign(SYNC, {linked:true, last:+m.last || 0}); } catch (e) {}
+function syncMetaSave(){ try { localStorage.setItem(SYNC_META, JSON.stringify({linked:SYNC.linked, last:SYNC.last})); } catch (e) {} }
+const sj = x => x === undefined ? undefined : JSON.stringify(x);
+const syncCanon = x => JSON.stringify(x, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((o, j) => (o[j] = v[j], o), {}) : v);      // the same data, whatever order its keys are in
+function syncBundle(){
+  const st = {}; Object.keys(state).forEach(k => { if (!SYNC_LOCAL.includes(k)) st[k] = state[k]; });
+  return clone({v:1, state:st, tabs, saves, phrases:phrFavs, answers, log:practiceLog, review, time:timeLog});
+}
+/* one thing, three ways: here (l), in Drive (r), as last synced here (b) */
+function syncPick(l, r, b, noBase){
+  const L = sj(l), R = sj(r); if (L === R) return l;
+  if (noBase) return r !== undefined ? r : l;
+  const B = sj(b); if (L === B) return r; if (R === B) return l;
+  return l !== undefined ? l : r;
+}
+function syncKeyed(L, R, B, key, noBase){
+  const m = a => new Map((Array.isArray(a) ? a : []).filter(x => x && typeof x === 'object').map(x => [String(key(x)), x]));
+  const ml = m(L), mr = m(R), mb = m(B), out = [], seen = new Set();
+  for (const k of [...ml.keys(), ...mr.keys()]) { if (seen.has(k)) continue; seen.add(k); const v = syncPick(ml.get(k), mr.get(k), mb.get(k), noBase); if (v !== undefined) out.push(v); }
+  return out;
+}
+function syncObj(L, R, B, noBase, skip){
+  const out = {}; L = L || {}; R = R && typeof R === 'object' ? R : {}; B = B || {};
+  new Set([...Object.keys(L), ...Object.keys(R)]).forEach(k => { if (skip && skip.includes(k)) return; const v = syncPick(L[k], R[k], B[k], noBase); if (v !== undefined) out[k] = v; });
+  return out;
+}
+function syncMerge(L, R, B){
+  if (!R || R.v !== 1) return L;
+  const nb = !B || B.v !== 1; B = nb ? {} : B;
+  const log = (k, f, cap) => syncKeyed(L[k], R[k], B[k], sj, nb).sort((a, b) => (a[f] || 0) - (b[f] || 0)).slice(-cap);
+  const rv = x => x && typeof x === 'object' ? x : {};
+  return {v:1, state:syncObj(L.state, R.state, B.state, nb, SYNC_LOCAL), tabs:syncKeyed(L.tabs, R.tabs, B.tabs, t => t.id, nb), saves:syncKeyed(L.saves, R.saves, B.saves, s => s.id, nb),
+    phrases:syncKeyed(L.phrases, R.phrases, B.phrases, f => { try { return phrKey(f); } catch (e) { return sj(f); } }, nb),
+    answers:log('answers', 't', 6000), log:log('log', 'ts', 3000), time:log('time', 'ts', 500),
+    review:{seeded:!!(rv(L.review).seeded || rv(R.review).seeded), items:syncObj(rv(L.review).items, rv(R.review).items, rv(B.review).items, nb)}};
+}
+/* put the merged data to use here, checked the same way as when the app loads */
+function syncApply(M){
+  const L = syncBundle(); let any = false;
+  if (sj(M.state) !== sj(L.state)) {
+    Object.keys(state).forEach(k => { if (!SYNC_LOCAL.includes(k) && !(k in M.state)) delete state[k]; });
+    Object.keys(M.state).forEach(k => { state[k] = clone(M.state[k]); });
+    Object.keys(DEF).forEach(k => { if (!(k in state)) state[k] = clone(DEF[k]); });
+    normState(); phrLoad(); save(); any = true;
+  }
+  if (sj(M.tabs) !== sj(L.tabs)) { tabs = M.tabs.map(tbClean).filter(Boolean); storeTabs(); any = true; }
+  if (sj(M.saves) !== sj(L.saves)) { saves = M.saves.filter(s => s && s.snap); storeSaves(); any = true; }
+  if (sj(M.phrases) !== sj(L.phrases)) { phrFavs = M.phrases.filter(phrFavOk); storePhr(); any = true; }
+  if (sj(M.answers) !== sj(L.answers)) { answers = M.answers.filter(a => a && a.t); try { localStorage.setItem(ANSKEY, JSON.stringify(answers)); } catch (e) {} any = true; }
+  if (sj(M.log) !== sj(L.log)) { practiceLog = M.log.filter(e => e && e.ts); saveLog(); any = true; }
+  if (sj(M.review) !== sj(L.review)) { review = {seeded:!!M.review.seeded, items:M.review.items || {}}; saveReview(); any = true; }
+  if (sj(M.time) !== sj(L.time)) { timeLog = M.time.filter(x => x && x.ts); saveTimeLog(); any = true; }
+  if (any) render();
+}
+async function syncFetch(url, opt){
+  opt = opt || {};
+  const r = await fetch(url, Object.assign({}, opt, {headers:Object.assign({Authorization:'Bearer ' + SYNC.token}, opt.headers || {})}));
+  if (r.status === 401 || r.status === 403 && /auth|scope|insufficient/i.test(r.statusText)) { SYNC.token = null; throw new Error('auth'); }
+  if (!r.ok) throw new Error('drive ' + r.status);
+  return r;
+}
+async function syncRun(){
+  if (!SYNC.linked) return;
+  if (!SYNC.token || Date.now() > SYNC.exp) { SYNC.token = null; syncUi(); return; }
+  if (SYNC.busy) { SYNC.again = true; return; }
+  SYNC.busy = true; SYNC.err = ''; syncUi();
+  const D = 'https://www.googleapis.com/drive/v3/files', U = 'https://www.googleapis.com/upload/drive/v3/files';
+  try {
+    if (!SYNC.fid) { const j = await (await syncFetch(D + '?spaces=appDataFolder&fields=files(id)&q=' + encodeURIComponent(`name='${SYNC_FILE}'`))).json(); SYNC.fid = j.files && j.files[0] ? j.files[0].id : null; }
+    let R = null;
+    if (SYNC.fid) { const r = await syncFetch(D + '/' + SYNC.fid + '?alt=media'); try { R = await r.json(); } catch (e) { R = null; } }
+    let B = null; try { B = JSON.parse(localStorage.getItem(SYNC_BASE)); } catch (e) {}
+    const L = syncBundle(), M = syncMerge(L, R, B), ms = sj(M), mc = syncCanon(M);
+    if (mc !== syncCanon(L)) syncApply(M);
+    if (!R || mc !== syncCanon(R)) {
+      if (SYNC.fid) await syncFetch(U + '/' + SYNC.fid + '?uploadType=media', {method:'PATCH', headers:{'Content-Type':'application/json'}, body:ms});
+      else {
+        const fd = new FormData();
+        fd.append('metadata', new Blob([JSON.stringify({name:SYNC_FILE, parents:['appDataFolder']})], {type:'application/json'}));
+        fd.append('file', new Blob([ms], {type:'application/json'}));
+        SYNC.fid = (await (await syncFetch(U + '?uploadType=multipart&fields=id', {method:'POST', body:fd})).json()).id;
+      }
+    }
+    try { localStorage.setItem(SYNC_BASE, ms); } catch (e) {}
+    SYNC.pushed = sj(syncBundle()); SYNC.last = Date.now(); syncMetaSave();
+  } catch (e) { SYNC.err = e.message === 'auth' ? '' : navigator.onLine === false ? 'offline, will sync when you are back online' : 'could not reach Google Drive, will try again'; }
+  SYNC.busy = false; syncUi();
+  if (SYNC.again) { SYNC.again = false; syncSoon(500); }
+}
+/* something was saved here: send it a few seconds later (only if it really changed) */
+function syncDirty(){ if (SYNC && SYNC.linked) syncSoon(4000); }
+function syncSoon(ms){
+  clearTimeout(SYNC.timer);
+  SYNC.timer = setTimeout(() => { if (!SYNC.token || Date.now() > SYNC.exp) { SYNC.token = null; syncUi(); return; } if (ms >= 1000 && !SYNC.err && sj(syncBundle()) === SYNC.pushed) return; syncRun(); }, ms);
+}
+function syncGis(){
+  if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+  if (!SYNC.gis) SYNC.gis = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true; s.onload = res; s.onerror = () => { SYNC.gis = null; rej(new Error('gis')); }; document.head.appendChild(s); });
+  return SYNC.gis;
+}
+/* the sign-in popup has to open straight from a tap, so Google's script is loaded ahead of time (when Settings opens, or at start once you're signed in) */
+function syncSignIn(){
+  if (!(window.google && google.accounts && google.accounts.oauth2)) { toast('Loading Google sign-in…'); syncGis().then(() => toast('Ready. Tap again to sign in.')).catch(() => toast('Could not load Google sign-in. Check your connection.')); return; }
+  if (!SYNC.client) SYNC.client = google.accounts.oauth2.initTokenClient({client_id:SYNC_CID, scope:'https://www.googleapis.com/auth/drive.appdata',
+    callback:r => {
+      if (!r || !r.access_token) { toast('Sign-in did not finish.'); syncUi(); return; }
+      const first = !SYNC.linked; SYNC.token = r.access_token; SYNC.exp = Date.now() + ((+r.expires_in || 3600) - 60) * 1000; SYNC.linked = true; syncMetaSave();
+      if (first) toast('Signed in. Your data now syncs with your Google Drive.');
+      syncRun();
+    },
+    error_callback:e => { toast(e && e.type === 'popup_closed' ? 'Sign-in window closed.' : e && e.type === 'popup_failed_to_open' ? 'The sign-in window was blocked. Allow pop-ups for this site and try again.' : 'Sign-in did not finish.'); syncUi(); }});
+  SYNC.client.requestAccessToken({prompt:SYNC.linked ? '' : 'consent'});
+}
+function syncSignOut(){
+  if (SYNC.token && window.google) { try { google.accounts.oauth2.revoke(SYNC.token, () => {}); } catch (e) {} }
+  clearTimeout(SYNC.timer); Object.assign(SYNC, {linked:false, token:null, exp:0, fid:null, last:0, err:'', pushed:''});
+  try { localStorage.removeItem(SYNC_BASE); } catch (e) {}
+  syncMetaSave(); syncUi(); toast('Signed out. Everything stays on this device, and in your Drive.');
+}
+const syncAgo = ts => { const s = (Date.now() - ts) / 1000; return s < 60 ? 'just now' : s < 3600 ? Math.round(s / 60) + ' min ago' : s < 86400 ? Math.round(s / 3600) + ' h ago' : new Date(ts).toLocaleDateString(); };
+function syncUi(){
+  const t = $('#syncText'), b = $('#syncBtn'), o = $('#syncOut'), p = $('#syncPill'); if (!t) return;
+  const live = SYNC.token && Date.now() < SYNC.exp;
+  t.textContent = !SYNC.linked ? 'Google sync: off' : SYNC.busy ? 'Google sync: syncing…' : SYNC.err ? 'Google sync: ' + SYNC.err : live ? 'Google sync: on' + (SYNC.last ? ' · synced ' + syncAgo(SYNC.last) : '') : 'Google sync: tap Sync to connect';
+  b.textContent = SYNC.linked ? 'Sync now' : 'Sign in with Google'; o.hidden = !SYNC.linked;
+  p.hidden = !(SYNC.linked && !live);
+}
+function syncGo(){ if (SYNC.linked && SYNC.token && Date.now() < SYNC.exp) syncRun(); else syncSignIn(); }
+$('#syncBtn').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); syncGo(); });
+$('#syncOut').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); syncSignOut(); });
+$('#syncPill').addEventListener('click', syncGo);
+$('#menu').addEventListener('toggle', () => { if ($('#menu').open) { syncGis().catch(() => {}); syncUi(); } });
+document.addEventListener('visibilitychange', () => { if (!SYNC.linked) return; if (document.visibilityState === 'visible') { syncUi(); syncSoon(300); } else if (SYNC.token) syncSoon(0); });
+addEventListener('online', () => { if (SYNC.linked) syncSoon(300); });
+setInterval(() => { if (SYNC.linked && SYNC.token && document.visibilityState === 'visible') syncSoon(300); else syncUi(); }, 120000);      // see what the other devices changed
+if (SYNC.linked) syncGis().catch(() => {});
+syncUi();
+Object.assign(window.fretboardAtlas || {}, {syncMerge, syncBundle, syncApply, syncRun, get SYNC(){ return SYNC; }});      // for the tests
 $('#setSound').addEventListener('change', e => setSound(e.target.checked));
 $('#avTapBtn').addEventListener('pointerdown', avCalTap);
 $('#viewBtn').addEventListener('click', () => { const on = $('.bar').classList.toggle('showview'); $('#viewBtn').setAttribute('aria-expanded', String(on)); });
