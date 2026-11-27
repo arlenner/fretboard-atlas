@@ -1946,10 +1946,35 @@ function tbTech(t){
     else if (q.t === t) delete q.t; else q.t = t;
   });
 }
+/* every length a column can have, longest first; a stretch of time as rests, longest first (null when it can't be written) */
+const TB_ALL = [...new Set(TBASE.flatMap(([b]) => ['', 'dot', 'tri'].map(m => tbMake(b, m))))].filter(Number.isInteger).sort((a, b) => b - a);
+function tbRests(g){ const out = []; while (g > 0) { const x = TB_ALL.find(v => v <= g); if (!x) return null; out.push(x); g -= x; } return out; }
+/* a new length for column k that leaves the notes after it where they were: a shorter note leaves a rest behind it,
+   a longer one takes the time from the rests after it. Without the rests to take, the rest of the tab moves. */
+function tbResize(T, k, d){
+  const c = T.cols[k], old = c.d; c.d = d;
+  if (k >= T.cols.length - 1 || d === old) return;
+  // take as few of the rests after it as it needs, and write what's left of them (and of the old length) as rests again
+  for (let j = k + 1, acc = 0; ; acc += T.cols[j++].d) {
+    const left = old - d + acc, r = left >= 0 && tbRests(left);
+    if (r) { T.cols.splice(k + 1, j - k - 1, ...r.map(x => ({d:x, n:[]}))); return; }
+    if (j >= T.cols.length || T.cols[j].n.length) return;
+  }
+}
 function tbSetDur(b, m){
   const T = tbDoc(); if (!T) return;
   const d = tbMake(b, m); state.tabDur = d;
-  if (tbAt(T)) tbEdit(T => { T.cols[tbc.c].d = d; });
+  if (tbAt(T)) tbEdit(T => tbResize(T, tbc.c, d));
+}
+/* split the column into n of the same time: the notes stay in the first, the rest are empty for new notes */
+const tbCanSplit = (c, n) => !!c && tbDurOk(c.d / n);
+function tbSplit(n){
+  const T = tbDoc(), c = T && tbAt(T); if (!c) return;
+  if (!tbCanSplit(c, n)) { toast(`A ${tbLenName(c.d)} can't be split in ${n === 2 ? 'two' : 'three'}.`); return; }
+  if (T.cols.length + n - 1 > TMAX) { toast('That tab is as long as it can be.'); return; }
+  const d = c.d / n;
+  tbEdit(T => { T.cols[tbc.c].d = d; T.cols.splice(tbc.c + 1, 0, ...Array.from({length:n - 1}, () => Object.assign({d, n:[]}, c.pm ? {pm:true} : {}))); });
+  state.tabDur = d; tbc.c++;
 }
 function tbCurDur(){ const T = tbDoc(), c = T && tbAt(T); return tbDec(c ? c.d : state.tabDur) || {b:12, m:''}; }
 function tbDupBar(){
@@ -2230,10 +2255,13 @@ function renderTab(){
       ${sel.bar}
       <div class="row nw"><div class="seg" aria-label="Length">${TBASE.map(([b, t, h]) => `<button type="button" data-act="tbdur" data-v="${b}" aria-pressed="${dc.b === b}" title="${h}">${t}</button>`).join('')}</div>
         <button type="button" class="chip${dc.m === 'dot' ? ' sel' : ''}" data-act="tbdot" aria-pressed="${dc.m === 'dot'}" title="Half as long again">Dotted</button>
-        <button type="button" class="chip${dc.m === 'tri' ? ' sel' : ''}" data-act="tbtri" aria-pressed="${dc.m === 'tri'}" title="Three in the time of two">Triplet</button></div>
+        <button type="button" class="chip${dc.m === 'tri' ? ' sel' : ''}" data-act="tbtri" aria-pressed="${dc.m === 'tri'}" title="Three in the time of two">Triplet</button>
+      </div>
       <div class="row nw"><div class="seg" aria-label="Technique">${Object.entries(TTECH).map(([k, [t, h]]) => `<button type="button" data-act="tbtech" data-v="${k}" aria-pressed="${!!q && q.t === k}" title="${h}"${q || k === 'x' ? '' : ' disabled'}>${t === '/' ? '/ \\' : esc(t)}</button>`).join('')}</div>
         <button type="button" class="chip${(c ? c.pm : state.tabPm) ? ' sel' : ''}" data-act="tbpm" aria-pressed="${!!(c ? c.pm : state.tabPm)}" title="Palm mute: rest the picking hand on the strings by the bridge. Stays on for the columns you write next.">PM</button></div>
-      <div class="row nw tbmuterow">${muteRow}</div>
+      <div class="row nw tbmuterow"><button type="button" class="chip" data-act="tbsplit" data-v="2"${tbCanSplit(c, 2) ? '' : ' disabled'} title="Split this column into two halves: the note keeps the first, the second is empty for a new note">Split ½</button>
+        <button type="button" class="chip" data-act="tbsplit" data-v="3"${tbCanSplit(c, 3) ? '' : ' disabled'} title="Split this column into a triplet: the note keeps the first, the other two are empty">Split ⅓</button>
+        ${muteRow}</div>
       <span class="info tbwhere">${where}</span>
     </div>
     ${fold('tbmore', 'More tools', 'insert, chords, select, labels', `<div class="row"><button type="button" class="btn" data-act="tbins" title="A new empty column here">Insert</button>
@@ -2312,6 +2340,7 @@ function handleTab(act, b){
     case 'tbdur': tbSetDur(+v, tbCurDur().m); break;
     case 'tbdot': { const d = tbCurDur(); tbSetDur(d.b, d.m === 'dot' ? '' : 'dot'); break; }
     case 'tbtri': { const d = tbCurDur(); tbSetDur(d.b, d.m === 'tri' ? '' : 'tri'); break; }
+    case 'tbsplit': tbSplit(+v); break;
     case 'tbtech': tbTech(v); break;
     case 'tbpm': tbPmToggle(); break;
     case 'tbselect': tbSel = {a:Math.min(tbc.c, T.cols.length - 1)}; break;
