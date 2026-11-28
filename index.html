@@ -542,6 +542,7 @@ body.pv-done .neck-wrap{display:none !important}
 .kit .dk:hover .hd, .kit .dk:hover .cy, .kit .dk:hover .pill{stroke:var(--accent); stroke-width:2.5}
 .kit .dk.on .hd, .kit .dk.on .cy, .kit .dk.on .pill, .kit .dk.on .bell{fill:var(--accent); stroke:var(--accent)}
 .kit .dk.on text{fill:var(--accent)}
+.kit .dk.on text.in, .kit .dk.on text.in .kn, .kit .dk.playing text.in{fill:var(--on-accent)}
 .kit .dk.on .pill ~ text, .kit .dk.on .pill ~ text .kn{fill:var(--on-accent)}
 .kit .dk.playing .hd, .kit .dk.playing .cy, .kit .dk.playing .pill{fill:var(--ink); filter:drop-shadow(0 0 6px var(--accent))}
 .tbtracks{gap:6px; align-items:center; margin-bottom:6px}
@@ -549,6 +550,8 @@ body.pv-done .neck-wrap{display:none !important}
 .tbsheet.drums .tbc i{height:17px}
 .tbsheet.drums .tbnames i{height:17px; line-height:17px}
 .tbsheet.drums .tbc i b{line-height:14px}
+.tbsheet.drums .tbc i b.t-g{opacity:.6; font-weight:500; font-size:10px}
+.tbsheet.drums .tbc i b.t-a{color:var(--accent); font-weight:800}
 .tbrec.sel{background:var(--bad); border-color:var(--bad); color:#fff}
 @media (max-width: 560px){ .tbtr .tl{display:none} .tbtr{gap:4px} .tbtr .btn{padding:3px 10px} body.tabed:not(.focus) .focus-btn{display:none} body.tabed:not(.focus) .legend{padding-right:104px} }
 /* open: the header lights up and the contents sit in a box joined to it; shut: a plain bar with a chevron */
@@ -1920,8 +1923,8 @@ function chordMidis(rootPc, type){ const base = 48 + mod(rootPc); return CHORDS[
    A tab is columns in order. Each column lasts d ticks (24 a beat, so dotted notes and triplets come out whole)
    and holds at most one note a string; no notes is a rest. A note can be hammered, pulled, slid into, bent, shaken or dead. */
 const TABKEY = 'fretboard-atlas-tabs-v1', TQ = 24, TMAX = 2000;
-const TBASE = [[96, '1/1', 'Whole note', 'W'], [48, '1/2', 'Half note', 'H'], [24, '1/4', 'Quarter note', 'Q'], [12, '1/8', '8th note', 'E'], [6, '1/16', '16th note', 'S']];
-const TSYM = {96:'1', 48:'½', 24:'¼', 12:'⅛', 6:'16'};
+const TBASE = [[96, '1/1', 'Whole note', 'W'], [48, '1/2', 'Half note', 'H'], [24, '1/4', 'Quarter note', 'Q'], [12, '1/8', '8th note', 'E'], [6, '1/16', '16th note', 'S'], [3, '1/32', '32nd note', 'T']];
+const TSYM = {96:'1', 48:'½', 24:'¼', 12:'⅛', 6:'16', 3:'32'};
 const TTECH = {h:['h', 'Hammer-on'], p:['p', 'Pull-off'], s:['/', 'Slide into it'], b:['b', 'Bend it up a whole step'], v:['~', 'Vibrato'], x:['x', 'Dead (muted) note'], n:['<>', 'Natural harmonic: touch the string over the fret wire, not pressing it down'], a:['PH', 'Pinch harmonic: catch the string with the thumb as you pick']};
 /* what a natural harmonic sounds, above the open string, by fret (where there is one); a pinch harmonic, an octave and a fifth over the note */
 const TB_NH = {3:31, 4:28, 5:24, 7:19, 9:28, 12:12, 16:28, 19:19, 24:24};
@@ -1940,7 +1943,7 @@ const TB_KINDS = {drums:'Drums'};
 function tbCleanCols(cs, dr){
   return (Array.isArray(cs) ? cs : []).slice(0, TMAX).filter(c => c && tbDurOk(c.d)).map(c => {
     const seen = new Set(), raw = (Array.isArray(c.n) ? c.n : []).filter(q => q && num(q.s, 0, dr ? DK.length - 1 : 5, -1) >= 0 && (dr || num(q.f, 0, 24, -1) >= 0) && !seen.has(q.s) && seen.add(q.s));
-    const n = dr ? raw.map(q => ({s:q.s, f:0})) : raw.map(q => Object.assign({s:q.s, f:q.f}, TTECH[q.t] ? {t:q.t} : {}, q.t !== 'x' && num(q.len, 1, 9999, 0) ? {len:q.len} : {}));
+    const n = dr ? raw.map(q => Object.assign({s:q.s, f:0}, q.t === 'g' || q.t === 'a' ? {t:q.t} : {})) : raw.map(q => Object.assign({s:q.s, f:q.f}, TTECH[q.t] ? {t:q.t} : {}, q.t !== 'x' && num(q.len, 1, 9999, 0) ? {len:q.len} : {}));
     return Object.assign({d:c.d, n}, typeof c.lab === 'string' && c.lab.trim() ? {lab:c.lab.trim().slice(0, 24)} : {}, !dr && c.pm === true ? {pm:true} : {});
   });
 }
@@ -2002,27 +2005,28 @@ function tbBeat(k){
    square waves high-passed (the classic drum-machine cymbal) for the hi-hats, ride and crash ---- */
 let drNoise = null, drOpen = null;
 function drumNoise(a){ if (!drNoise || drNoise.ctx !== a) { const b = a.createBuffer(1, a.sampleRate * 2, a.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; drNoise = {ctx:a, b}; } return drNoise.b; }
-function drumHit(i, when, out){
+function drumHit(i, when, out, t){
   const a = getAudio(), D = DK[i]; if (!a || !D) return;
   if (a.state !== 'running') a.resume().catch(() => {});
   when = Math.max(when || 0, a.currentTime + 0.005);
   const keep = n => { if (out) out.push(n); };
+  const bus0 = a.createGain(); bus0.gain.value = t === "g" ? 0.3 : t === "a" ? 1.35 : 1; bus0.connect(master);      // a ghost note is soft, an accent hard
   const env = (g, peak, dec) => { g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(peak, when + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, when + dec); };
   const filt = (type, f, q) => { const x = a.createBiquadFilter(); x.type = type; x.frequency.value = f; if (q) x.Q.value = q; return x; };
   const noise = (hp, lp, peak, dec) => {
     const s = a.createBufferSource(), g = a.createGain(); s.buffer = drumNoise(a); let n = s;
     if (hp) { const f = filt('highpass', hp); n.connect(f); n = f; } if (lp) { const f = filt('lowpass', lp); n.connect(f); n = f; }
-    n.connect(g); g.connect(master); env(g, peak, dec); s.start(when, Math.random()); s.stop(when + dec + 0.05); keep(s); return g;
+    n.connect(g); g.connect(bus0); env(g, peak, dec); s.start(when, Math.random()); s.stop(when + dec + 0.05); keep(s); return g;
   };
   const tone = (f0, f1, peak, dec, type) => {
     const o = a.createOscillator(), g = a.createGain(); o.type = type || 'sine';
     o.frequency.setValueAtTime(f0, when); o.frequency.exponentialRampToValueAtTime(f1, when + dec * 0.5);
-    o.connect(g); g.connect(master); env(g, peak, dec); o.start(when); o.stop(when + dec + 0.05); keep(o);
+    o.connect(g); g.connect(bus0); env(g, peak, dec); o.start(when); o.stop(when + dec + 0.05); keep(o);
   };
   const metal = (hp, peak, dec) => {
     const g = a.createGain(), f = filt('highpass', hp), bp = filt('bandpass', 10000, 0.6);
     [2, 3, 4.16, 5.43, 6.79, 8.21].forEach(r => { const o = a.createOscillator(); o.type = 'square'; o.frequency.value = 40 * r; o.connect(bp); o.start(when); o.stop(when + dec + 0.05); keep(o); });
-    bp.connect(f); f.connect(g); g.connect(master); env(g, peak, dec); return g;
+    bp.connect(f); f.connect(g); g.connect(bus0); env(g, peak, dec); return g;
   };
   const choke = () => { if (drOpen && drOpen.at < when) { drOpen.g.gain.cancelScheduledValues(when); drOpen.g.gain.setTargetAtTime(0.0001, when, 0.008); drOpen = null; } };
   switch (D.id) {
@@ -2046,7 +2050,7 @@ function kitSvg(on, tall){
   const svg = (w, body) => `<svg viewBox="0 0 ${w} 250" preserveAspectRatio="xMidYMid meet" aria-label="Drum kit: tap a drum to put it in the column at the cursor">${body}</svg>`;
   // an upright phone: the same kit, packed closer, so it's drawn bigger
   if (tall) return svg(360, `
-    ${g(0, `<circle class="sh" cx="182" cy="190" r="54"/><circle class="hd" cx="182" cy="190" r="45"/>`, 182, 195)}
+    ${g(0, `<circle class="sh" cx="182" cy="190" r="54"/><circle class="hd" cx="182" cy="190" r="45"/>`, 182, 195).replace("<text ", "<text class=\"in\" ")}
     ${g(4, drum(146, 92, 40, 13, 22), 146, 75)}
     ${g(5, drum(242, 92, 42, 14, 24), 242, 75)}
     ${g(1, drum(62, 186, 54, 17, 24), 62, 238)}
@@ -2067,6 +2071,65 @@ function kitSvg(on, tall){
     ${g(3, `<rect class="pill" x="20" y="150" width="84" height="26" rx="13"/>`, 62, 168)}`);
 }
 /* record yourself over the tab: every track plays (looping, if Loop is on) and the take goes in Practice > Takes */
+/* ---- fills and rolls: a stretch of drums from the cursor, at an even rate. It takes the place of what's there,
+   so the beat after it doesn't move. Soft to loud: ghost notes, then normal, then accents. ---- */
+const TB_FILLS = {sn:'Snare roll', hh:'Hi-hat roll', toms:'Down the toms', hip:'Hip-hop'};
+const TB_RATES = [[12, '8ths'], [8, '8th triplets'], [6, '16ths'], [4, 'Sextuplets'], [3, '32nds']];
+function tbFillCfg(){
+  const d = {k:'sn', r:6, len:24, cres:true, crash:true}, x = Object.assign({}, d, state.tbFill || {});
+  if (!TB_FILLS[x.k]) x.k = d.k; if (!TB_RATES.some(r => r[0] === x.r)) x.r = d.r; if (![12, 24, 48, 0].includes(x.len)) x.len = d.len;
+  x.cres = x.cres !== false; x.crash = x.crash !== false; return (state.tbFill = x);
+}
+const tbFillLen = (T, F) => F.len || T.beats * TQ;      // 0: a bar
+const tbFillLens = () => [[12, '½ beat'], [24, '1 beat'], [48, '2 beats'], [0, '1 bar']];
+function tbFillNotes(k, n, r, cres){
+  const dyn = p => cres ? (p < 0.3 ? 'g' : p >= 0.75 ? 'a' : '') : '', N = (s, t) => Object.assign({s, f:0}, t ? {t} : {}), tri = r === 8 || r === 4;
+  return Array.from({length:n}, (_, i) => {
+    const p = n > 1 ? i / (n - 1) : 1;
+    if (k === 'sn') return [N(1, dyn(p))];
+    if (k === 'hh') return [N(2, dyn(p))];
+    if (k === 'toms') return [N([1, 4, 5, 6][Math.min(3, Math.floor(i * 4 / n))], dyn(p))];
+    // hip-hop: kick and hat on the pulse, ghost snares between, a kick then a hard snare to finish
+    if (i === n - 1) return [N(1, 'a')];
+    if (i === n - 2 && n > 3) return [N(0)];
+    const m = tri ? i % 3 : i % 4;
+    return m === 0 ? [N(0), N(2)] : tri ? [N(1, 'g')] : m === 2 ? [N(2)] : [N(1, 'g')];
+  });
+}
+function tbFill(){
+  const T = tbDoc(), F = tbFillCfg(); if (!T || T.kind !== 'drums') return;
+  const L = tbFillLen(T, F), n = L / F.r; if (!Number.isInteger(n)) { toast('That length doesn’t divide into those notes. Pick another length.'); return; }
+  const st = tbStarts(T), k = Math.min(tbc.c, T.cols.length), start = st[k], end = start + L;
+  let j = k; while (j < T.cols.length && st[j] < end) j++;
+  const left = Math.max(0, st[j] - end), rests = left ? tbRests(left, true) || [] : [];
+  if (T.cols.length - (j - k) + n + rests.length + 1 > TMAX) { toast('That tab is as long as it can be.'); return; }
+  const cols = tbFillNotes(F.k, n, F.r, F.cres && F.k !== 'hip').map(ns => ({d:F.r, n:ns})).concat(rests.map(d => ({d, n:[]})));
+  tbEdit(T => {
+    T.cols.splice(k, j - k, ...cols);
+    if (F.crash) {      // a crash and a kick on the beat after it, in place of the hi-hat there
+      const at = k + n; if (at >= T.cols.length) T.cols.push({d:state.tabDur, n:[]});
+      const c = T.cols[at]; c.n = c.n.filter(q => ![0, 2, 3, 7].includes(q.s)).concat([{s:7, f:0}, {s:0, f:0}]);
+    }
+  });
+  tbc.c = k + n; tbc.s = 1;
+  toast(`Added a ${TB_FILLS[F.k].toLowerCase()}: ${n} ${TB_RATES.find(r => r[0] === F.r)[1].toLowerCase()}`);
+}
+function tbFillHtml(T){
+  const F = tbFillCfg(), L = tbFillLen(T, F), n = L / F.r, ok = Number.isInteger(n), rn = TB_RATES.find(r => r[0] === F.r)[1];
+  const sg = (act, v, t, on, dis, h) => `<button type="button" data-act="${act}" data-v="${v}" aria-pressed="${on}"${dis ? ' disabled' : ''}${h ? ` title="${h}"` : ''}>${t}</button>`;
+  const ln = tbFillLens().find(x => x[0] === F.len)[1];
+  return fold('tbfill', 'Fills and rolls', `${TB_FILLS[F.k]} · ${rn.toLowerCase()} · ${ln}`, `<div class="row"><div class="seg wrapseg" aria-label="Fill">${Object.entries(TB_FILLS).map(([k, t]) => sg('tbfk', k, t, F.k === k)).join('')}</div></div>
+    <div class="row nw"><span class="rl">Notes</span><div class="seg" aria-label="Notes">${TB_RATES.map(([r, t]) => sg('tbfr', r, t, F.r === r)).join('')}</div></div>
+    <div class="row nw"><span class="rl">Length</span><div class="seg" aria-label="Length of the fill">${tbFillLens().map(([v, t]) => { const g = Number.isInteger(tbFillLen(T, {len:v}) / F.r); return sg('tbfl', v, t, F.len === v, !g, g ? '' : 'Those notes don’t fit in that length'); }).join('')}</div></div>
+    <div class="row"><button type="button" class="chip${F.cres && F.k !== 'hip' ? ' sel' : ''}" data-act="tbfcres" aria-pressed="${F.cres && F.k !== 'hip'}"${F.k === 'hip' ? ' disabled title="Hip-hop fills have their own ghost notes and accents"' : ' title="Ghost notes first, accents at the end"'}>Soft to loud</button>
+      <button type="button" class="chip${F.crash ? ' sel' : ''}" data-act="tbfcrash" aria-pressed="${F.crash}" title="A crash and a kick on the beat after the fill">Crash after</button></div>
+    <div class="row">
+      <button type="button" class="btn primary" data-act="tbfill"${ok ? '' : ' disabled'}>＋ Put in ${ok ? n : ''} at the cursor</button></div>
+    <span class="hint tip">The fill takes the place of whatever is there for its length, from the cursor, so the beat after it stays where it was. Undo takes it back.</span>`);
+}
+/* how hard a drum is hit: a ghost note, normal, or an accent */
+function tbVel(v){ tbEdit(T => { const c = T.cols[tbc.c], q = c && c.n.find(x => x.s === tbc.s); if (!q) return; if (!v || q.t === v) delete q.t; else q.t = v; }); }
+const tbVelRow = q => `<div class="row nw"><div class="seg" aria-label="How hard">${[['g', 'Ghost', 'Soft: a ghost note'], ['', 'Normal', ''], ['a', 'Accent', 'Hit it harder']].map(([v, t, h]) => `<button type="button" data-act="tbvel" data-v="${v}" aria-pressed="${!!q && (q.t || '') === v}"${q ? '' : ' disabled'}${h ? ` title="${h}"` : ''}>${t}</button>`).join('')}</div></div>`;
 function tbRecBtn(){
   let r = null; try { r = rec; } catch (e) {} const mine = !!r && r.owned === 'tab';
   return `<button type="button" class="chip tbrec${mine ? ' sel' : ''}" data-act="tbrec" aria-pressed="${mine}" title="${mine ? 'Stop recording' : 'Record yourself over the tab, with all its tracks. The take goes in Practice, Takes.'}"${r && !mine ? ' disabled' : ''}>${mine ? '■ <span data-rec-time>0:00</span>' : '● <span class="tl">Rec</span>'}</button>`;
@@ -2138,7 +2201,7 @@ function tbTuplets(T){
   }
   return out;
 }
-const tbW = d => Math.round(24 + 9 * Math.log2(d / 6));
+const tbW = d => Math.max(14, Math.round(24 + 9 * Math.log2(d / 6)));
 /* palm mute: the column at the cursor, and the ones written after it, until it's turned off */
 function tbPmToggle(){
   const T = tbDoc(); if (!T || T.kind) return;
@@ -2184,8 +2247,8 @@ function tbTech(t){
   });
 }
 /* every length a column can have, longest first; a stretch of time as rests, longest first (null when it can't be written) */
-const TB_ALL = [...new Set(TBASE.flatMap(([b]) => ['', 'dot', 'tri'].map(m => tbMake(b, m))))].filter(Number.isInteger).sort((a, b) => b - a);
-function tbRests(g){ const out = []; while (g > 0) { const x = TB_ALL.find(v => v <= g); if (!x) return null; out.push(x); g -= x; } return out; }
+const TB_ANY = [...new Set(TBASE.flatMap(([b]) => ['', 'dot', 'tri'].map(m => tbMake(b, m))))].filter(Number.isInteger).sort((a, b) => b - a), TB_ALL = TB_ANY.filter(v => v >= 4);
+function tbRests(g, any){ const L = any ? TB_ANY : TB_ALL, out = []; while (g > 0) { const x = L.find(v => v <= g); if (!x) return null; out.push(x); g -= x; } return out; }
 /* a new length for column k that leaves the notes after it where they were: a shorter note leaves a rest behind it,
    a longer one takes the time from the rests after it. Without the rests to take, the rest of the tab moves. */
 function tbResize(T, k, d){
@@ -2200,7 +2263,7 @@ function tbResize(T, k, d){
 }
 function tbSetDur(b, m){
   const T = tbDoc(); if (!T) return;
-  const d = tbMake(b, m); state.tabDur = d;
+  const d = tbMake(b, m); if (!Number.isInteger(d)) { toast('A 32nd can’t be dotted.'); return; } state.tabDur = d;
   if (tbAt(T)) tbEdit(T => tbResize(T, tbc.c, d));
 }
 /* split the column into n of the same time: the notes stay in the first, the rest are empty for new notes */
@@ -2318,7 +2381,7 @@ function tbParse(txt){
     const pmL = i > 0 && isPm(L[i - 1]) ? L[i - 1] : '', a0 = i - (pmL ? 2 : 1);
     const above = a0 >= 0 && L[a0].trim() && !tbIsStr(L[a0]) && !isPm(L[a0]) ? L[a0] : '', below = L[i + 6] || '';
     const pms = []; if (pmL) { const re = /P\.?M\.?[-._~|]*/gi; let m; while ((m = re.exec(pmL))) pms.push([m.index, m.index + m[0].length]); }
-    const rh = /^[\sWHQES.3r]+$/.test(below) && /[WHQES]/.test(below) ? below : '';
+    const rh = /^[\sWHQEST.3r]+$/.test(below) && /[WHQEST]/.test(below) ? below : '';
     const labs = []; if (above) { const re = /\S+(?: \S+)*/g; let m; while ((m = re.exec(above))) labs.push({x:m.index, t:m[0]}); }
     const width = Math.max(...B.map(l => l.length), rh.length), here = [], stars = [];
     for (let x = 0; x < width; x++) {
@@ -2334,7 +2397,7 @@ function tbParse(txt){
         } else if (/[xX]/.test(ch) && !/[xX]/.test(pr)) n.push({s, f:0, t:'x'});
         else if (ch === '*') stars.push({x, s});
       });
-      const tk = rh ? rh.slice(x).match(/^([WHQES])(\.|3)?(r)?/) : null, gap = rh && x > 0 && rh[x - 1] !== ' ';
+      const tk = rh ? rh.slice(x).match(/^([WHQEST])(\.|3)?(r)?/) : null, gap = rh && x > 0 && rh[x - 1] !== ' ';
       if (!n.length && !(tk && tk[3] && !gap)) continue;
       const base = tk && !gap ? TBASE.find(z => z[3] === tk[1])[0] : 12, d = tk && !gap ? tbMake(base, tk[2] === '.' ? 'dot' : tk[2] === '3' ? 'tri' : '') : 12;
       here.push({x, col:Object.assign({d, n:n.filter((q, k) => n.findIndex(z => z.s === q.s) === k)}, pms.some(([a, e]) => x >= a && x < e) ? {pm:true} : {})});
@@ -2414,7 +2477,7 @@ function tbStart(from){
       });
     });
   };
-  const drums = (cols, k0, st, at) => cols.slice(k0).forEach((c, j) => c.n.forEach(q => { drumHit(q.s, at(st[k0 + j]), tbp.srcs); tbp.dr++; }));
+  const drums = (cols, k0, st, at) => cols.slice(k0).forEach((c, j) => c.n.forEach(q => { drumHit(q.s, at(st[k0 + j]), tbp.srcs, q.t); tbp.dr++; }));
   const cycle = (t0, first) => {
     const T = tbTab(), A = tbDoc(); if (!tbp.on || !T || !A) { tbStop(); return; }
     const k0 = Math.min(from, A.cols.length), tk0 = tbStarts(A)[k0];
@@ -2464,7 +2527,7 @@ function tbSheet(T){
     const rows = (dr ? DROWS : [5, 4, 3, 2, 1, 0]).map(s => {
       const q = c && c.n.find(z => z.s === s), at = cur && tbc.s === s;
       const mu = mutes.get(k + ':' + s), cls = [at ? 'at' : '', mu && !q ? 'mu mu-' + mu : ''].filter(Boolean).join(' ');
-      return `<i data-act="tbcell" data-c="${k}" data-s="${s}"${cls ? ` class="${cls}"` : ''}${mu && !q ? ' title="Muted here"' : ''}>${q ? `<b class="${q.t ? 't-' + q.t : ''}${mu === 'own' ? ' cut' : ''}"${q.len ? ` title="Muted after ${tbLenName(q.len)}"` : ''}>${dr ? DK[s].sym : tbPre(q, last[s]) + tbCore(q)}</b>` : mu ? '<b class="mk" aria-label="muted">◼</b>' : ''}</i>`;
+      return `<i data-act="tbcell" data-c="${k}" data-s="${s}"${cls ? ` class="${cls}"` : ''}${mu && !q ? ' title="Muted here"' : ''}>${q ? `<b class="${q.t ? 't-' + q.t : ''}${mu === 'own' ? ' cut' : ''}"${q.len ? ` title="Muted after ${tbLenName(q.len)}"` : ''}>${dr ? (q.t === 'g' ? '(' + DK[s].sym + ')' : q.t === 'a' ? DK[s].sym.toUpperCase() : DK[s].sym) : tbPre(q, last[s]) + tbCore(q)}</b>` : mu ? '<b class="mk" aria-label="muted">◼</b>' : ''}</i>`;
     }).join('');
     if (c) { c.n.forEach(q => { if (q.t !== 'x') last[q.s] = q.f; }); tick += c.d; }
     const len = TSYM[dc.b] + (dc.m === 'dot' ? '.' : ''), g = !ghost && tpOf[k];
@@ -2513,13 +2576,14 @@ function renderTab(){
         <button type="button" class="chip${dc.m === 'dot' ? ' sel' : ''}" data-act="tbdot" aria-pressed="${dc.m === 'dot'}" title="Half as long again">Dotted</button>
         <button type="button" class="chip${dc.m === 'tri' ? ' sel' : ''}" data-act="tbtri" aria-pressed="${dc.m === 'tri'}" title="Three in the time of two">Triplet</button>
       </div>
-      ${dr ? '' : `<div class="row nw"><div class="seg" aria-label="Technique">${Object.entries(TTECH).map(([k, [t, h]]) => `<button type="button" data-act="tbtech" data-v="${k}" aria-pressed="${!!q && q.t === k}" title="${h}"${q || k === 'x' ? '' : ' disabled'}>${t === '/' ? '/ \\' : esc(t)}</button>`).join('')}</div>
+      ${dr ? tbVelRow(q) : `<div class="row nw"><div class="seg" aria-label="Technique">${Object.entries(TTECH).map(([k, [t, h]]) => `<button type="button" data-act="tbtech" data-v="${k}" aria-pressed="${!!q && q.t === k}" title="${h}"${q || k === 'x' ? '' : ' disabled'}>${t === '/' ? '/ \\' : esc(t)}</button>`).join('')}</div>
         <button type="button" class="chip${(c ? c.pm : state.tabPm) ? ' sel' : ''}" data-act="tbpm" aria-pressed="${!!(c ? c.pm : state.tabPm)}" title="Palm mute: rest the picking hand on the strings by the bridge. Stays on for the columns you write next.">PM</button></div>`}
       <div class="row nw tbmuterow"><button type="button" class="chip" data-act="tbsplit" data-v="2"${tbCanSplit(c, 2) ? '' : ' disabled'} title="Split this column into two halves: the note keeps the first, the second is empty for a new note">Split ½</button>
         <button type="button" class="chip" data-act="tbsplit" data-v="3"${tbCanSplit(c, 3) ? '' : ' disabled'} title="Split this column into a triplet: the note keeps the first, the other two are empty">Split ⅓</button>
         ${dr ? '' : muteRow}</div>
       <span class="info tbwhere">${where}</span>
     </div>
+    ${dr ? tbFillHtml(T) : ''}
     ${fold('tbmore', 'More tools', 'insert, chords, select, labels', `<div class="row"><button type="button" class="btn" data-act="tbins" title="A new empty column here">Insert</button>
         <button type="button" class="btn" data-act="tbdelcol"${c ? '' : ' disabled'}>✕ Column</button>${sel.btn}
         <button type="button" class="btn" data-act="tbdup"${T.cols.length ? '' : ' disabled'} title="Copy this bar right after itself">Repeat this bar</button>
@@ -2538,7 +2602,7 @@ function renderTab(){
         <button type="button" class="chip tog${state.tabFromCur ? ' sel' : ''}" data-act="tbfromcur" aria-pressed="${!!state.tabFromCur}" title="Play starts where the cursor is, not at the beginning">Play from the cursor</button></div>`)}
     ${fold('tbtext', 'Copy or paste text tab', '', `<div class="row"><button type="button" class="btn" data-act="tbcopy">Copy as text</button></div>${imp}`)}
     ${fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div><div class="row"><button type="button" class="btn" data-act="tbnew">＋ New tab</button></div>`)}
-    ${dr ? `<span class="hint tip">On a keyboard: click the tab, then 1 to 9 hit the ${DK.map(x => x.name.toLowerCase()).join(', ')}. Arrows move, Delete removes, R makes a rest, + and − change the length, Space plays, Ctrl+Z undoes.</span>` : `<span class="hint tip">On a keyboard: click the tab, then arrows move, numbers type a fret (two quickly for 10 and up), H P S B V X mark a technique, N and A natural and pinch harmonics, M palm-mutes, O mutes the ringing note at the cursor, Delete removes, R makes a rest, + and − change the length, Space plays, Ctrl+Z undoes. Play, tempo and loop are under the neck. Shift with the arrows (or a click) selects; Ctrl+C, X and V copy, cut and paste.</span>`}
+    ${dr ? `<span class="hint tip">On a keyboard: click the tab, then 1 to 9 hit the ${DK.map(x => x.name.toLowerCase()).join(', ')}. G makes the drum at the cursor a ghost note, A an accent. Arrows move, Delete removes, R makes a rest, + and − change the length, Space plays, Ctrl+Z undoes.</span>` : `<span class="hint tip">On a keyboard: click the tab, then arrows move, numbers type a fret (two quickly for 10 and up), H P S B V X mark a technique, N and A natural and pinch harmonics, M palm-mutes, O mutes the ringing note at the cursor, Delete removes, R makes a rest, + and − change the length, Space plays, Ctrl+Z undoes. Play, tempo and loop are under the neck. Shift with the arrows (or a click) selects; Ctrl+C, X and V copy, cut and paste.</span>`}
   </div>`;
 }
 /* on a phone, scroll so the editor starts just under the pinned neck: the tab and its tools then fit on one screen */
@@ -2590,6 +2654,13 @@ function handleTab(act, b){
     case 'tbmutetrack': { const X = tbTab(), tr = tbTrack(X); if (tr) { if (tr.mute) delete tr.mute; else tr.mute = true; } else if (X.gmute) delete X.gmute; else X.gmute = true; storeTabs(); if (tbp.on) tbStart(0); break; }
     case 'tbtrackdel': { const X = tbTab(), tr = tbTrack(X); if (!tr) break; if (tbDelArm !== 'tr' + tr.id) { tbDelArm = 'tr' + tr.id; break; } tbDelArm = null; if (tbp.on) tbStop(true); tbEditTab(Y => { Y.tracks = Y.tracks.filter(x => x.id !== tr.id); if (!Y.tracks.length) delete Y.tracks; }); state.tabTrack = 0; tbc.c = Math.min(tbc.c, X.cols.length); tbc.s = 5; break; }
     case 'tbbeat': tbBeat(v); break;
+    case 'tbvel': tbVel(v); break;
+    case 'tbfk': tbFillCfg().k = v; break;
+    case 'tbfr': { const F = tbFillCfg(); F.r = +v; if (!Number.isInteger(tbFillLen(T, F) / F.r)) F.len = 24; break; }
+    case 'tbfl': tbFillCfg().len = +v; break;
+    case 'tbfcres': { const F = tbFillCfg(); F.cres = !F.cres; break; }
+    case 'tbfcrash': { const F = tbFillCfg(); F.crash = !F.crash; break; }
+    case 'tbfill': tbFill(); break;
     case 'tbrec': { let r0 = null; try { r0 = rec; } catch (e) {} if (r0) takeStop(); else takeStart('tab'); return true; }
     case 'tbcell': if (tbShift && !tbSel) tbSel = {a:Math.min(tbc.c, Math.max(0, T.cols.length - 1))}; tbc = {c:Math.min(+b.dataset.c, T.cols.length), s:+b.dataset.s}; tbNum = null; { const z = tbAt(T), q = z && z.n.find(x => x.s === tbc.s); if (q && T.kind === 'drums') drumHit(q.s); else if (q && q.t !== 'x') pluck(TUNINGS[state.tuning].midi[q.s] + q.f); } break;
     case 'tbbpm': T.bpm = Math.max(30, Math.min(300, T.bpm + +v)); storeTabs(); break;
@@ -2655,7 +2726,8 @@ function tbKey(e){
   if (T.kind === 'drums') {
     if (/^[1-9]$/.test(k)) { tbPut(+k - 1, 0, true); return go(); }
     if (k === 'ArrowUp' || k === 'ArrowDown') { const r = DROWS.indexOf(tbc.s); tbc.s = DROWS[Math.max(0, Math.min(DROWS.length - 1, (r < 0 ? 7 : r) + (k === 'ArrowUp' ? -1 : 1)))]; return go(); }
-    if (k.length === 1 && 'hpsbvxnamo/\\~0'.includes(lk)) return;
+    if (lk === 'g' || lk === 'a') { tbVel(lk); return go(); }
+    if (k.length === 1 && 'hpsbvxnmo/\\~0'.includes(lk)) return;
   }
   if (/^[0-9]$/.test(k)) {
     const d = +k, now = Date.now();
