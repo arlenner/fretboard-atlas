@@ -1968,7 +1968,7 @@ function tbCleanCols(cs, dr){
 function tbClean(t){
   if (!t || typeof t !== 'object' || !Array.isArray(t.cols)) return null;
   const ids = new Set(), tracks = (Array.isArray(t.tracks) ? t.tracks : []).filter(x => x && TB_KINDS[x.kind] && num(x.id, 1, 9e15, 0) && !ids.has(x.id) && ids.add(x.id)).slice(0, 3)
-    .map(x => Object.assign({id:x.id, kind:x.kind, name:String(x.name || TB_KINDS[x.kind]).slice(0, 30), cols:tbCleanCols(x.cols, x.kind === 'drums')}, x.mute === true ? {mute:true} : {}, typeof x.kit === 'string' && /^k\d{1,15}$/.test(x.kit) ? {kit:x.kit} : {}));
+    .map(x => Object.assign({id:x.id, kind:x.kind, name:String(x.name || TB_KINDS[x.kind]).slice(0, 30), cols:tbCleanCols(x.cols, x.kind === 'drums')}, x.mute === true ? {mute:true} : {}, typeof x.kit === 'string' && /^(k\d{1,15}|@[a-z0-9]{1,12})$/.test(x.kit) ? {kit:x.kit} : {}));
   return Object.assign({id:num(t.id, 1, 9e15, 0) || Date.now(), name:String(t.name || 'Untitled tab').slice(0, 60), bpm:num(t.bpm, 30, 300, 90), beats:num(t.beats, 1, 12, 4), cols:tbCleanCols(t.cols, false)},
     t.gmute === true ? {gmute:true} : {}, tracks.length ? {tracks} : {});
 }
@@ -2023,12 +2023,24 @@ function tbBeat(k){
    square waves high-passed (the classic drum-machine cymbal) for the hi-hats, ride and crash ---- */
 let drNoise = null, drOpen = null;
 function drumNoise(a){ if (!drNoise || drNoise.ctx !== a) { const b = a.createBuffer(1, a.sampleRate * 2, a.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; drNoise = {ctx:a, b}; } return drNoise.b; }
+/* where a drum's sound goes: straight out, or through the Lo-fi kit's filter (one chain, shared, made the first time) */
+let drFx = null;
+function drRoute(a, fx, n){
+  if (fx !== 'lofi') { n.connect(master); return; }
+  if (!drFx || drFx.a !== a) {
+    const lp = a.createBiquadFilter(), hp = a.createBiquadFilter(), sh = a.createWaveShaper(), g = a.createGain(), c = new Float32Array(1024);
+    lp.type = 'lowpass'; lp.frequency.value = 3400; lp.Q.value = 0.6; hp.type = 'highpass'; hp.frequency.value = 45;
+    for (let k = 0; k < 1024; k++) { const x = k / 511.5 - 1; c[k] = Math.tanh(x * 1.6) / Math.tanh(1.6); } sh.curve = c; g.gain.value = 0.95;
+    hp.connect(lp); lp.connect(sh); sh.connect(g); g.connect(master); drFx = {a, in:hp};
+  }
+  n.connect(drFx.in);
+}
 function drumHit(i, when, out, t, kit){
   const a = getAudio(), D = DK[i]; if (!a || !D) return;
   if (a.state !== 'running') a.resume().catch(() => {});
   when = Math.max(when || 0, a.currentTime + 0.005);
   const keep = n => { if (out) out.push(n); };
-  const bus0 = a.createGain(); bus0.gain.value = t === "g" ? 0.3 : t === "a" ? 1.35 : 1; bus0.connect(master);      // a ghost note is soft, an accent hard
+  const bus0 = a.createGain(); bus0.gain.value = t === "g" ? 0.3 : t === "a" ? 1.35 : 1; drRoute(a, kitFx(kit), bus0);      // a ghost note is soft, an accent hard
   const env = (g, peak, dec) => { g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(peak, when + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, when + dec); };
   const filt = (type, f, q) => { const x = a.createBiquadFilter(); x.type = type; x.frequency.value = f; if (q) x.Q.value = q; return x; };
   const noise = (hp, lp, peak, dec) => {
@@ -2047,7 +2059,7 @@ function drumHit(i, when, out, t, kit){
     bp.connect(f); f.connect(g); g.connect(bus0); env(g, peak, dec); return g;
   };
   const choke = () => { if (drOpen && drOpen.at < when) { drOpen.g.gain.cancelScheduledValues(when); drOpen.g.gain.setTargetAtTime(0.0001, when, 0.008); drOpen = null; } };
-  const S = kitMine(i, kit);      // your own sound on this drum, in the kit being played
+  const S = kitSound(i, kit);      // a sound on this drum in the kit being played (yours, or the kit's own)
   if (S) { const s = a.createBufferSource(), g = a.createGain(); s.buffer = S.buf; g.gain.value = S.gain; s.connect(g); g.connect(bus0); if (D.id === 'hh' || D.id === 'oh' || D.id === 'cr') choke(); if (D.id === 'oh') drOpen = {g, at:when}; s.start(when); s.stop(when + Math.min(S.buf.duration, 8) + 0.01); keep(s); kitHits++; return; }
   switch (D.id) {
     case 'bd': tone(150, 42, 0.75, 0.42); noise(0, 900, 0.12, 0.025); break;
@@ -2155,11 +2167,29 @@ const tbVelRow = q => `<div class="row nw"><div class="seg" aria-label="How hard
    Drag a sound file onto a drum, or Load one in Kit (a phone's file picker). The sounds stay in this browser
    (IndexedDB) like recordings; the kit names are in localStorage; neither is synced. Each sound is levelled when read in. ---- */
 const KITKEY = 'fretboard-atlas-kits-v1';
-let kits = [];      // [{id:'k1', name}]
-try { const x = JSON.parse(localStorage.getItem(KITKEY)); if (Array.isArray(x)) kits = x.filter(k => k && /^k\d{1,15}$/.test(k.id)).map(k => ({id:k.id, name:String(k.name || 'My kit').slice(0, 30)})); } catch (e) {}
+/* the kits that come with the app: CC0 one-shots from Freesound, in kits/ (a sound id each), loaded the first time a kit is used.
+   Classic is the drums made on the spot. Lo-fi plays through a dull, slightly crunchy filter. */
+const BUILT = {
+  '@acoustic':{name:'Acoustic', s:{bd:[581461, 'johnnydekk', 'Fractanimal Acoustic Kit, Kick 7'], sn:[581469, 'johnnydekk', 'Fractanimal Acoustic Kit, Snare 1'], hh:[581474, 'johnnydekk', 'Fractanimal Acoustic Kit, Hi-hat 2'], oh:[581476, 'johnnydekk', 'Fractanimal Acoustic Kit, Hi-hat open/close 1'],
+    t1:[581448, 'johnnydekk', 'Fractanimal Acoustic Kit, High Tom 4'], t2:[581459, 'johnnydekk', 'Fractanimal Acoustic Kit, Mid Tom 1'], ft:[581467, 'johnnydekk', 'Fractanimal Acoustic Kit, Low Tom 1'], cr:[696224, 'ankealtd', 'Meinl Byzance 18" Medium Thin Crash'], rd:[696238, 'ankealtd', 'Meinl Byzance 20" Extra Dry Medium Ride']}},
+  '@808':{name:'808', s:{bd:[351063, 'thaighaudio', 'Rusty Box 808 style kick 1'], sn:[455642, 'Uberproduktion', 'FD808A Snare'], hh:[455639, 'Uberproduktion', 'FD808A HiHat closed'], oh:[455638, 'Uberproduktion', 'FD808A HiHat open'],
+    t1:[455645, 'Uberproduktion', 'FD808A Tom hi'], t2:[455644, 'Uberproduktion', 'FD808A Tom mid'], ft:[455643, 'Uberproduktion', 'FD808A Tom low'], cr:[455634, 'Uberproduktion', 'FD808A Cymbal'], rd:[414948, 'GRD-music-', 'Classic TR-909 Cym 3']}},
+  '@lofi':{name:'Lo-fi', fx:'lofi', s:{bd:[563667, 'Uberproduktion', 'LoFi KO Kick'], sn:[503789, 'reathance', 'lo-fi snare 2'], hh:[503778, 'reathance', 'lo-fi hi hat'], oh:[581476, 'johnnydekk', 'Fractanimal Acoustic Kit, Hi-hat open/close 1'],
+    t1:[581448, 'johnnydekk', 'Fractanimal Acoustic Kit, High Tom 4'], t2:[581459, 'johnnydekk', 'Fractanimal Acoustic Kit, Mid Tom 1'], ft:[581467, 'johnnydekk', 'Fractanimal Acoustic Kit, Low Tom 1'], cr:[696210, 'ankealtd', 'Meinl Byzance 16" Extra Dry Thin Crash'], rd:[696238, 'ankealtd', 'Meinl Byzance 20" Extra Dry Medium Ride']}}
+};
+const KITBASES = [['', 'Classic']].concat(Object.entries(BUILT).map(([id, b]) => [id, b.name]));
+let kits = [];      // [{id:'k1', name, base}]: base is the kit a drum with no sound of yours plays
+try { const x = JSON.parse(localStorage.getItem(KITKEY)); if (Array.isArray(x)) kits = x.filter(k => k && /^k\d{1,15}$/.test(k.id)).map(k => Object.assign({id:k.id, name:String(k.name || 'My kit').slice(0, 30)}, BUILT[k.base] ? {base:k.base} : {})); } catch (e) {}
 const kitSave = () => { try { localStorage.setItem(KITKEY, JSON.stringify(kits)); } catch (e) {} };
 const kitS = {};      // kit id -> drum id -> {name, buf, gain}
 let kitDb = null, kitHits = 0, kitDelArm = null;
+const kitBuilt = {}, kitBuiltDone = {};      // a built-in kit: loading (a promise); done trying
+function kitBuiltLoad(id){
+  const B = BUILT[id]; if (!B || kitBuilt[id]) return kitBuilt[id] || null;
+  return (kitBuilt[id] = Promise.all(Object.entries(B.s).map(async ([d, [sid, user, name]]) => {
+    try { const r = await fetch(`kits/${sid}.mp3`); if (!r.ok) return; const x = await kitDecode(await r.arrayBuffer()); (kitS[id] = kitS[id] || {})[d] = Object.assign({name, credit:{id:sid, name, user, lic:'CC0', url:`https://freesound.org/people/${user}/sounds/${sid}/`}}, x); } catch (e) {}
+  })).then(() => { kitBuiltDone[id] = true; if (state.tab === 'tab' && (tbDoc() || {}).kind === 'drums') render(); }));
+}
 function kitStore(){
   if (!kitDb) kitDb = new Promise((res, rej) => { try { const q = indexedDB.open('fretboard-atlas-kit', 1); q.onupgradeneeded = () => q.result.createObjectStore('s', {keyPath:'id'}); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); } catch (e) { rej(e); } });
   return kitDb;
@@ -2171,12 +2201,21 @@ async function kitDecode(blob){
   const d = buf.getChannelData(0), n = Math.min(d.length, buf.sampleRate * 2); let pk = 0; for (let i = 0; i < n; i++) { const v = Math.abs(d[i]); if (v > pk) pk = v; }
   return {buf, gain:pk > 0.001 ? Math.min(4, 0.8 / pk) : 1};
 }
-/* the kit a drum track plays (from a tab made on another device, a kit this browser doesn't have is the built-in one) */
-const kitOf = tr => tr && tr.kit && kits.some(k => k.id === tr.kit) ? tr.kit : '';
+/* the kit a drum track plays (from a tab made on another device, a kit this browser doesn't have is Classic) */
+const kitOf = tr => tr && tr.kit && (BUILT[tr.kit] || kits.some(k => k.id === tr.kit)) ? tr.kit : '';
 const kitCur = () => { const T = tbDoc(); return T && T.kind === 'drums' ? kitOf(T.track) : ''; };
-const kitMine = (i, kit) => kit && kitS[kit] && kitS[kit][DK[i].id];
-function kitNew(name){
-  let n = Date.now(); while (kits.some(k => k.id === 'k' + n)) n++; const id = 'k' + n; kits.push({id, name:(name || (kits.length ? 'Kit ' + (kits.length + 1) : 'My kit')).slice(0, 30)}); kitSave(); kitS[id] = {};
+const kitBase = kit => BUILT[kit] ? kit : ((kits.find(k => k.id === kit) || {}).base || '');      // a built-in kit, or the one yours is based on
+const kitFx = kit => (BUILT[kitBase(kit)] || {}).fx || '';
+/* the sound a drum plays in a kit: yours, else the kit it's based on (loaded when first wanted), else none (Classic) */
+function kitSound(i, kit){
+  const d = DK[i].id, own = kit && kitS[kit] && kitS[kit][d]; if (own) return own;
+  const b = kitBase(kit); if (!b) return null; if (!kitBuilt[b]) kitBuiltLoad(b);
+  return kitS[b] && kitS[b][d] || null;
+}
+const kitMine = (i, kit) => !!kit && !BUILT[kit] && !!(kitS[kit] && kitS[kit][DK[i].id]);      // one of your own sounds
+function kitNew(name, base){
+  let n = Date.now(); while (kits.some(k => k.id === 'k' + n)) n++; const id = 'k' + n;
+  kits.push(Object.assign({id, name:(name || (kits.length ? 'Kit ' + (kits.length + 1) : 'My kit')).slice(0, 30)}, BUILT[base] ? {base} : {})); kitSave(); kitS[id] = {};
   const T = tbDoc(); if (T && T.kind === 'drums') { T.track.kit = id; storeTabs(); state.kitLast = id; }
   return id;
 }
@@ -2186,7 +2225,7 @@ async function kitSet(i, file, credit){
   if (!/^audio\//.test(file.type || '') && !KIT_EXT.test(file.name || '')) { toast('That isn’t a sound file. Try a WAV, MP3, M4A or OGG.'); return; }
   if (file.size > 8e6) { toast('That file is too big for a drum. Use a short one-shot sound, under 8 MB.'); return; }
   let x; try { x = await kitDecode(file); } catch (e) { toast('This browser couldn’t read that file as audio.'); return; }
-  let kit = kitCur(), made = false; if (!kit) { kit = kitNew(); made = true; }      // the built-in kit stays as it is: your sound starts a kit of your own
+  let kit = kitCur(), made = false; if (!kit || BUILT[kit]) { kit = kitNew(undefined, kit); made = true; }      // the kits that come with the app stay as they are: your sound starts a kit of your own, based on that one
   const name = String(file.name || 'sound').replace(/\.[^.]+$/, '').slice(0, 40) || 'sound';
   (kitS[kit] = kitS[kit] || {})[D.id] = Object.assign({name}, x, credit ? {credit} : {});
   toast(made ? `${D.name}: ${name}, in a new kit, “${kits.find(k => k.id === kit).name}”` : `${D.name}: ${name}`); drumHit(i, 0, null, '', kit); render();
@@ -2194,11 +2233,11 @@ async function kitSet(i, file, credit){
   try { const data = await file.arrayBuffer(); await kitTx('readwrite', s => s.put({id:kit + ':' + D.id, kit, drum:D.id, name, credit:credit || null, data, type:file.type || '', size:data.byteLength, at:Date.now()})); }
   catch (e) { toast('Using it now, but this browser wouldn’t keep it for next time.'); }
 }
-async function kitClear(i){ const kit = kitCur(), D = DK[i]; if (!kit || !D || !kitS[kit]) return; delete kitS[kit][D.id]; render(); try { await kitTx('readwrite', s => s.delete(kit + ':' + D.id)); } catch (e) {} }
+async function kitClear(i){ const kit = kitCur(), D = DK[i]; if (!kit || BUILT[kit] || !D || !kitS[kit]) return; delete kitS[kit][D.id]; render(); try { await kitTx('readwrite', s => s.delete(kit + ':' + D.id)); } catch (e) {} }
 async function kitDelete(kit){
   const k = kits.find(x => x.id === kit); if (!k) return;
   kits = kits.filter(x => x !== k); kitSave(); const ids = Object.keys(kitS[kit] || {}); delete kitS[kit];
-  tabs.forEach(t => (t.tracks || []).forEach(tr => { if (tr.kit === kit) delete tr.kit; })); storeTabs();
+  tabs.forEach(t => (t.tracks || []).forEach(tr => { if (tr.kit === kit) { if (k.base) tr.kit = k.base; else delete tr.kit; } })); storeTabs();
   toast(`Deleted the kit “${k.name}”`); render();
   try { await kitTx('readwrite', s => ids.forEach(d => s.delete(kit + ':' + d))); } catch (e) {}
 }
@@ -2210,19 +2249,24 @@ async function kitLoadAll(){
   } catch (e) {}
 }
 function tbKitHtml(){
-  const kit = kitCur(), K = kits.find(k => k.id === kit), own = kit ? DK.filter(d => kitS[kit] && kitS[kit][d.id]).length : 0;
+  const kit = kitCur(), K = kits.find(k => k.id === kit), B = BUILT[kit], base = kitBase(kit), own = K ? DK.filter((d, i) => kitMine(i, kit)).length : 0;
+  if (base) kitBuiltLoad(base);
   const pick = (id, name) => `<button type="button" data-act="tbkitpick" data-v="${id}" aria-pressed="${kit === id}">${esc(name)}</button>`;
-  return fold('tbkit', 'Kit', K ? `${esc(K.name)} · ${own} of ${DK.length} your own` : 'Built-in', `<div class="row"><div class="seg wrapseg" aria-label="The kit this track plays">${pick('', 'Built-in')}${kits.map(k => pick(k.id, k.name)).join('')}</div>
+  const credits = DK.map((d, i) => kitSound(i, kit)).filter(S => S && S.credit), cc = credits.filter(S => S.credit.lic !== 'CC0');
+  return fold('tbkit', 'Kit', K ? `${esc(K.name)} · ${own} of ${DK.length} your own` : (B ? B.name : 'Classic'), `<div class="row"><div class="seg wrapseg" aria-label="The kit this track plays">${KITBASES.map(([id, n]) => pick(id, n)).join('')}${kits.map(k => pick(k.id, k.name)).join('')}</div>
       <button type="button" class="chip" data-act="tbkitnew" title="A new kit of your own, for this track">＋ New kit</button></div>
     ${K ? `<div class="row"><input class="task-in" id="kitname" type="text" maxlength="30" autocomplete="off" aria-label="Kit name" value="${esc(K.name)}">
-      <button type="button" class="btn" data-act="tbkitdel" title="Delete this kit and its sounds">${kitDelArm === kit ? 'Delete it?' : 'Delete kit'}</button></div>` : ''}
-    ${DK.map((d, i) => { const S = kitMine(i, kit);
-    return `<div class="row nw kitrow" data-kitdrop="${i}"><b>${d.name}</b><span class="info">${S ? '● ' + esc(S.name) + (S.credit ? `<small> · ${esc(S.credit.user)}, ${S.credit.lic}</small>` : '') : 'built-in'}</span>
+      <button type="button" class="btn" data-act="tbkitdel" title="Delete this kit and its sounds">${kitDelArm === kit ? 'Delete it?' : 'Delete kit'}</button></div>
+      <div class="row nw"><span class="rl">The rest from</span><div class="seg" aria-label="Drums with no sound of yours play">${KITBASES.map(([id, n]) => `<button type="button" data-act="tbkitbase" data-v="${id}" aria-pressed="${(K.base || '') === id}">${n}</button>`).join('')}</div></div>` : ''}
+    ${DK.map((d, i) => { const S = kitSound(i, kit), mine = kitMine(i, kit);
+    return `<div class="row nw kitrow" data-kitdrop="${i}"><b>${d.name}</b><span class="info">${mine ? '● ' : ''}${S ? esc(S.name.replace(/^Fractanimal Acoustic Kit, /, '')) + (S.credit && mine ? `<small> · ${esc(S.credit.user)}, ${S.credit.lic}</small>` : '') : base && !kitBuiltDone[base] ? 'loading…' : 'built-in Classic'}</span>
       <button type="button" class="ib" data-act="tbkitplay" data-v="${i}" aria-label="Hear the ${d.name.toLowerCase()}">▶</button>
       <button type="button" class="btn" data-act="tbfs" data-v="${i}" aria-pressed="${fs.i === i}" title="Find a sound on Freesound">Find</button>
       <label class="btn kitload">Load…<input type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac,.aif,.aiff" data-kit="${i}" aria-label="Load a sound for the ${d.name.toLowerCase()}"></label>
-      ${S ? `<button type="button" class="ib" data-act="tbkitclear" data-v="${i}" aria-label="Back to the built-in ${d.name.toLowerCase()}">✕</button>` : ''}</div>${fsHtml(i)}`; }).join('')}${kit ? fsCredits(kit) : ''}
-    <span class="hint tip">Drag a sound file onto a drum in the kit (or onto its row here), or Load one. ${kit ? 'It goes in this kit.' : 'The built-in kit stays as it is: your first sound starts a kit of your own.'} Each drum track plays its own kit, and a drum with no sound of yours plays the built-in one. Short one-shot sounds work best: WAV, MP3, M4A or OGG. Kits stay in this browser and aren’t synced.</span>`);
+      ${mine ? `<button type="button" class="ib" data-act="tbkitclear" data-v="${i}" aria-label="Back to the ${(BUILT[base] || {name:'Classic'}).name} ${d.name.toLowerCase()}">✕</button>` : ''}</div>${fsHtml(i)}`; }).join('')}
+    ${cc.length ? `<span class="hint tip">Credits: ${cc.map(S => `<a href="${esc(S.credit.url || 'https://freesound.org')}" target="_blank" rel="noopener">${esc(S.credit.name)}</a> by ${esc(S.credit.user)} (${S.credit.lic})`).join('; ')}.</span>` : ''}
+    ${base ? `<span class="hint tip">The ${BUILT[base].name} kit’s sounds are from Freesound, given away as CC0 by ${[...new Set(Object.values(BUILT[base].s).map(x => x[1]))].map(u => `<a href="https://freesound.org/people/${esc(u)}/" target="_blank" rel="noopener">${esc(u)}</a>`).join(', ')}. Thank you.</span>` : ''}
+    <span class="hint tip">Drag a sound file onto a drum in the kit (or onto its row here), Load one or Find one. ${K ? 'It goes in this kit.' : 'The kits that come with the app stay as they are: your first sound starts a kit of your own, based on this one.'} Each drum track plays its own kit. Short one-shot sounds work best: WAV, MP3, M4A or OGG. Your kits stay in this browser and aren’t synced.</span>`);
 }
 /* dropping a file on a drum (or its row) */
 function kitDropAt(e){ const el = e.target && e.target.closest ? e.target.closest('#kit [data-dk], [data-kitdrop]') : null; return el ? +(el.dataset.dk != null ? el.dataset.dk : el.dataset.kitdrop) : -1; }
@@ -2814,7 +2858,8 @@ function handleTab(act, b){
     case 'tbkitplay': drumHit(+v, 0, null, '', kitCur()); return true;
     case 'tbkitclear': kitClear(+v); return true;
     case 'tbkitpick': { const tr = T.track; if (!tr) break; if (v) tr.kit = v; else delete tr.kit; state.kitLast = v; kitDelArm = null; storeTabs(); if (tbp.on) tbStart(0); break; }
-    case 'tbkitnew': kitNew(); kitDelArm = null; break;
+    case 'tbkitnew': kitNew(undefined, kitBase(kitCur())); kitDelArm = null; break;
+    case 'tbkitbase': { const K = kits.find(k => k.id === kitCur()); if (K) { if (BUILT[v]) { K.base = v; kitBuiltLoad(v); } else delete K.base; kitSave(); } break; }
     case 'tbfs': if (fs.i === +v) { fs.i = -1; break; } fs.i = +v; fs.q = FS_Q[DK[+v].id] || DK[+v].name; fs.res = null; fs.err = ''; fs.keyEdit = false; if (fsKey()) { fsSearch(); return true; } break;
     case 'tbfsgo': { const el = $('#fsq'); if (el) fs.q = el.value.trim() || fs.q; fsSearch(); return true; }
     case 'tbfsby': fs.by = !fs.by; if (fsKey() && fs.i >= 0) { fsSearch(); return true; } break;
@@ -7256,7 +7301,7 @@ try { if (navigator.storage && navigator.storage.persist) navigator.storage.pers
 lessonsToNps();
 if (state.guideBack) guideRestore();      // the page closed in the middle of a guide: put the neck back
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, BUILT, kitBuiltLoad, kitSound, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, get phrFavs(){ return phrFavs; }, phrFavOk, get sp(){ return sp; }, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, scalesForChord, followView, loopShape, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
