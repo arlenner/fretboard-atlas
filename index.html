@@ -578,6 +578,34 @@ body.pv-done .neck-wrap{display:none !important}
 .tba-cur{background:var(--accent)}
 .tba-ph{background:var(--ink); opacity:.7}
 .tbclipsel{gap:6px; align-items:center}
+.pkbox{padding:2px 0 4px}
+.pkbox[hidden]{display:none}
+.pkeys{overflow-x:auto; overscroll-behavior-x:contain; border-radius:8px; scrollbar-width:thin}
+.pkin{position:relative; height:calc(var(--row) * 6 + 10px); min-width:100%; width:calc(36 * 32px)}
+.pk{position:absolute; top:0; padding:0; border:1px solid #2a2d33; cursor:pointer; -webkit-tap-highlight-color:transparent}
+.pk.w{height:100%; background:linear-gradient(#fff, #e9e9ec); border-radius:0 0 6px 6px; z-index:1}
+.pk.b{height:60%; background:linear-gradient(#2b2e35, #0d0e10); border-radius:0 0 4px 4px; z-index:2}
+.pk small{position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:10px; color:#6b7080}
+.pk.on.w{background:linear-gradient(#ffd79a, var(--accent))}
+.pk.on.b{background:linear-gradient(#c98a2e, var(--accent))}
+.pk.on small{color:#3a2200; font-weight:700}
+.pk.playing{box-shadow:inset 0 -6px 0 var(--accent), 0 0 10px var(--accent)}
+.proll{display:flex; border:1px solid var(--line); border-radius:10px; background:var(--surface); overflow:hidden}
+.prside{flex:none; width:44px; display:flex; flex-direction:column; border-right:1px solid var(--line)}
+.prside .ib{width:100%; height:22px; border-radius:0; position:relative}
+.prside .ib small{position:absolute; right:2px; top:1px; font-size:9px; color:var(--accent)}
+.prlab{position:relative; margin-top:16px}
+.prlab span{position:absolute; right:4px; font-size:9px; color:var(--muted); transform:translateY(2px)}
+.prscroll{overflow-x:auto; overscroll-behavior-x:contain; flex:1 1 auto}
+.prruler{position:relative; height:16px; border-bottom:1px solid var(--line); cursor:pointer}
+.prruler span{position:absolute; top:1px; font-size:10px; color:var(--muted)}
+.prsvg{display:block; touch-action:none}
+.prsvg .kw{fill:var(--surface)} .prsvg .kb{fill:var(--surface-2)} .prsvg .kc{fill:color-mix(in srgb, var(--accent) 6%, var(--surface))}
+.prsvg line{stroke:color-mix(in srgb, var(--line) 50%, transparent); stroke-width:1}
+.prsvg line.b{stroke:var(--line)} .prsvg line.bar{stroke:color-mix(in srgb, var(--ink) 35%, var(--line))}
+.prsvg line.cur{stroke:var(--accent); stroke-width:2} .prsvg line.ph{stroke:var(--ink); stroke-width:2; opacity:.7}
+.prsvg .pn{fill:var(--accent); stroke:color-mix(in srgb, var(--ink) 40%, var(--accent)); stroke-width:1; cursor:grab}
+.prsvg .pn.sel{stroke:var(--ink); stroke-width:2}
 .seqwrap{overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--surface); padding:6px; overscroll-behavior-x:contain}
 .seqgrid{display:grid; gap:3px; width:max-content}
 .seqrow{display:grid; grid-template-columns:30px repeat(var(--n), 24px); gap:3px; align-items:center}
@@ -1046,6 +1074,7 @@ input[type="range"]{width:100%; accent-color:var(--accent)}
       <div class="fretnums" id="fretnums"></div>
     </div>
     <div class="kit" id="kit" hidden></div>
+    <div class="pkbox" id="pkbox" hidden></div>
     <div class="legend" id="legend"></div>
   </div>
 </div>
@@ -2041,7 +2070,7 @@ const tbFit = d => { let best = 6; for (const [b] of TBASE) for (const m of ['',
 const DK = [{id:'bd', name:'Kick', sh:'BD', sym:'o'}, {id:'sn', name:'Snare', sh:'SN', sym:'o'}, {id:'hh', name:'Hi-hat', sh:'HH', sym:'x'}, {id:'oh', name:'Open hi-hat', sh:'OH', sym:'o'},
   {id:'t1', name:'High tom', sh:'T1', sym:'o'}, {id:'t2', name:'Low tom', sh:'T2', sym:'o'}, {id:'ft', name:'Floor tom', sh:'FT', sym:'o'}, {id:'cr', name:'Crash', sh:'CR', sym:'X'}, {id:'rd', name:'Ride', sh:'RD', sym:'x'}];
 const DROWS = [7, 8, 3, 2, 4, 5, 6, 1, 0];
-const TB_KINDS = {gtr:'Guitar', drums:'Drums', audio:'Audio', wam:'Instrument'};
+const TB_KINDS = {gtr:'Guitar', drums:'Drums', audio:'Audio', wam:'Instrument', keys:'Keys'};
 /* used when saved tabs are read in, at the start: so they're here, before that */
 const FX_DEF = {filter:{on:false, type:'lowpass', f:8000, q:0.7}, eq:{on:false, lo:0, mid:0, hi:0}, drive:{on:false, amt:0.3}, comp:{on:false, th:-18, ratio:4}, delay:{on:false, sync:'8d', fb:0.35, mix:0.25}, reverb:{on:false, size:2, mix:0.25}};
 const FX_SYNC = {'4':1, '8':0.5, '8d':0.75, '16':0.25, '4t':2 / 3};
@@ -2057,7 +2086,7 @@ function tbCleanCols(cs, dr){
 function tbClean(t){
   if (!t || typeof t !== 'object' || !Array.isArray(t.cols)) return null;
   const ids = new Set(), tracks = (Array.isArray(t.tracks) ? t.tracks : []).filter(x => x && TB_KINDS[x.kind] && num(x.id, 1, 9e15, 0) && !ids.has(x.id) && ids.add(x.id)).slice(0, 12)
-    .map(x => Object.assign({id:x.id, kind:x.kind, name:String(x.name || TB_KINDS[x.kind]).slice(0, 30), cols:x.kind === 'audio' ? [] : tbCleanCols(x.cols, x.kind === 'drums')}, x.kind === 'audio' ? {clips:tbCleanClips(x.clips)} : {}, x.kind === 'wam' ? Object.assign({}, wamOk(x.url) ? {url:x.url} : {}, typeof x.plug === 'string' && x.plug ? {plug:x.plug.slice(0, 60)} : {}, typeof x.wst === 'string' && x.wst.length <= 100000 ? {wst:x.wst} : {}) : {}, x.mute === true ? {mute:true} : {}, x.solo === true ? {solo:true} : {}, num(x.at, 1, 1e7, 0) ? {at:x.at} : {}, x.kind === 'drums' && seqClean(x.seq) ? {seq:seqClean(x.seq)} : {}, tbVolOk(x.vol) ? {vol:x.vol} : {}, tbPanOk(x.pan) ? {pan:x.pan} : {}, fxClean(x.fx) ? {fx:fxClean(x.fx)} : {}, envClean(x.env) ? {env:envClean(x.env)} : {}, typeof x.kit === 'string' && /^(k\d{1,15}|@[a-z0-9]{1,12})$/.test(x.kit) ? {kit:x.kit} : {}));
+    .map(x => Object.assign({id:x.id, kind:x.kind, name:String(x.name || TB_KINDS[x.kind]).slice(0, 30), cols:x.kind === 'audio' ? [] : tbCleanCols(x.cols, x.kind === 'drums')}, x.kind === 'audio' ? {clips:tbCleanClips(x.clips)} : {}, x.kind === 'keys' ? Object.assign({notes:keysClean(x.notes)}, ['piano', 'ep', 'organ', 'synth', 'pad'].includes(x.snd) ? {snd:x.snd} : {}) : {}, x.kind === 'wam' || x.kind === 'keys' ? Object.assign({}, wamOk(x.url) ? {url:x.url} : {}, typeof x.plug === 'string' && x.plug ? {plug:x.plug.slice(0, 60)} : {}, typeof x.wst === 'string' && x.wst.length <= 100000 ? {wst:x.wst} : {}) : {}, x.mute === true ? {mute:true} : {}, x.solo === true ? {solo:true} : {}, num(x.at, 1, 1e7, 0) ? {at:x.at} : {}, x.kind === 'drums' && seqClean(x.seq) ? {seq:seqClean(x.seq)} : {}, tbVolOk(x.vol) ? {vol:x.vol} : {}, tbPanOk(x.pan) ? {pan:x.pan} : {}, fxClean(x.fx) ? {fx:fxClean(x.fx)} : {}, envClean(x.env) ? {env:envClean(x.env)} : {}, typeof x.kit === 'string' && /^(k\d{1,15}|@[a-z0-9]{1,12})$/.test(x.kit) ? {kit:x.kit} : {}));
   return Object.assign({id:num(t.id, 1, 9e15, 0) || Date.now(), name:String(t.name || 'Untitled tab').slice(0, 60), bpm:num(t.bpm, 30, 300, 90), beats:num(t.beats, 1, 12, 4), cols:tbCleanCols(t.cols, false)},
     t.gmute === true ? {gmute:true} : {}, t.gsolo === true ? {gsolo:true} : {}, num(t.gat, 1, 1e7, 0) ? {gat:t.gat} : {}, Array.isArray(t.order) && t.order.length && t.order.every(x => num(x, 1, 9e15, 0)) ? {order:t.order.slice(0, 13)} : {}, tbVolOk(t.gvol) ? {gvol:t.gvol} : {}, tbPanOk(t.gpan) ? {gpan:t.gpan} : {}, fxClean(t.gfx) ? {gfx:fxClean(t.gfx)} : {}, envClean(t.genv) ? {genv:envClean(t.genv)} : {}, tracks.length ? {tracks} : {});
 }
@@ -2090,7 +2119,7 @@ function tbDoc(){
 const tbLanes = T => [{id:0, kind:'gtr', name:'Guitar', cols:T.cols, mute:!!T.gmute, solo:!!T.gsolo, vol:T.gvol == null ? 1 : T.gvol, pan:T.gpan || 0, fx:T.gfx, env:T.genv, at:T.gat || 0}].concat((T.tracks || []).map(x => Object.assign({vol:1, pan:0}, x)));
 const tbHeard = (T, L) => !L.mute && (!tbLanes(T).some(x => x.solo) || L.solo);      // with any track soloed, only those
 /* is there anything to play, from this tick on (in a track that's heard)? */
-const tbHas = (T, tick) => !!T && tbLanes(T).some(L => { if (!tbHeard(T, L)) return false; if (L.kind === 'audio') return (L.clips || []).length > 0; const st = tbStarts(L), o = L.at || 0; return L.cols.some((c, k) => c.n.length && st[k] + o >= tick); });
+const tbHas = (T, tick) => !!T && tbLanes(T).some(L => { if (!tbHeard(T, L)) return false; if (L.kind === 'audio') return (L.clips || []).length > 0; if (L.kind === 'keys') return (L.notes || []).some(n => n[0] + (L.at || 0) >= tick); const st = tbStarts(L), o = L.at || 0; return L.cols.some((c, k) => c.n.length && st[k] + o >= tick); });
 /* a lane's mixer settings, read and written the same way for the tab's own guitar and the other tracks */
 function tbMixGet(T, id){ const L = tbLanes(T).find(x => x.id === id); return L || null; }
 function tbMixSet(T, id, k, v){
@@ -2101,19 +2130,20 @@ function tbMixSet(T, id, k, v){
 function tbEditTab(fn){ const T = tbTab(); if (!T) return; tbUndo.push(JSON.stringify(T)); if (tbUndo.length > 200) tbUndo.shift(); tbRedo = []; fn(T); storeTabs(); }
 /* switching track: the cursor stays at the same point in time */
 function tbGoTrack(id){
-  const A0 = tbDoc(), tick = A0 ? (A0.kind === 'audio' ? tba.at : tbStarts(A0)[Math.min(tbc.c, A0.cols.length)]) : 0;
+  const A0 = tbDoc(), tick = A0 ? (A0.kind === 'audio' ? tba.at : A0.kind === 'keys' ? kst.at : tbStarts(A0)[Math.min(tbc.c, A0.cols.length)]) : 0;
   state.tabTrack = id || 0; tbSel = null; tbNum = null;
   const A = tbDoc(); if (A.kind === 'audio') { tba.at = Math.floor(tick / TQ) * TQ; tba.clip = null; return; }
+  if (A.kind === 'keys') { kst.at = Math.floor(tick / TQ) * TQ; kst.sel = -1; kst.plug = false; const ns = A.track.notes || []; if (ns.length) kst.lo = Math.max(0, Math.min(103, 12 * Math.floor(ns[0][2] / 12) - 5)); return; }
   const st = tbStarts(A), k = st.findIndex(x => x >= tick);
   tbc = {c:k < 0 ? A.cols.length : Math.min(k, A.cols.length), s:A.kind === 'drums' ? 1 : 5};
 }
 const TB_MAXTR = 12;
-const tbKindName = k => ({gtr:'Guitar', drums:'Drums', audio:'Audio', wam:'Instrument'})[k] || 'Track';
+const tbKindName = k => ({gtr:'Guitar', drums:'Drums', audio:'Audio', wam:'Instrument', keys:'Keys'})[k] || 'Track';
 function tbTracksHtml(T){
   const tr = T.tracks || [], cur = tbTrack(T), id = cur ? cur.id : 0, L = tbMixGet(T, id);
   const one = x => `<button type="button" data-act="tbtrack" data-v="${x.id}" aria-pressed="${id === x.id}">${x.kind === 'audio' ? '<span aria-hidden="true">〰 </span>' : ''}${esc(x.name)}${x.mute ? ' <span aria-label="(muted)">🔇</span>' : ''}${x.solo ? ' <span class="solo" aria-label="(solo)">S</span>' : ''}</button>`;
   return `<div class="row nw tbtracks">${tbViewSeg()}</div><div class="row nw tbtracks"><div class="seg wrapseg" aria-label="Track">${tbOrder(T, tbLanes(T)).map(one).join('')}</div></div>
-    <div class="row tbtracks tbadd">${tr.length < TB_MAXTR ? ['gtr', 'drums', 'audio', 'wam'].map(k => `<button type="button" class="chip" data-act="tbaddtrack" data-v="${k}" title="${k === 'audio' ? 'A track to record onto, played with the tab' : k === 'wam' ? 'A track played by a plugin instrument (a Web Audio Module)' : 'Another ' + tbKindName(k).toLowerCase() + ' track, played with the tab'}">＋ ${tbKindName(k)}</button>`).join('') : ''}
+    <div class="row tbtracks tbadd">${tr.length < TB_MAXTR ? ['gtr', 'keys', 'drums', 'audio', 'wam'].map(k => `<button type="button" class="chip" data-act="tbaddtrack" data-v="${k}" title="${k === 'audio' ? 'A track to record onto, played with the tab' : k === 'wam' ? 'A track played by a plugin instrument (a Web Audio Module)' : 'Another ' + tbKindName(k).toLowerCase() + ' track, played with the tab'}">＋ ${tbKindName(k)}</button>`).join('') : ''}
     <button type="button" class="chip${L.mute ? ' sel' : ''}" data-act="tbmutetrack" aria-pressed="${L.mute}" title="Leave this track out when the tab plays">Mute</button>
     <button type="button" class="chip${L.solo ? ' sel' : ''}" data-act="tbsolotrack" aria-pressed="${L.solo}" title="Hear only the soloed tracks">Solo</button>
     ${L.kind === 'drums' ? `<div class="seg" aria-label="How the drums are written"><button type="button" data-act="tbseqmode" data-v="steps" aria-pressed="${!!L.seq}" title="A looping pattern of steps">Steps</button><button type="button" data-act="tbseqmode" data-v="tab" aria-pressed="${!L.seq}" title="Column by column, for fills and odd rhythms">Tab</button></div>` : ''}
@@ -2564,7 +2594,7 @@ function tbFxHtml(T){
     ${ps.map(([p, lab, lo, hi, sc, show]) => `<label class="fxs"><small>${lab}</small><input type="range" min="0" max="1000" value="${fxFrom(lo, hi, sc, F[k][p])}" data-fx="${k}.${p}" aria-label="${name} ${lab}"><output>${show(F[k][p])}</output></label>`).join('')}</div>`).join('');
   // the envelope strip, as wide as the tab
   const bt = T.beats * TQ, PX = 1.25, E = (L.env || {})[fxEnv] || [], P = ENV_P[fxEnv], H = 72;
-  let end = 4 * bt; tbLanes(T).forEach(x => { if (x.kind === 'audio') (x.clips || []).forEach(c => { const d = tbClipDur(c); end = Math.max(end, c.at + (d || 4) * T.bpm / 60 * TQ); }); else end = Math.max(end, tbStarts(x)[x.cols.length]); });
+  let end = 4 * bt; tbLanes(T).forEach(x => { if (x.kind === 'audio') (x.clips || []).forEach(c => { const d = tbClipDur(c); end = Math.max(end, c.at + (d || 4) * T.bpm / 60 * TQ); }); else end = Math.max(end, tbEndOf(T, x)); });
   const W = (Math.ceil(end / bt) + 1) * bt * PX, y = v => { const r = fxEnv === 'cut' ? Math.log(v / P[1]) / Math.log(P[2] / P[1]) : (v - P[1]) / (P[2] - P[1]); return H - 4 - r * (H - 8); };
   let grid = ''; for (let x = 0; x <= end + bt; x += TQ) grid += `<line x1="${x * PX}" y1="0" x2="${x * PX}" y2="${H}" class="${x % bt ? 'b' : 'bar'}"/>`;
   const live = {cut:F.filter.on, drv:F.drive.on, dly:F.delay.on, rev:F.reverb.on}[fxEnv] !== false;
@@ -2636,7 +2666,7 @@ async function tbSave(blob, name){
 /* how long the tab is, in ticks: every heard track's end, on a bar line */
 function tbLength(T){
   const bt = T.beats * TQ, spt = 60 / T.bpm / TQ; let end = 0;
-  tbLanes(T).forEach(L => { if (!tbHeard(T, L)) return; if (L.kind === 'audio') (L.clips || []).forEach(c => { const d = tbClipDur(c); if (d) end = Math.max(end, c.at + d / spt); }); else end = Math.max(end, (L.at || 0) + tbStarts(L)[L.cols.length]); });
+  tbLanes(T).forEach(L => { if (!tbHeard(T, L)) return; if (L.kind === 'audio') (L.clips || []).forEach(c => { const d = tbClipDur(c); if (d) end = Math.max(end, c.at + d / spt); }); else end = Math.max(end, tbEndOf(T, L)); });
   return Math.ceil(end / bt) * bt;
 }
 let tbWavBusy = false, tbWavErr = '';
@@ -2655,7 +2685,7 @@ async function tbWav(){
     const S = {srcs:[], mix:{}, dr:0, au:0}, E = tbEngine(off, M, S), base = 0.05; drOpen = null;
     E.pass(T, null, 0, tick => base + tick * spt, spt, bt, {});
     const buf = await off.startRendering();
-    await tbSave(wavOf(buf), tbFileName(T, 'wav')); toast(tbLanes(T).some(L => L.kind === 'wam' && tbHeard(T, L)) || tbLanes(T).some(L => tbHeard(T, L) && L.fx && (L.fx.plugs || []).some(p => p.on !== false)) ? 'WAV made, without the plugins (they can’t play offline yet)' : 'WAV made');
+    await tbSave(wavOf(buf), tbFileName(T, 'wav')); toast(tbLanes(T).some(L => (L.kind === 'wam' || (L.kind === 'keys' && L.url)) && tbHeard(T, L)) || tbLanes(T).some(L => tbHeard(T, L) && L.fx && (L.fx.plugs || []).some(p => p.on !== false)) ? 'WAV made, without the plugins (they can’t play offline yet)' : 'WAV made');
   } catch (e) { tbWavErr = String(e && e.stack || e); toast('The WAV couldn’t be made in this browser.'); }
   finally { tbWavBusy = false; render(); }
 }
@@ -2677,6 +2707,8 @@ function midiBytes(T){
   const us = Math.round(60e6 / T.bpm), tracks = [track([{t:0, o:0, d:text(3, T.name)}, {t:0, o:1, d:[0xff, 0x51, 3, (us >> 16) & 255, (us >> 8) & 255, us & 255]}, {t:0, o:2, d:[0xff, 0x58, 4, T.beats, 2, 24, 8]}])];
   const tun = TUNINGS[state.tuning].midi; let ch = 0;
   tbLanes(T).forEach(L => {
+    if (L.kind === 'keys') { const ns = L.notes || []; if (!ns.length) return; if (ch % 16 === 9) ch++; const c0 = ch % 16; ch++; const o = L.at || 0, evs = [{t:0, o:0, d:text(3, L.name)}, {t:0, o:1, d:[0xc0 | c0, ({ep:4, organ:16, synth:81, pad:89})[L.snd] || 0]}, {t:0, o:1, d:[0xb0 | c0, 7, Math.round(Math.min(1, L.vol) * 100)]}, {t:0, o:1, d:[0xb0 | c0, 10, Math.round(64 + L.pan * 63)]}];
+      ns.forEach(n => evs.push({t:(n[0] + o) * K, o:3, d:[0x90 | c0, n[2], n[3]]}, {t:(n[0] + o + n[1]) * K, o:2, d:[0x80 | c0, n[2], 0]})); tracks.push(track(evs)); return; }
     if (L.kind === 'audio' || !L.cols.some(c => c.n.length)) return;
     const st = tbStarts(L).map(x => x + (L.at || 0)), evs = [{t:0, o:0, d:text(3, L.name)}], drum = L.kind === 'drums';
     let c0 = 9; if (!drum) { if (ch % 16 === 9) ch++; c0 = ch % 16; ch++; }      // channel 10 is for drums
@@ -2861,7 +2893,7 @@ const tbOff = (T, L) => L.id ? ((T.tracks || []).find(x => x.id === L.id) || {})
 function tbOrder(T, lanes){ const o = Array.isArray(T.order) ? T.order : []; if (!o.length) return lanes; const ix = id => { const i = o.indexOf(id); return i < 0 ? 1e6 + id : i; }; return lanes.slice().sort((a, b) => a.id === 0 ? -1 : b.id === 0 ? 1 : ix(a.id) - ix(b.id)); }
 function tbLaneEnd(T, L){
   const spt = 60 / T.bpm / TQ; if (L.kind === 'audio') return (L.clips || []).reduce((e, c) => { const d = tbClipDur(c); return Math.max(e, c.at + (d || 4 * 60 / T.bpm) / spt); }, 0);
-  return (L.at || 0) + tbStarts(L)[L.cols.length];
+  return tbEndOf(T, L);
 }
 /* a small picture of a track: its notes, hits or takes */
 function tbMini(T, L, W, H){
@@ -2869,6 +2901,7 @@ function tbMini(T, L, W, H){
   if (L.kind === 'audio') (L.clips || []).forEach(c => { const A = tbAudC[c.take], d = tbClipDur(c) || 4 * 60 / T.bpm, w = d / (60 / T.bpm / TQ) * TL_PX; s += `<rect x="${(c.at * TL_PX).toFixed(1)}" y="3" width="${w.toFixed(1)}" height="${H - 6}" rx="3" class="mclip"/>`;
     if (A && A.peaks) { let p = ''; const N = A.peaks.length, cols = Math.max(2, Math.floor(w / 3)); for (let x = 0; x < cols; x++) { const v = A.peaks[Math.min(N - 1, Math.floor((c.off / A.buf.duration + d / A.buf.duration * x / cols) * N))] * (H / 2 - 5); p += `M${(c.at * TL_PX + x * 3).toFixed(1)} ${H / 2 - v}V${H / 2 + v}`; } s += `<path d="${p}" class="mwave"/>`; }
     else if (!A) tbAudLoad(c.take); });
+  else if (L.kind === 'keys') { const ns = L.notes || []; if (ns.length) { const lo = Math.min(...ns.map(n => n[2])), hi = Math.max(...ns.map(n => n[2])) + 1, rh = (H - 6) / Math.max(12, hi - lo); ns.forEach(n => { s += `<rect x="${X(n[0])}" y="${(3 + (hi - 1 - n[2]) * rh).toFixed(1)}" width="${Math.max(2, n[1] * TL_PX - 1).toFixed(1)}" height="${Math.max(2, rh - 0.5).toFixed(1)}" class="mnote"/>`; }); } }
   else { const st = tbStarts(L), dr = L.kind === 'drums', rows = dr ? 9 : 6, rh = (H - 6) / rows;
     L.cols.forEach((c, k) => c.n.forEach(q => { const r = dr ? DROWS.indexOf(q.s) : 5 - q.s; s += `<rect x="${X(st[k])}" y="${(3 + r * rh).toFixed(1)}" width="${Math.max(2, c.d * TL_PX - 1).toFixed(1)}" height="${Math.max(2, rh - 1).toFixed(1)}" class="mnote${q.t === 'g' ? ' g' : ''}"/>`; })); }
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${s}</svg>`;
@@ -2878,7 +2911,7 @@ function tbListHtml(T){
   const end = Math.max(8 * bt, ...lanes.map(L => tbLaneEnd(T, L))), bars = Math.ceil(end / bt) + 2, W = Math.round(bars * bt * TL_PX), H = 40;
   let ruler = ''; for (let b = 0; b < bars; b++) ruler += `<span style="left:${(b * bt * TL_PX).toFixed(1)}px">${b + 1}</span>`;
   const row = L => `<div class="tlane${L.id === cur ? ' cur' : ''}${L.mute ? ' muted' : ''}" data-tl="${L.id}">
-      <div class="tlhead"><span class="tlgrip" data-tlgrip="${L.id}" aria-label="Drag to move ${esc(L.name)} up or down" title="Drag up or down">≡</span><button type="button" class="tlname" data-act="tbtlopen" data-v="${L.id}" title="Open ${esc(L.name)}">${esc(L.name)}<small>${L.kind === 'drums' ? (L.seq ? 'steps' : 'drums') : L.kind === 'audio' ? 'audio' : L.kind === 'wam' ? esc(L.plug || 'instrument') : 'guitar'}</small></button>
+      <div class="tlhead"><span class="tlgrip" data-tlgrip="${L.id}" aria-label="Drag to move ${esc(L.name)} up or down" title="Drag up or down">≡</span><button type="button" class="tlname" data-act="tbtlopen" data-v="${L.id}" title="Open ${esc(L.name)}">${esc(L.name)}<small>${L.kind === 'drums' ? (L.seq ? 'steps' : 'drums') : L.kind === 'audio' ? 'audio' : L.kind === 'wam' ? esc(L.plug || 'instrument') : L.kind === 'keys' ? (L.url ? esc(L.plug || 'plugin') : 'keys') : 'guitar'}</small></button>
         <button type="button" class="ib${L.mute ? ' sel' : ''}" data-act="tbmixmute" data-v="${L.id}" aria-pressed="${L.mute}" aria-label="Mute ${esc(L.name)}">M</button><button type="button" class="ib${L.solo ? ' sel' : ''}" data-act="tbmixsolo" data-v="${L.id}" aria-pressed="${L.solo}" aria-label="Solo ${esc(L.name)}">S</button></div>
       <div class="tlbody" data-tlbody="${L.id}" style="width:${W}px">${tbMini(T, L, W, H)}</div></div>`;
   return `<div class="tlist" id="tlist"><div class="tlscroll"><div class="tlinner" style="--w:${W}px"><div class="tlruler"><div class="tlhead"></div><div class="tlbars" style="width:${W}px">${ruler}<b class="tlph" id="tlph" hidden></b></div></div>${lanes.map(row).join('')}</div></div></div>
@@ -2914,7 +2947,7 @@ document.addEventListener('dblclick', e => { const b = e.target.closest && e.tar
 function tbTlOpen(id){ state.tabView = 'edit'; tbGoTrack(id); render(); }
 const tbViewSeg = () => `<div class="seg" aria-label="View"><button type="button" data-act="tbview" data-v="list" aria-pressed="${state.tabView === 'list'}" title="Every track on one timeline">▦ Tracks</button><button type="button" data-act="tbview" data-v="edit" aria-pressed="${state.tabView !== 'list'}" title="The track being written">✎ Edit</button></div>`;
 function tbListPage(TT, list){
-  return `<div class="tbx"><div class="row nw tbtracks">${tbViewSeg()}</div><div class="row tbtracks tbadd">${(TT.tracks || []).length < TB_MAXTR ? ['gtr', 'drums', 'audio', 'wam'].map(k => `<button type="button" class="chip" data-act="tbaddtrack" data-v="${k}">＋ ${tbKindName(k)}</button>`).join('') : ''}</div>
+  return `<div class="tbx"><div class="row nw tbtracks">${tbViewSeg()}</div><div class="row tbtracks tbadd">${(TT.tracks || []).length < TB_MAXTR ? ['gtr', 'keys', 'drums', 'audio', 'wam'].map(k => `<button type="button" class="chip" data-act="tbaddtrack" data-v="${k}">＋ ${tbKindName(k)}</button>`).join('') : ''}</div>
     ${tbListHtml(TT)}${tbMixHtml(TT)}${tbExpHtml(TT)}
     ${fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div><div class="row"><button type="button" class="btn" data-act="tbnew">＋ New tab</button></div>`)}</div>`;
 }
@@ -2923,6 +2956,125 @@ function tbSeqPage(T, TT, list){
     ${fold('tbset', 'Tab settings', `${esc(TT.name)} · ${TT.beats}/4`, `<div class="row"><span class="sp-tempo"><button type="button" class="ib" data-act="tbbeats" data-v="-1" aria-label="Fewer beats a bar"${TT.beats <= 1 ? ' disabled' : ''}>−</button><b>${TT.beats}/4</b><button type="button" class="ib" data-act="tbbeats" data-v="1" aria-label="More beats a bar"${TT.beats >= 12 ? ' disabled' : ''}>+</button></span>
         <button type="button" class="chip${state.tabClick ? ' sel' : ''}" data-act="tbclick" aria-pressed="${!!state.tabClick}">Click</button><button type="button" class="chip${state.tabCount ? ' sel' : ''}" data-act="tbcount" aria-pressed="${!!state.tabCount}">Count in</button></div>`)}
     ${fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div><div class="row"><button type="button" class="btn" data-act="tbnew">＋ New tab</button></div>`)}</div>`;
+}
+/* ---- keys tracks: notes on a piano roll, written on a keyboard where the neck is (a tap puts the note in at the cursor) or
+   drawn on the roll. A note is [start tick, length, MIDI note, velocity]. The sound is made here (piano, electric piano,
+   organ, synth, pad: they play in the WAV too) or by a plugin instrument. ---- */
+const KEYS_SND = {piano:'Piano', ep:'Electric piano', organ:'Organ', synth:'Synth', pad:'Pad'};
+const KEYS_LO = 36, KEYS_HI = 96;      // C2 to C7 on the keyboard
+const kst = {at:0, sel:-1, lo:55, drag:null};      // the cursor, the note picked, the lowest row the roll shows, a drag
+const isBlack = p => [1, 3, 6, 8, 10].includes(p % 12);
+const pName = p => ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'][p % 12] + (Math.floor(p / 12) - 1);
+function keysClean(ns){ return (Array.isArray(ns) ? ns : []).filter(n => Array.isArray(n) && num(n[0], 0, 1e7, -1) >= 0 && num(n[1], 1, 1e5, 0) && num(n[2], 0, 127, -1) >= 0).slice(0, 4000).map(n => [n[0], n[1], n[2], num(n[3], 1, 127, 100)]); }
+const keysEnd = L => (L.notes || []).reduce((e, n) => Math.max(e, n[0] + n[1]), 0);
+/* where any track ends, in ticks from the start of the tab */
+function tbEndOf(T, L){
+  const spt = 60 / T.bpm / TQ;
+  if (L.kind === 'audio') return (L.clips || []).reduce((e, c) => { const d = tbClipDur(c); return Math.max(e, c.at + (d || 4 * 60 / T.bpm) / spt); }, 0);
+  return (L.at || 0) + (L.kind === 'keys' ? keysEnd(L) : tbStarts(L)[L.cols.length]);
+}
+/* the built-in sounds: a few oscillators each, shaped by an envelope; a note rings on a little after it ends */
+function keysVoice(a, dest, snd, p, t0, dur, vel, srcs){
+  const f = 440 * Math.pow(2, (p - 69) / 12), v = vel / 127, g = a.createGain(), out = a.createGain(); out.gain.value = 0.22 * v; g.connect(out); out.connect(dest);
+  const osc = (type, fr, gain, det) => { const o = a.createOscillator(), og = a.createGain(); o.type = type; o.frequency.value = fr; if (det) o.detune.value = det; og.gain.value = gain; o.connect(og); og.connect(g); srcs.push(o); return o; };
+  const t1 = t0 + dur; let end = t1 + 0.3, os = [];
+  g.gain.setValueAtTime(0.0001, t0);
+  if (snd === 'piano') { os = [osc('triangle', f, 1), osc('sine', f * 2, 0.35), osc('sine', f * 3, 0.12)]; g.gain.exponentialRampToValueAtTime(1, t0 + 0.004); g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.4); g.gain.setTargetAtTime(0.0001, t0 + 0.4, 0.9 + 200 / f); g.gain.setTargetAtTime(0.0001, t1, 0.12); end = t1 + 0.7; }
+  else if (snd === 'ep') { const m = a.createOscillator(), mg = a.createGain(); m.frequency.value = f; mg.gain.setValueAtTime(f * 1.6, t0); mg.gain.exponentialRampToValueAtTime(f * 0.15, t0 + 0.6); m.connect(mg); srcs.push(m); os = [osc('sine', f, 1)]; mg.connect(os[0].frequency); os.push(m);
+    g.gain.exponentialRampToValueAtTime(1, t0 + 0.003); g.gain.setTargetAtTime(0.25, t0 + 0.02, 0.7); g.gain.setTargetAtTime(0.0001, t1, 0.15); end = t1 + 0.8; }
+  else if (snd === 'organ') { os = [osc('sine', f, 1), osc('sine', f * 2, 0.6), osc('sine', f * 3, 0.35), osc('sine', f * 4, 0.2), osc('sine', f / 2, 0.4)]; g.gain.linearRampToValueAtTime(0.8, t0 + 0.01); g.gain.setValueAtTime(0.8, t1); g.gain.linearRampToValueAtTime(0.0001, t1 + 0.05); end = t1 + 0.1; }
+  else if (snd === 'synth') { const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 6; lp.frequency.setValueAtTime(Math.min(16000, f * 12), t0); lp.frequency.exponentialRampToValueAtTime(Math.min(16000, f * 2.5), t0 + 0.35); g.disconnect(); g.connect(lp); lp.connect(out);
+    os = [osc('sawtooth', f, 0.6, -6), osc('sawtooth', f, 0.6, 6)]; g.gain.exponentialRampToValueAtTime(1, t0 + 0.005); g.gain.setTargetAtTime(0.6, t0 + 0.05, 0.2); g.gain.setTargetAtTime(0.0001, t1, 0.08); end = t1 + 0.5; }
+  else { const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(9000, f * 4); g.disconnect(); g.connect(lp); lp.connect(out);
+    os = [osc('sawtooth', f, 0.45, -9), osc('sawtooth', f, 0.45, 9), osc('triangle', f / 2, 0.4)]; g.gain.linearRampToValueAtTime(0.8, t0 + 0.35); g.gain.setValueAtTime(0.8, Math.max(t0 + 0.35, t1)); g.gain.setTargetAtTime(0.0001, Math.max(t0 + 0.35, t1), 0.4); end = Math.max(t0 + 0.35, t1) + 2; }
+  os.forEach(o => { o.start(t0); o.stop(end); });
+}
+/* a note now (a tap on the keyboard): the plugin, if it's ready, else the built-in sound */
+function keysPlayNow(tr, p, vel){
+  const a = getAudio(); if (!a) return; if (a.state !== 'running') a.resume().catch(() => {});
+  const W = tr.url && wamI[tr.id]; if (W && W.inst) { try { if (!W.dest) W.inst.audioNode.connect(master); W.inst.audioNode.scheduleEvents({type:'wam-midi', time:a.currentTime, data:{bytes:[0x90, p, vel || 100]}}, {type:'wam-midi', time:a.currentTime + 0.45, data:{bytes:[0x80, p, 0]}}); } catch (e) {} return; }
+  keysVoice(a, master, tr.snd || 'piano', p, a.currentTime + 0.01, 0.4, vel || 100, []);
+}
+/* the keyboard, where the neck is: the notes at the cursor are lit */
+function keysBoardHtml(tr){
+  const on = new Set((tr.notes || []).filter(n => n[0] <= kst.at && n[0] + n[1] > kst.at).map(n => n[2])), whites = [];
+  for (let p = KEYS_LO; p <= KEYS_HI; p++) if (!isBlack(p)) whites.push(p);
+  const W = 100 / whites.length;
+  const wk = whites.map((p, i) => `<button type="button" class="pk w${on.has(p) ? ' on' : ''}" data-pk="${p}" style="left:${(i * W).toFixed(3)}%;width:${W.toFixed(3)}%" aria-label="${pName(p)}">${p % 12 === 0 ? `<small>${pName(p)}</small>` : ''}</button>`).join('');
+  const bk = []; whites.forEach((p, i) => { if (p + 1 <= KEYS_HI && isBlack(p + 1)) bk.push(`<button type="button" class="pk b${on.has(p + 1) ? ' on' : ''}" data-pk="${p + 1}" style="left:${((i + 0.68) * W).toFixed(3)}%;width:${(W * 0.64).toFixed(3)}%" aria-label="${pName(p + 1)}"></button>`); });
+  return `<div class="pkeys" id="pkeys"><div class="pkin">${wk}${bk.join('')}</div></div>`;
+}
+/* the piano roll: 2 octaves at a time (▲ ▼ move them), time left to right */
+function keysRollHtml(T){
+  const tr = T.track, TT = tbTab(), bt = TT.beats * TQ, PX = 1.25, RH = 15, lo = kst.lo, hi = lo + 24, H = (hi - lo) * RH;
+  const end = Math.max(4 * bt, keysEnd(tr) + bt, kst.at + bt), W = Math.round((Math.ceil(end / bt) + 1) * bt * PX), g = state.keysGrid || 6;
+  let rows = ''; for (let p = lo; p < hi; p++) { const y = (hi - 1 - p) * RH; rows += `<rect x="0" y="${y}" width="${W}" height="${RH}" class="${isBlack(p) ? 'kb' : 'kw'}${p % 12 === 0 ? ' kc' : ''}"/>`; }
+  let lines = ''; for (let x = 0; x <= W / PX; x += g) lines += `<line x1="${x * PX}" y1="0" x2="${x * PX}" y2="${H}" class="${x % bt ? x % TQ ? 'g' : 'b' : 'bar'}"/>`;
+  const notes = (tr.notes || []).map((n, k) => n[2] >= lo && n[2] < hi ? `<rect x="${n[0] * PX + 0.5}" y="${(hi - 1 - n[2]) * RH + 1}" width="${Math.max(3, n[1] * PX - 1)}" height="${RH - 2}" rx="3" class="pn${k === kst.sel ? ' sel' : ''}" data-k="${k}" style="opacity:${(0.45 + 0.55 * n[3] / 127).toFixed(2)}"/>` : '').join('');
+  const out = (tr.notes || []).filter(n => n[2] < lo || n[2] >= hi), below = out.filter(n => n[2] < lo).length, above = out.length - below;
+  let labels = ''; for (let p = lo; p < hi; p++) if (p % 12 === 0 || p === lo) labels += `<span style="top:${(hi - 1 - p) * RH}px">${pName(p)}</span>`;
+  let ruler = ''; for (let b = 0; b * bt * PX < W; b++) ruler += `<span style="left:${b * bt * PX + 3}px">${b + 1}</span>`;
+  return `<div class="proll"><div class="prside"><button type="button" class="ib" data-act="tbkoct" data-v="12" aria-label="An octave up"${hi > 120 ? ' disabled' : ''}>▲${above ? `<small>${above}</small>` : ''}</button><div class="prlab" style="height:${H}px">${labels}</div><button type="button" class="ib" data-act="tbkoct" data-v="-12" aria-label="An octave down"${lo < 12 ? ' disabled' : ''}>▼${below ? `<small>${below}</small>` : ''}</button></div>
+    <div class="prscroll" id="prscroll"><div class="prruler" style="width:${W}px" data-kruler="1">${ruler}<b class="tba-cur" style="left:${kst.at * PX}px"></b></div>
+    <svg class="prsvg" id="prsvg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" data-lo="${lo}" data-hi="${hi}" data-px="${PX}" data-rh="${RH}" role="img" aria-label="Piano roll: tap to put a note in, drag one to move it, drag its end to make it longer, double tap to take it out">${rows}${lines}${notes}<line x1="${kst.at * PX}" y1="0" x2="${kst.at * PX}" y2="${H}" class="cur"/><line id="prph" x1="0" y1="0" x2="0" y2="${H}" class="ph" visibility="hidden"/></svg></div></div>`;
+}
+function tbKeysHtml(T){
+  const tr = T.track, TT = tbTab(), n = kst.sel >= 0 && (tr.notes || [])[kst.sel], bt = TT.beats * TQ, len = state.keysLen || 24, g = state.keysGrid || 6;
+  return `${keysRollHtml(T)}
+    <div class="tbtools"><div class="row nw"><button type="button" class="ib" data-act="tbkmove" data-v="-1" aria-label="Cursor back"${kst.at > 0 ? '' : ' disabled'}>◀</button><button type="button" class="ib" data-act="tbkmove" data-v="1" aria-label="Cursor on">▶</button>
+      <span class="info">Bar ${Math.floor(kst.at / bt) + 1}, beat ${((kst.at % bt) / TQ + 1).toFixed(kst.at % TQ ? 2 : 0).replace(/\.?0+$/, '')}</span>
+      <button type="button" class="ib" data-act="tbundo" aria-label="Undo"${tbUndo.length ? '' : ' disabled'}>↶</button><button type="button" class="ib" data-act="tbredo" aria-label="Redo"${tbRedo.length ? '' : ' disabled'}>↷</button></div>
+    <div class="row nw"><span class="rl">Length</span><div class="seg" aria-label="A new note’s length">${TBASE.slice(0, 5).map(([b, t]) => `<button type="button" data-act="tbklen" data-v="${b}" aria-pressed="${len === b}">${t}</button>`).join('')}<button type="button" data-act="tbklen" data-v="8" aria-pressed="${len === 8}" title="8th triplet">⅛³</button></div></div>
+    <div class="row nw"><span class="rl">Grid</span><div class="seg" aria-label="What notes snap to">${[[24, '1/4'], [12, '1/8'], [6, '1/16'], [8, '1/8³'], [3, '1/32']].map(([v, t]) => `<button type="button" data-act="tbkgrid" data-v="${v}" aria-pressed="${g === v}">${t}</button>`).join('')}</div>
+      <button type="button" class="chip tog${state.keysStep ? ' sel' : ''}" data-act="tbkstep" aria-pressed="${!!state.keysStep}" title="After a note from the keyboard, move the cursor on by its length (off: stack a chord)">Move on</button></div>
+    ${n ? `<div class="row nw tbclipsel"><b>${pName(n[2])}</b><span class="cl">How hard</span><div class="seg">${[[50, 'Soft'], [90, 'Medium'], [120, 'Hard']].map(([v, t]) => `<button type="button" data-act="tbkvel" data-v="${v}" aria-pressed="${Math.abs(n[3] - v) < 15}">${t}</button>`).join('')}</div><button type="button" class="btn" data-act="tbkdel">✕ Note</button></div>` : ''}
+    <div class="row nw"><span class="rl">Sound</span><div class="seg wrapseg" aria-label="Its sound">${Object.entries(KEYS_SND).map(([k, t]) => `<button type="button" data-act="tbksnd" data-v="${k}" aria-pressed="${!tr.url && (tr.snd || 'piano') === k}">${t}</button>`).join('')}<button type="button" data-act="tbksnd" data-v="plug" aria-pressed="${!!tr.url}">Plugin…</button></div></div>
+    <span class="hint tip">Tap the keyboard up top to put a note in at the cursor (tap the ruler to move the cursor); or tap the roll. Drag a note to move it, drag its right end to make it longer or shorter, double tap it to take it out. ▲ ▼ show other octaves; a number on them says how many notes are out of sight.</span></div>
+    ${tr.url || kst.plug ? tbWamHtml(T) : ''}`;
+}
+function tbKeysPage(T, TT, list){
+  return `<div class="tbx">${tbTracksHtml(TT)}${tbKeysHtml(T)}${tbMixHtml(TT)}${tbFxHtml(TT)}${tbExpHtml(TT)}
+    ${fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div><div class="row"><button type="button" class="btn" data-act="tbnew">＋ New tab</button></div>`)}</div>`;
+}
+/* a key tapped: the note in at the cursor (the same note there again takes it out) */
+function keysPut(p){
+  const T = tbDoc(); if (!T || T.kind !== 'keys') return; const tr = T.track, len = state.keysLen || 24, ns = tr.notes || [];
+  const k = ns.findIndex(n => n[2] === p && n[0] === kst.at);
+  tbEditTab(() => { tr.notes = ns; if (k >= 0) ns.splice(k, 1); else ns.push([kst.at, len, p, 100]); ns.sort((x, y) => x[0] - y[0] || x[2] - y[2]); });
+  if (k < 0) { keysPlayNow(tr, p, 100); kst.sel = tr.notes.findIndex(n => n[2] === p && n[0] === kst.at); if (state.keysStep) kst.at += len; } else kst.sel = -1;
+  if (p < kst.lo || p >= kst.lo + 24) kst.lo = Math.max(0, Math.min(103, 12 * Math.floor(p / 12) - 5));
+}
+/* the roll, by hand: tap, drag, stretch, double tap */
+function keysPt(e, svg){ const r = svg.getBoundingClientRect(), PX = +svg.dataset.px, RH = +svg.dataset.rh, hi = +svg.dataset.hi, x = e.clientX - r.left, y = e.clientY - r.top; return {tick:Math.max(0, x / PX), p:hi - 1 - Math.floor(y / RH), x}; }
+document.addEventListener('pointerdown', e => {
+  const svg = e.target.closest && e.target.closest('#prsvg'); if (!svg) return; const T = tbDoc(); if (!T || T.kind !== 'keys') return; e.preventDefault();
+  const tr = T.track, ns = tr.notes = tr.notes || [], g = state.keysGrid || 6, pt = keysPt(e, svg), PX = +svg.dataset.px, snap = x => Math.round(x / g) * g;
+  tbUndo.push(JSON.stringify(tbTab())); tbRedo = [];
+  let k = e.target.tagName === 'rect' && e.target.classList.contains('pn') ? +e.target.dataset.k : -1, mode = 'move';
+  if (k >= 0) { const n = ns[k]; if (pt.x > (n[0] + n[1]) * PX - 7) mode = 'size'; kst.sel = k; }
+  else { const t0 = Math.floor(pt.tick / g) * g, nn = [t0, state.keysLen || 24, pt.p, 100]; ns.push(nn); ns.sort((x, y) => x[0] - y[0] || x[2] - y[2]); k = ns.indexOf(nn); kst.sel = k; keysPlayNow(tr, pt.p, 100); mode = 'new'; }
+  const n = ns[k]; kst.drag = {k, mode, t0:n[0], p0:n[2], d0:n[1], x0:pt.tick, y0:pt.p, moved:false, note:n, snap};
+  try { svg.setPointerCapture(e.pointerId); } catch (x) {} storeTabs(); render();
+});
+document.addEventListener('pointermove', e => {
+  const d = kst.drag; if (!d) return; const svg = document.getElementById('prsvg'); if (!svg) return; const pt = keysPt(e, svg), n = d.note;
+  if (d.mode === 'size') n[1] = Math.max(state.keysGrid || 6, d.snap(d.d0 + pt.tick - d.x0));
+  else { const t = Math.max(0, d.snap(d.t0 + pt.tick - d.x0)), p = Math.max(0, Math.min(127, d.p0 + pt.p - d.y0)); if (t !== n[0] || p !== n[2]) { d.moved = true; n[0] = t; if (p !== n[2]) { n[2] = p; keysPlayNow(tbDoc().track, p, 80); } } }
+  const r = svg.querySelector(`.pn[data-k="${d.k}"]`), PX = +svg.dataset.px, RH = +svg.dataset.rh, hi = +svg.dataset.hi;
+  if (r) { r.setAttribute('x', n[0] * PX + 0.5); r.setAttribute('y', (hi - 1 - n[2]) * RH + 1); r.setAttribute('width', Math.max(3, n[1] * PX - 1)); }
+});
+document.addEventListener('pointerup', () => { const d = kst.drag; if (!d) return; kst.drag = null; const T = tbDoc(); if (T && T.track && T.track.notes) { T.track.notes.sort((x, y) => x[0] - y[0] || x[2] - y[2]); kst.sel = T.track.notes.indexOf(d.note); } storeTabs(); render(); });
+document.addEventListener('dblclick', e => { const r = e.target.closest && e.target.closest('#prsvg .pn'); if (!r) return; const T = tbDoc(); if (!T || T.kind !== 'keys') return; tbEditTab(() => { T.track.notes.splice(+r.dataset.k, 1); }); kst.sel = -1; render(); });
+document.addEventListener('click', e => {
+  const k = e.target.closest && e.target.closest('#pkeys [data-pk]'); if (k) { keysPut(+k.dataset.pk); tbRender(); return; }
+  const ru = e.target.closest && e.target.closest('[data-kruler]'); if (ru) { const r = ru.getBoundingClientRect(), g = state.keysGrid || 6; kst.at = Math.max(0, Math.round((e.clientX - r.left) / 1.25 / g) * g); kst.sel = -1; render(); }
+});
+/* playing: the keys sounding, lit */
+function keysPaint(tick){
+  const box = document.getElementById('pkeys'), T = tbDoc(), ph = document.getElementById('prph'), o = T && T.track ? T.track.at || 0 : 0;
+  if (ph) { if (tick < 0) ph.setAttribute('visibility', 'hidden'); else { const x = (tick - o) * 1.25; ph.setAttribute('x1', x); ph.setAttribute('x2', x); ph.setAttribute('visibility', 'visible'); } }
+  if (!box || !T || T.kind !== 'keys') return; const on = new Set(tick < 0 ? [] : (T.track.notes || []).filter(n => n[0] + o <= tick && n[0] + o + n[1] > tick).map(n => n[2])), key = [...on].join();
+  if (box.dataset.on === key) return; box.dataset.on = key; box.querySelectorAll('.pk.playing').forEach(x => x.classList.remove('playing')); on.forEach(p => { const x = box.querySelector(`[data-pk="${p}"]`); if (x) x.classList.add('playing'); });
 }
 function tbRecBtn(){
   let r = null; try { r = rec; } catch (e) {} const mine = !!r && (r.owned === 'tab' || r.owned === 'track'), onto = (tbDoc() || {}).kind === 'audio';
@@ -3333,6 +3485,13 @@ function tbEngine(a, M, S){
     tbLanes(T).forEach(L => {
       if (!tbHeard(T, L)) return;
       if (L.kind === 'audio') { if (!(L.clips || []).length) return; const e = aud(L, tk0, at, spt, out(L, T)); if (e > tk0) { endTick = Math.max(endTick, e); lanes++; played.push(L); } return; }
+      if (L.kind === 'keys') {      // keys: the built-in sound, or a plugin
+        const o = L.at || 0, ns = (L.notes || []).filter(n => n[0] + o >= tk0); if (!ns.length) return; endTick = Math.max(endTick, o + keysEnd(L)); lanes++; const dest = out(L, T);
+        if (L.url) { const W = wamGet(L, a); if (!W) return; const nn = W.inst.audioNode; if (W.dest !== dest) { try { nn.disconnect(); } catch (x) {} nn.connect(dest); W.dest = dest; }
+          try { nn.scheduleEvents(...ns.flatMap(n => [{type:'wam-midi', time:at(n[0] + o), data:{bytes:[0x90, n[2], n[3]]}}, {type:'wam-midi', time:at(n[0] + o + n[1]), data:{bytes:[0x80, n[2], 0]}}])); } catch (x) {} S.wam = (S.wam || 0) + ns.length; }
+        else { ns.forEach(n => keysVoice(a, dest, L.snd || 'piano', n[2], at(n[0] + o), n[1] * spt, n[3], S.srcs)); S.keys = (S.keys || 0) + ns.length; }
+        played.push(L); return;
+      }
       if (L.kind === 'wam') {      // a plugin: its notes as MIDI, at their times
         const o = L.at || 0, sp2 = tbSpans(L).map(x => [x[0] + o, x[1] + o, x[2], x[3]]).filter(x => x[0] >= tk0), e = o + tbStarts(L)[L.cols.length]; if (e <= tk0 || !sp2.length) return; endTick = Math.max(endTick, e); lanes++;
         const W = wamGet(L, a); if (!W) return; const dest = out(L, T), n = W.inst.audioNode;
@@ -3383,7 +3542,7 @@ function tbStart(from, opt){
     const now = a.currentTime - avLag(); let cur = null;
     for (const e of tbp.events) if (e.t <= now + 0.01) cur = e;
     if (tbp.spt) { const tk = tbp.tk0 + (now - tbp.base) / tbp.spt, on = now >= tbp.base, ph = document.getElementById('tbaudph'), lp = document.getElementById('tlph'), sq = document.getElementById('seqgrid');      // the playheads: audio track, tracklist, steps
-      if (ph) { ph.hidden = !on; ph.style.left = (tk * 1.25) + 'px'; } if (lp) { lp.hidden = !on; lp.style.left = (tk * TL_PX) + 'px'; } if (sq) seqPaint(on ? tk : -1); }
+      if (ph) { ph.hidden = !on; ph.style.left = (tk * 1.25) + 'px'; } if (lp) { lp.hidden = !on; lp.style.left = (tk * TL_PX) + 'px'; } if (sq) seqPaint(on ? tk : -1); keysPaint(on ? tk : -1); }
     const k = cur ? cur.k : -1, col = k >= 0 ? document.querySelector(`.tbc[data-c="${k}"]`) : null;
     if (k !== tbp.k || (col && !col.classList.contains('on')) || tbp.lit.some(e => !e.isConnected)) {
       tbp.k = k; document.querySelectorAll('.tbc.on').forEach(e => { if (e !== col) e.classList.remove('on'); });
@@ -3436,6 +3595,7 @@ function renderTab(){
   if (state.tabView === 'list') return tbListPage(TT, list);
   if (T.kind === 'audio') return tbAudioPage(T, TT, list);
   if (dr && T.track && T.track.seq) return tbSeqPage(T, TT, list);
+  if (T.kind === 'keys') return tbKeysPage(T, TT, list);
   const c = tbAt(T), q = c && c.n.find(z => z.s === tbc.s), dc = tbCurDur(), bars = tbBars(T), bi = bars.findIndex(b => tbc.c >= b.from && (tbc.c < b.to || b === bars[bars.length - 1]));
   const rd = !dr && c && c.n.length > 1 ? readings(c.n.filter(z => z.t !== 'x')).sel : null, ph = tbPhLayer();
   const where = c ? `Column ${tbc.c + 1} of ${T.cols.length} · bar ${bi + 1} · ${dr ? DK[tbc.s].name : STRING_ORD[tbc.s] + ' string'}${rd ? ` · sounds like <b>${rd.name}</b>` : ''}${bars[bi] && bars[bi].ticks > T.beats * TQ ? ` · this bar is longer than ${T.beats} beats` : ''}` : `New column · bar ${bi + 1}. ${dr ? 'Tap the drums' : 'Tap the neck'} to put ${dr ? 'hits' : 'notes'} in it${state.tabAdv ? '' : ', then Next ▶'}.`;
@@ -3539,7 +3699,7 @@ function handleTab(act, b){
     case 'tbtrack': tbGoTrack(+v); if (T.kind !== 'drums' && tbDoc().kind === 'drums' && state.neckHidden) setNeckHidden(false); break;
     case 'tbaddtrack': { const X = tbTab(), k = TB_KINDS[v] ? v : 'drums'; let id = Date.now(); while ((X.tracks || []).some(x => x.id === id)) id++; if ((X.tracks || []).length >= TB_MAXTR) break;
       const n = (X.tracks || []).filter(x => x.kind === k).length + (k === 'gtr' ? 1 : 0);
-      tbEditTab(Y => { Y.tracks = (Y.tracks || []).concat([Object.assign({id, kind:k, name:n ? tbKindName(k) + ' ' + (n + 1) : tbKindName(k)}, k === 'audio' ? {clips:[], cols:[]} : {cols:[]}, k === 'drums' && kitOf({kit:state.kitLast}) ? {kit:state.kitLast} : {}, k === 'drums' ? {seq:{res:4, bars:1, rep:4, h:[]}} : {})]); const nt = Y.tracks[Y.tracks.length - 1]; if (nt.seq) seqApply(nt, Y); });
+      tbEditTab(Y => { Y.tracks = (Y.tracks || []).concat([Object.assign({id, kind:k, name:n ? tbKindName(k) + ' ' + (n + 1) : tbKindName(k)}, k === 'audio' ? {clips:[], cols:[]} : k === 'keys' ? {notes:[], cols:[]} : {cols:[]}, k === 'drums' && kitOf({kit:state.kitLast}) ? {kit:state.kitLast} : {}, k === 'drums' ? {seq:{res:4, bars:1, rep:4, h:[]}} : {})]); const nt = Y.tracks[Y.tracks.length - 1]; if (nt.seq) seqApply(nt, Y); });
       tbGoTrack(id); if (k === 'drums' && state.neckHidden) setNeckHidden(false); break; }
     case 'tbmutetrack': case 'tbsolotrack': case 'tbmixmute': case 'tbmixsolo': {
       const X = tbTab(), id = act === 'tbmixmute' || act === 'tbmixsolo' ? +v : (tbTrack(X) || {id:0}).id, key = /solo/.test(act) ? 'solo' : 'mute', L = tbMixGet(X, id); if (!L) break;
@@ -3550,6 +3710,15 @@ function handleTab(act, b){
     case 'tbenv': fxEnv = ENV_P[v] ? v : 'vol'; break;
     case 'tbenvclear': { const X = tbTab(), L = fxLane(); tbEditTab(() => fxStore(X, L.id, undefined, Object.assign({}, L.env || {}, {[fxEnv]:[]}))); break; }
     case 'tbwav': tbWav(); return true;
+    case 'tbkmove': kst.at = Math.max(0, kst.at + +v * (state.keysGrid || 6)); kst.sel = -1; break;
+    case 'tbklen': state.keysLen = num(+v, 2, 96, 24); { const n = kst.sel >= 0 && (T.track.notes || [])[kst.sel]; if (n) tbEditTab(() => { n[1] = state.keysLen; }); } break;
+    case 'tbkgrid': state.keysGrid = [24, 12, 6, 8, 3].includes(+v) ? +v : 6; break;
+    case 'tbkstep': state.keysStep = !state.keysStep; break;
+    case 'tbkvel': { const n = kst.sel >= 0 && (T.track.notes || [])[kst.sel]; if (n) { tbEditTab(() => { n[3] = num(+v, 1, 127, 100); }); keysPlayNow(T.track, n[2], n[3]); } break; }
+    case 'tbkdel': { const k = kst.sel; if (k < 0 || !(T.track.notes || [])[k]) break; tbEditTab(() => { T.track.notes.splice(k, 1); }); kst.sel = -1; break; }
+    case 'tbkoct': kst.lo = Math.max(0, Math.min(103, kst.lo + +v)); break;
+    case 'tbksnd': { const tr = T.track; if (v === 'plug') { kst.plug = !kst.plug; state.folds = Object.assign({}, state.folds, {tbwam:true}); break; }
+      if (!KEYS_SND[v]) break; kst.plug = false; tbEditTab(() => { tr.snd = v; delete tr.url; delete tr.plug; delete tr.wst; }); if (wamI[tr.id]) { try { wamI[tr.id].inst.audioNode.disconnect(); } catch (e) {} delete wamI[tr.id]; } keysPlayNow(tr, 60, 100); if (tbp.on && !tbp.rec) tbStart(0); break; }
     case 'tbview': state.tabView = v === 'list' ? 'list' : 'edit'; break;
     case 'tbtlopen': tbTlOpen(+v); return true;
     case 'tbseqmode': { const tr = T.track; if (!tr || tr.kind !== 'drums') break;
@@ -3622,7 +3791,7 @@ function handleTab(act, b){
     case 'tbcell': if (tbShift && !tbSel) tbSel = {a:Math.min(tbc.c, Math.max(0, T.cols.length - 1))}; tbc = {c:Math.min(+b.dataset.c, T.cols.length), s:+b.dataset.s}; tbNum = null; { const z = tbAt(T), q = z && z.n.find(x => x.s === tbc.s); if (q && T.kind === 'drums') drumHit(q.s, 0, null, q.t, kitCur()); else if (q && q.t !== 'x') pluck(TUNINGS[state.tuning].midi[q.s] + q.f); } break;
     case 'tbbpm': T.bpm = Math.max(30, Math.min(300, T.bpm + +v)); storeTabs(); break;
     case 'tbbeats': tbEdit(T => { T.beats = Math.max(1, Math.min(12, T.beats + +v)); }); (tbTab().tracks || []).forEach(tr => { if (tr.seq) seqApply(tr, tbTab()); }); storeTabs(); break;
-    case 'tbplay': if (tbp.on) tbStop(true); else if (T.kind === 'audio') tbStart(0, state.tabFromCur ? {tick:tba.at} : {}); else tbStart(state.tabFromCur && tbc.c < T.cols.length && T.cols.slice(tbc.c).some(x => x.n.length) ? tbc.c : 0); break;
+    case 'tbplay': if (tbp.on) tbStop(true); else if (T.kind === 'audio') tbStart(0, state.tabFromCur ? {tick:tba.at} : {}); else if (T.kind === 'keys') tbStart(0, state.tabFromCur ? {tick:kst.at + (T.track.at || 0)} : {}); else tbStart(state.tabFromCur && tbc.c < T.cols.length && T.cols.slice(tbc.c).some(x => x.n.length) ? tbc.c : 0); break;
     case 'tbfromcur': state.tabFromCur = !state.tabFromCur; break;
     case 'tbplayhere': tbStart(tbc.c); break;
     case 'tbloop': state.tabLoop = !state.tabLoop; break;
@@ -3668,7 +3837,7 @@ function handleTab(act, b){
 /* the keyboard, while the tab has focus */
 function tbKey(e){
   const T = tbDoc(); if (!T) return;
-  if (T.kind === 'audio' || (T.track && T.track.seq)) { if (e.key === ' ') { e.preventDefault(); handleTab('tbplay', {dataset:{}}); } return; }
+  if (T.kind === 'audio' || T.kind === 'keys' || (T.track && T.track.seq)) { if (e.key === ' ') { e.preventDefault(); handleTab('tbplay', {dataset:{}}); } return; }
   const k = e.key, ctl = e.ctrlKey || e.metaKey, lk = k.length === 1 ? k.toLowerCase() : k;
   const go = () => { e.preventDefault(); tbRender(); };
   if (ctl && lk === 'z') { tbUndoDo(e.shiftKey); return go(); }
@@ -3875,8 +4044,9 @@ function renderBoard(){
   const viewPin = playPin || (state.tab === 'pins' && !follow ? state.pins.find(p => p.id === state.pinView) : null);
   const pinShape = viewPin && viewPin.shape ? viewPin.shape : null;
   const tabDoc = state.tab === 'tab' && !follow && !playPin ? tbDoc() : null, tabCol = tabDoc && !tabDoc.kind ? (tbAt(tabDoc) || {n:[]}).n.filter(q => q.t !== 'x') : null;
-  const kitEl = $('#kit'), drv = !!tabDoc && tabDoc.kind === 'drums' && !pvOn() && !quiz;
-  kitEl.hidden = !drv; $('#boardScroll').hidden = drv;
+  const kitEl = $('#kit'), drv = !!tabDoc && tabDoc.kind === 'drums' && !pvOn() && !quiz, pkEl = $('#pkbox'), kv = !!tabDoc && tabDoc.kind === 'keys' && !pvOn() && !quiz;
+  kitEl.hidden = !drv; pkEl.hidden = !kv; $('#boardScroll').hidden = drv || kv;
+  if (kv) { const sc = pkEl.querySelector('#pkeys'), sl = sc ? sc.scrollLeft : null; pkEl.innerHTML = keysBoardHtml(tabDoc.track); const nk = pkEl.querySelector('#pkeys'); if (sl != null) nk.scrollLeft = sl; else { const c4 = nk.querySelector('[data-pk="60"]'); if (c4) nk.scrollLeft = c4.offsetLeft - nk.clientWidth / 2 + 40; } $('#legend').innerHTML = tbTransport(); return; }
   if (drv) { const c = tbAt(tabDoc); kitEl.innerHTML = kitSvg(new Set(c ? c.n.map(q => q.s) : []), matchMedia("(max-width: 600px)").matches && !landQ.matches); $('#legend').innerHTML = tbTransport(); return; }
   const pickMode = state.tab === 'finder' || !!pinShape || !!tabCol;
   const picks = pinShape || tabCol || state.picks;
@@ -8046,7 +8216,7 @@ try { if (navigator.storage && navigator.storage.persist) navigator.storage.pers
 lessonsToNps();
 if (state.guideBack) guideRestore();      // the page closed in the middle of a guide: put the neck back
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, wam:{hooks:wamHooks, I:wamI, FX:wamFx, fxList:wamFxList, get all(){ return wamAll; }, set all(v){ wamAll = v; }, load:wamLoad, spans:tbSpans, get cat(){ return wamCat; }, set cat(v){ wamCat = v; }, get show(){ return wamShow; }}, get tbWavErr(){ return tbWavErr; }, midiOf, midiBytes, wavOf, tbEngine, envAt, fxOf, tbLength, tba, tbAudC, tbClipFromTake, tbLanes, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, BUILT, kitBuiltLoad, kitSound, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, keys:{kst, put:keysPut, voice:keysVoice, end:tbEndOf, clean:keysClean}, wam:{hooks:wamHooks, I:wamI, FX:wamFx, fxList:wamFxList, get all(){ return wamAll; }, set all(v){ wamAll = v; }, load:wamLoad, spans:tbSpans, get cat(){ return wamCat; }, set cat(v){ wamCat = v; }, get show(){ return wamShow; }}, get tbWavErr(){ return tbWavErr; }, midiOf, midiBytes, wavOf, tbEngine, envAt, fxOf, tbLength, tba, tbAudC, tbClipFromTake, tbLanes, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, BUILT, kitBuiltLoad, kitSound, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, get phrFavs(){ return phrFavs; }, phrFavOk, get sp(){ return sp; }, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, scalesForChord, followView, loopShape, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
@@ -8202,7 +8372,7 @@ function setSound(on){
 var SYNC = null;
 const SYNC_CID = '798129945030-qmhaqovsp8kmfefd7f9mcrcjur3p1av5.apps.googleusercontent.com', SYNC_FILE = 'fretboard-atlas-sync.json';
 const SYNC_META = 'fretboard-atlas-sync-v1', SYNC_BASE = 'fretboard-atlas-sync-base-v1';
-const SYNC_LOCAL = ['tab', 'ptab', 'lastSub', 'pview', 'neckHidden', 'folds', 'secOpen', 'ingOpen', 'tap', 'pinView', 'tabCur', 'tabTrack', 'tabView', 'kitLast', 'fsKey', 'session', 'tkErr', 'sound', 'avDelay', 'micCal', 'rotated'];
+const SYNC_LOCAL = ['tab', 'ptab', 'lastSub', 'pview', 'neckHidden', 'folds', 'secOpen', 'ingOpen', 'tap', 'pinView', 'tabCur', 'tabTrack', 'tabView', 'keysLen', 'keysGrid', 'keysStep', 'kitLast', 'fsKey', 'session', 'tkErr', 'sound', 'avDelay', 'micCal', 'rotated'];
 SYNC = {linked:false, token:null, exp:0, fid:null, busy:false, again:false, timer:0, last:0, err:'', gis:null, client:null, pushed:''};
 try { const m = JSON.parse(localStorage.getItem(SYNC_META)); if (m && m.linked) Object.assign(SYNC, {linked:true, last:+m.last || 0}); } catch (e) {}
 function syncMetaSave(){ try { localStorage.setItem(SYNC_META, JSON.stringify({linked:SYNC.linked, last:SYNC.last})); } catch (e) {} }
