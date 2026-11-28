@@ -578,6 +578,42 @@ body.pv-done .neck-wrap{display:none !important}
 .tba-cur{background:var(--accent)}
 .tba-ph{background:var(--ink); opacity:.7}
 .tbclipsel{gap:6px; align-items:center}
+.seqwrap{overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--surface); padding:6px; overscroll-behavior-x:contain}
+.seqgrid{display:grid; gap:3px; width:max-content}
+.seqrow{display:grid; grid-template-columns:30px repeat(var(--n), 24px); gap:3px; align-items:center}
+.seqrow b{font-size:10px; color:var(--muted); text-align:right; padding-right:3px}
+.seqhead i{font-style:normal; font-size:10px; color:var(--muted); text-align:center}
+.seqc{height:24px; padding:0; border:1px solid var(--line); border-radius:5px; background:var(--surface-2); cursor:pointer}
+.seqc.bt{background:color-mix(in srgb, var(--ink) 7%, var(--surface-2))}
+.seqc.br{margin-left:4px}
+.seqhead i.br{margin-left:4px}
+.seqc.on{background:var(--accent); border-color:var(--accent)}
+.seqc.on.k-g{background:color-mix(in srgb, var(--accent) 45%, var(--surface-2))}
+.seqc.on.k-a{background:var(--accent); box-shadow:inset 0 0 0 3px color-mix(in srgb, var(--ink) 45%, transparent)}
+.seqc.now{outline:2px solid var(--ink); outline-offset:-1px}
+.tlist{border:1px solid var(--line); border-radius:10px; background:var(--surface); overflow:hidden}
+.tlscroll{overflow-x:auto; overscroll-behavior-x:contain}
+.tlinner{min-width:100%; width:max-content}
+.tlruler, .tlane{display:flex; align-items:stretch; border-bottom:1px solid var(--line)}
+.tlhead{position:sticky; left:0; z-index:2; flex:none; width:150px; display:flex; align-items:center; gap:4px; padding:3px 6px; background:var(--surface); border-right:1px solid var(--line)}
+.tlbars{position:relative; height:18px; flex:none}
+.tlbars span{position:absolute; top:2px; font-size:10px; color:var(--muted); padding-left:3px; border-left:1px solid var(--line); height:16px}
+.tlph{position:absolute; top:0; bottom:-999px; width:2px; background:var(--ink); opacity:.7; pointer-events:none; z-index:3}
+.tlane{position:relative; background:var(--surface)}
+.tlane.cur{background:color-mix(in srgb, var(--accent) 8%, var(--surface))}
+.tlane.cur .tlhead{background:color-mix(in srgb, var(--accent) 12%, var(--surface))}
+.tlane.muted .tlbody{opacity:.4}
+.tlane.drag{z-index:5; box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.tlgrip{cursor:grab; touch-action:none; padding:4px 3px; color:var(--muted); font-size:16px; user-select:none}
+.tlname{flex:1 1 auto; min-width:0; text-align:left; background:none; border:0; padding:2px 0; color:var(--ink); font:inherit; font-size:12px; font-weight:650; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.tlname small{display:block; font-size:10px; font-weight:500; color:var(--muted)}
+.tlbody{flex:none; position:relative; touch-action:pan-y; cursor:grab}
+.tlbody svg{display:block}
+.tlbody .mnote{fill:var(--accent)}
+.tlbody .mnote.g{opacity:.45}
+.tlbody .mclip{fill:color-mix(in srgb, var(--accent) 18%, var(--surface)); stroke:color-mix(in srgb, var(--accent) 60%, var(--line))}
+.tlbody .mwave{stroke:var(--accent); stroke-width:1; fill:none}
+@media (max-width: 560px){ .tlhead{width:104px; flex-wrap:wrap; row-gap:2px; padding:3px 4px} .tlname{flex:1 1 70px} .tlane .tlhead .ib{min-width:26px; height:22px; padding:0 4px; font-size:11px} .tlane .tlhead .ib:first-of-type{margin-left:20px} }
 .wamgui{overflow:auto; max-height:70vh; border:1px solid var(--line); border-radius:10px; background:#111; margin:6px 0; padding:4px}
 #wamurl, #wamfxurl{flex:1 1 auto; min-width:0}
 .pfx{border-top:1px solid var(--line); padding-top:8px; margin-top:4px}
@@ -2021,9 +2057,9 @@ function tbCleanCols(cs, dr){
 function tbClean(t){
   if (!t || typeof t !== 'object' || !Array.isArray(t.cols)) return null;
   const ids = new Set(), tracks = (Array.isArray(t.tracks) ? t.tracks : []).filter(x => x && TB_KINDS[x.kind] && num(x.id, 1, 9e15, 0) && !ids.has(x.id) && ids.add(x.id)).slice(0, 12)
-    .map(x => Object.assign({id:x.id, kind:x.kind, name:String(x.name || TB_KINDS[x.kind]).slice(0, 30), cols:x.kind === 'audio' ? [] : tbCleanCols(x.cols, x.kind === 'drums')}, x.kind === 'audio' ? {clips:tbCleanClips(x.clips)} : {}, x.kind === 'wam' ? Object.assign({}, wamOk(x.url) ? {url:x.url} : {}, typeof x.plug === 'string' && x.plug ? {plug:x.plug.slice(0, 60)} : {}, typeof x.wst === 'string' && x.wst.length <= 100000 ? {wst:x.wst} : {}) : {}, x.mute === true ? {mute:true} : {}, x.solo === true ? {solo:true} : {}, tbVolOk(x.vol) ? {vol:x.vol} : {}, tbPanOk(x.pan) ? {pan:x.pan} : {}, fxClean(x.fx) ? {fx:fxClean(x.fx)} : {}, envClean(x.env) ? {env:envClean(x.env)} : {}, typeof x.kit === 'string' && /^(k\d{1,15}|@[a-z0-9]{1,12})$/.test(x.kit) ? {kit:x.kit} : {}));
+    .map(x => Object.assign({id:x.id, kind:x.kind, name:String(x.name || TB_KINDS[x.kind]).slice(0, 30), cols:x.kind === 'audio' ? [] : tbCleanCols(x.cols, x.kind === 'drums')}, x.kind === 'audio' ? {clips:tbCleanClips(x.clips)} : {}, x.kind === 'wam' ? Object.assign({}, wamOk(x.url) ? {url:x.url} : {}, typeof x.plug === 'string' && x.plug ? {plug:x.plug.slice(0, 60)} : {}, typeof x.wst === 'string' && x.wst.length <= 100000 ? {wst:x.wst} : {}) : {}, x.mute === true ? {mute:true} : {}, x.solo === true ? {solo:true} : {}, num(x.at, 1, 1e7, 0) ? {at:x.at} : {}, x.kind === 'drums' && seqClean(x.seq) ? {seq:seqClean(x.seq)} : {}, tbVolOk(x.vol) ? {vol:x.vol} : {}, tbPanOk(x.pan) ? {pan:x.pan} : {}, fxClean(x.fx) ? {fx:fxClean(x.fx)} : {}, envClean(x.env) ? {env:envClean(x.env)} : {}, typeof x.kit === 'string' && /^(k\d{1,15}|@[a-z0-9]{1,12})$/.test(x.kit) ? {kit:x.kit} : {}));
   return Object.assign({id:num(t.id, 1, 9e15, 0) || Date.now(), name:String(t.name || 'Untitled tab').slice(0, 60), bpm:num(t.bpm, 30, 300, 90), beats:num(t.beats, 1, 12, 4), cols:tbCleanCols(t.cols, false)},
-    t.gmute === true ? {gmute:true} : {}, t.gsolo === true ? {gsolo:true} : {}, tbVolOk(t.gvol) ? {gvol:t.gvol} : {}, tbPanOk(t.gpan) ? {gpan:t.gpan} : {}, fxClean(t.gfx) ? {gfx:fxClean(t.gfx)} : {}, envClean(t.genv) ? {genv:envClean(t.genv)} : {}, tracks.length ? {tracks} : {});
+    t.gmute === true ? {gmute:true} : {}, t.gsolo === true ? {gsolo:true} : {}, num(t.gat, 1, 1e7, 0) ? {gat:t.gat} : {}, Array.isArray(t.order) && t.order.length && t.order.every(x => num(x, 1, 9e15, 0)) ? {order:t.order.slice(0, 13)} : {}, tbVolOk(t.gvol) ? {gvol:t.gvol} : {}, tbPanOk(t.gpan) ? {gpan:t.gpan} : {}, fxClean(t.gfx) ? {gfx:fxClean(t.gfx)} : {}, envClean(t.genv) ? {genv:envClean(t.genv)} : {}, tracks.length ? {tracks} : {});
 }
 let tabs = [];
 /* reading saved tabs: one at a time, so a tab that can't be read stays as it was instead of taking the others with it;
@@ -2051,10 +2087,10 @@ function tbDoc(){
   tbVw = {T, tr, v}; return v;
 }
 /* every track as a lane to play: the tab's own guitar (id 0) first. Mixer: vol 0-1.5, pan -1..1, mute, solo. */
-const tbLanes = T => [{id:0, kind:'gtr', name:'Guitar', cols:T.cols, mute:!!T.gmute, solo:!!T.gsolo, vol:T.gvol == null ? 1 : T.gvol, pan:T.gpan || 0, fx:T.gfx, env:T.genv}].concat((T.tracks || []).map(x => Object.assign({vol:1, pan:0}, x)));
+const tbLanes = T => [{id:0, kind:'gtr', name:'Guitar', cols:T.cols, mute:!!T.gmute, solo:!!T.gsolo, vol:T.gvol == null ? 1 : T.gvol, pan:T.gpan || 0, fx:T.gfx, env:T.genv, at:T.gat || 0}].concat((T.tracks || []).map(x => Object.assign({vol:1, pan:0}, x)));
 const tbHeard = (T, L) => !L.mute && (!tbLanes(T).some(x => x.solo) || L.solo);      // with any track soloed, only those
 /* is there anything to play, from this tick on (in a track that's heard)? */
-const tbHas = (T, tick) => !!T && tbLanes(T).some(L => { if (!tbHeard(T, L)) return false; if (L.kind === 'audio') return (L.clips || []).length > 0; const st = tbStarts(L); return L.cols.some((c, k) => c.n.length && st[k] >= tick); });
+const tbHas = (T, tick) => !!T && tbLanes(T).some(L => { if (!tbHeard(T, L)) return false; if (L.kind === 'audio') return (L.clips || []).length > 0; const st = tbStarts(L), o = L.at || 0; return L.cols.some((c, k) => c.n.length && st[k] + o >= tick); });
 /* a lane's mixer settings, read and written the same way for the tab's own guitar and the other tracks */
 function tbMixGet(T, id){ const L = tbLanes(T).find(x => x.id === id); return L || null; }
 function tbMixSet(T, id, k, v){
@@ -2076,15 +2112,16 @@ const tbKindName = k => ({gtr:'Guitar', drums:'Drums', audio:'Audio', wam:'Instr
 function tbTracksHtml(T){
   const tr = T.tracks || [], cur = tbTrack(T), id = cur ? cur.id : 0, L = tbMixGet(T, id);
   const one = x => `<button type="button" data-act="tbtrack" data-v="${x.id}" aria-pressed="${id === x.id}">${x.kind === 'audio' ? '<span aria-hidden="true">〰 </span>' : ''}${esc(x.name)}${x.mute ? ' <span aria-label="(muted)">🔇</span>' : ''}${x.solo ? ' <span class="solo" aria-label="(solo)">S</span>' : ''}</button>`;
-  return `<div class="row nw tbtracks"><div class="seg wrapseg" aria-label="Track">${tbLanes(T).map(one).join('')}</div></div>
+  return `<div class="row nw tbtracks">${tbViewSeg()}</div><div class="row nw tbtracks"><div class="seg wrapseg" aria-label="Track">${tbOrder(T, tbLanes(T)).map(one).join('')}</div></div>
     <div class="row tbtracks tbadd">${tr.length < TB_MAXTR ? ['gtr', 'drums', 'audio', 'wam'].map(k => `<button type="button" class="chip" data-act="tbaddtrack" data-v="${k}" title="${k === 'audio' ? 'A track to record onto, played with the tab' : k === 'wam' ? 'A track played by a plugin instrument (a Web Audio Module)' : 'Another ' + tbKindName(k).toLowerCase() + ' track, played with the tab'}">＋ ${tbKindName(k)}</button>`).join('') : ''}
     <button type="button" class="chip${L.mute ? ' sel' : ''}" data-act="tbmutetrack" aria-pressed="${L.mute}" title="Leave this track out when the tab plays">Mute</button>
     <button type="button" class="chip${L.solo ? ' sel' : ''}" data-act="tbsolotrack" aria-pressed="${L.solo}" title="Hear only the soloed tracks">Solo</button>
+    ${L.kind === 'drums' ? `<div class="seg" aria-label="How the drums are written"><button type="button" data-act="tbseqmode" data-v="steps" aria-pressed="${!!L.seq}" title="A looping pattern of steps">Steps</button><button type="button" data-act="tbseqmode" data-v="tab" aria-pressed="${!L.seq}" title="Column by column, for fills and odd rhythms">Tab</button></div>` : ''}
     ${cur ? `<button type="button" class="ib" data-act="tbtrackdel" aria-label="${tbDelArm === 'tr' + cur.id ? 'Tap again to delete' : 'Delete'} the ${esc(cur.name)} track">${tbDelArm === 'tr' + cur.id ? 'Delete?' : '✕'}</button>` : ''}</div>`;
 }
 /* the mixer: a row a track, with its name, mute, solo, volume and pan. The sliders change a playing tab as you move them. */
 function tbMixHtml(T){
-  const rows = tbLanes(T).map(L => `<div class="row nw mixrow"><input class="task-in trname" type="text" maxlength="30" data-tr="${L.id}" aria-label="Track name" value="${esc(L.name)}"${L.id ? '' : ' disabled title="The tab’s own guitar track"'}>
+  const rows = tbOrder(T, tbLanes(T)).map(L => `<div class="row nw mixrow"><input class="task-in trname" type="text" maxlength="30" data-tr="${L.id}" aria-label="Track name" value="${esc(L.name)}"${L.id ? '' : ' disabled title="The tab’s own guitar track"'}>
     <button type="button" class="ib${L.mute ? ' sel' : ''}" data-act="tbmixmute" data-v="${L.id}" aria-pressed="${L.mute}" aria-label="Mute ${esc(L.name)}">M</button><button type="button" class="ib${L.solo ? ' sel' : ''}" data-act="tbmixsolo" data-v="${L.id}" aria-pressed="${L.solo}" aria-label="Solo ${esc(L.name)}">S</button>
     <label class="mixs"><small>Vol</small><input type="range" min="0" max="150" step="1" value="${Math.round(L.vol * 100)}" data-mix="${L.id}" data-p="vol" aria-label="${esc(L.name)} volume"></label>
     <label class="mixs"><small>Pan</small><input type="range" min="-100" max="100" step="1" value="${Math.round(L.pan * 100)}" data-mix="${L.id}" data-p="pan" aria-label="${esc(L.name)} pan, left to right"></label></div>`).join('');
@@ -2599,7 +2636,7 @@ async function tbSave(blob, name){
 /* how long the tab is, in ticks: every heard track's end, on a bar line */
 function tbLength(T){
   const bt = T.beats * TQ, spt = 60 / T.bpm / TQ; let end = 0;
-  tbLanes(T).forEach(L => { if (!tbHeard(T, L)) return; if (L.kind === 'audio') (L.clips || []).forEach(c => { const d = tbClipDur(c); if (d) end = Math.max(end, c.at + d / spt); }); else end = Math.max(end, tbStarts(L)[L.cols.length]); });
+  tbLanes(T).forEach(L => { if (!tbHeard(T, L)) return; if (L.kind === 'audio') (L.clips || []).forEach(c => { const d = tbClipDur(c); if (d) end = Math.max(end, c.at + d / spt); }); else end = Math.max(end, (L.at || 0) + tbStarts(L)[L.cols.length]); });
   return Math.ceil(end / bt) * bt;
 }
 let tbWavBusy = false, tbWavErr = '';
@@ -2641,7 +2678,7 @@ function midiBytes(T){
   const tun = TUNINGS[state.tuning].midi; let ch = 0;
   tbLanes(T).forEach(L => {
     if (L.kind === 'audio' || !L.cols.some(c => c.n.length)) return;
-    const st = tbStarts(L), evs = [{t:0, o:0, d:text(3, L.name)}], drum = L.kind === 'drums';
+    const st = tbStarts(L).map(x => x + (L.at || 0)), evs = [{t:0, o:0, d:text(3, L.name)}], drum = L.kind === 'drums';
     let c0 = 9; if (!drum) { if (ch % 16 === 9) ch++; c0 = ch % 16; ch++; }      // channel 10 is for drums
     const vol = Math.round(Math.min(1, L.vol) * 100); evs.push({t:0, o:1, d:[0xb0 | c0, 7, vol]}, {t:0, o:1, d:[0xb0 | c0, 10, Math.round(64 + L.pan * 63)]});
     if (!drum) evs.push({t:0, o:1, d:[0xc0 | c0, L.kind === 'wam' ? 0 : 25]});      // steel-string guitar (a plugin track: piano)
@@ -2766,6 +2803,127 @@ function tbPfxHtml(L){
 function wamFxMount(){ const box = document.getElementById('wamfxgui'), X = fxGui && wamFx[fxGui]; if (!box || !X || !X.inst) return;
   if (!X.gui) { X.gui = 'making'; Promise.resolve(X.inst.createGui()).then(g => { X.gui = g; wamFxMount(); }).catch(() => { X.gui = null; }); return; }
   if (X.gui !== 'making' && X.gui.parentNode !== box) { box.innerHTML = ''; box.appendChild(X.gui); } }
+/* ---- the drum step sequencer: a pattern of steps (16ths, 8ths or 8th triplets) over 1 to 4 bars, repeated. While a drum track
+   is in Steps, its columns are made from the pattern, so it plays, mixes and exports like any other; Tab turns it back into
+   columns to write fills by hand. seq: {res (steps a beat), bars, rep, h:[[drum, step, kind]]}, kind '' | 'a' | 'g'. ---- */
+const SEQ_RES = [[4, '16ths'], [2, '8ths'], [3, '8th triplets']];
+let seqHit = '';      // what a tap puts in: a normal hit, an accent or a ghost note
+function seqClean(x){
+  if (!x || typeof x !== 'object' || ![2, 3, 4].includes(x.res)) return null;
+  const bars = num(x.bars, 1, 4, 1), rep = num(x.rep, 1, 64, 4), seen = new Set();
+  const h = (Array.isArray(x.h) ? x.h : []).filter(e => Array.isArray(e) && num(e[0], 0, 8, -1) >= 0 && num(e[1], 0, 4 * 12 * 4 - 1, -1) >= 0 && !seen.has(e[0] + ':' + e[1]) && seen.add(e[0] + ':' + e[1])).map(e => e[2] === 'a' || e[2] === 'g' ? [e[0], e[1], e[2]] : [e[0], e[1]]);
+  return {res:x.res, bars, rep, h};
+}
+const seqSteps = (sq, T) => sq.bars * T.beats * sq.res;
+/* the pattern, as the track's columns: a column a step, repeated */
+function seqApply(tr, T){
+  const sq = tr.seq; if (!sq) return; const per = seqSteps(sq, T), d = TQ / sq.res, by = {};
+  sq.h.forEach(([s, i, k]) => { if (i < per) (by[i] = by[i] || []).push(Object.assign({s, f:0}, k ? {t:k} : {})); });
+  const rep = Math.max(1, Math.min(sq.rep, Math.floor(TMAX / per))), cols = [];
+  for (let r = 0; r < rep; r++) for (let i = 0; i < per; i++) cols.push({d, n:(by[i] || []).map(q => Object.assign({}, q))});
+  tr.cols = cols;
+}
+/* from Tab to Steps: the first bars of the track, rounded to the grid */
+function seqFrom(tr, T, res){
+  const d = TQ / res, bars = 1, per = bars * T.beats * res, st = tbStarts(tr), h = [], seen = new Set(); let off = 0;
+  tr.cols.forEach((c, k) => { const i = Math.round(st[k] / d); if (Math.abs(i * d - st[k]) > 0.01) off++; if (i >= per) return; c.n.forEach(q => { const key = q.s + ':' + i; if (seen.has(key)) return; seen.add(key); h.push(q.t === 'a' || q.t === 'g' ? [q.s, i, q.t] : [q.s, i]); }); });
+  const total = st[tr.cols.length] || 0, rep = Math.max(1, Math.ceil(total / (per * d)));
+  return {seq:{res, bars, rep:Math.min(64, rep), h}, off};
+}
+function tbSeqHtml(T){
+  const tr = T.track, sq = tr.seq, TT = tbTab(), per = seqSteps(sq, TT), beat = sq.res, bar = TT.beats * sq.res, has = {};
+  sq.h.forEach(([s, i, k]) => { has[s + ':' + i] = k || 'n'; });
+  const head = Array.from({length:per}, (_, i) => `<i class="${i % bar ? i % beat ? '' : 'bt' : 'br'}">${i % beat ? '' : (Math.floor(i / beat) % TT.beats) + 1}</i>`).join('');
+  const rows = DROWS.map(s => `<div class="seqrow"><b title="${DK[s].name}">${DK[s].sh}</b>${Array.from({length:per}, (_, i) => { const k = has[s + ':' + i];
+    return `<button type="button" class="seqc${k ? ' on k-' + k : ''}${i % bar ? i % beat ? '' : ' bt' : ' br'}" data-act="tbseq" data-s="${s}" data-i="${i}" aria-label="${DK[s].name}, step ${i + 1}${k ? (k === 'a' ? ', accent' : k === 'g' ? ', ghost' : ', on') : ''}" aria-pressed="${!!k}"></button>`; }).join('')}</div>`).join('');
+  return `<div class="seqwrap" id="seqgrid"><div class="seqgrid" style="--n:${per}"><div class="seqrow seqhead"><b></b>${head}</div>${rows}</div></div>
+    <div class="tbtools"><div class="row nw"><div class="seg" aria-label="A tap puts in">${[['', 'Hit'], ['a', 'Accent'], ['g', 'Ghost']].map(([v, t]) => `<button type="button" data-act="tbseqhit" data-v="${v}" aria-pressed="${seqHit === v}">${t}</button>`).join('')}</div>
+      <button type="button" class="ib" data-act="tbundo" aria-label="Undo"${tbUndo.length ? '' : ' disabled'}>↶</button><button type="button" class="ib" data-act="tbredo" aria-label="Redo"${tbRedo.length ? '' : ' disabled'}>↷</button>
+      <button type="button" class="btn" data-act="tbseqclear"${sq.h.length ? '' : ' disabled'}>Clear</button></div>
+    <div class="row nw"><div class="seg" aria-label="Steps">${SEQ_RES.map(([r, t]) => `<button type="button" data-act="tbseqres" data-v="${r}" aria-pressed="${sq.res === r}">${t}</button>`).join('')}</div>
+      <div class="seg" aria-label="Pattern length">${[1, 2, 4].map(b => `<button type="button" data-act="tbseqbars" data-v="${b}" aria-pressed="${sq.bars === b}">${b} bar${b > 1 ? 's' : ''}</button>`).join('')}</div></div>
+    <div class="row nw"><span class="rl">Plays</span><span class="sp-tempo"><button type="button" class="ib" data-act="tbseqrep" data-v="-1" aria-label="Once fewer"${sq.rep > 1 ? '' : ' disabled'}>−</button><b>${sq.rep}×</b><button type="button" class="ib" data-act="tbseqrep" data-v="1" aria-label="Once more"${sq.rep < 64 ? '' : ' disabled'}>+</button></span>
+      <span class="info">${sq.rep * sq.bars} bar${sq.rep * sq.bars > 1 ? 's' : ''} in all</span></div>
+    <div class="row"><span class="rl">Start from</span>${Object.entries(TB_BEATS).map(([k, b]) => `<button type="button" class="chip" data-act="tbseqbeat" data-v="${k}">${b[0]}</button>`).join('')}</div>
+    <span class="hint tip">Tap a step to put a hit in; tap it again to take it out. Accent and Ghost put in a harder or softer hit. The pattern plays ${sq.rep}× (the loop goes round it). For fills and odd rhythms, switch the track to Tab: the pattern becomes columns you can change one by one.</span></div>`;
+}
+/* the step under the playhead, lit */
+function seqPaint(tick){
+  const g = document.getElementById('seqgrid'), T = tbDoc(); if (!g || !T || !T.track || !T.track.seq) return;
+  const sq = T.track.seq, TT = tbTab(), per = seqSteps(sq, TT), d = TQ / sq.res, i = tick < 0 ? -1 : Math.floor((tick - (T.track.at || 0)) / d) % per;
+  if (g.dataset.on === String(i)) return; g.dataset.on = i;
+  g.querySelectorAll('.seqc.now').forEach(x => x.classList.remove('now')); if (i >= 0) g.querySelectorAll(`.seqc[data-i="${i}"]`).forEach(x => x.classList.add('now'));
+}
+/* ---- the tracklist: every track as a strip on one bar timeline. Drag a strip sideways to move the track in time (by bars),
+   drag its ≡ to put it higher or lower, tap to pick it, double tap or hold to open it. ---- */
+const TL_PX = 0.6;      // pixels a tick: 14.4 a beat
+const tbOff = (T, L) => L.id ? ((T.tracks || []).find(x => x.id === L.id) || {}).at || 0 : T.gat || 0;
+function tbOrder(T, lanes){ const o = Array.isArray(T.order) ? T.order : []; if (!o.length) return lanes; const ix = id => { const i = o.indexOf(id); return i < 0 ? 1e6 + id : i; }; return lanes.slice().sort((a, b) => a.id === 0 ? -1 : b.id === 0 ? 1 : ix(a.id) - ix(b.id)); }
+function tbLaneEnd(T, L){
+  const spt = 60 / T.bpm / TQ; if (L.kind === 'audio') return (L.clips || []).reduce((e, c) => { const d = tbClipDur(c); return Math.max(e, c.at + (d || 4 * 60 / T.bpm) / spt); }, 0);
+  return (L.at || 0) + tbStarts(L)[L.cols.length];
+}
+/* a small picture of a track: its notes, hits or takes */
+function tbMini(T, L, W, H){
+  const off = L.at || 0, X = t => ((off + t) * TL_PX).toFixed(1); let s = '';
+  if (L.kind === 'audio') (L.clips || []).forEach(c => { const A = tbAudC[c.take], d = tbClipDur(c) || 4 * 60 / T.bpm, w = d / (60 / T.bpm / TQ) * TL_PX; s += `<rect x="${(c.at * TL_PX).toFixed(1)}" y="3" width="${w.toFixed(1)}" height="${H - 6}" rx="3" class="mclip"/>`;
+    if (A && A.peaks) { let p = ''; const N = A.peaks.length, cols = Math.max(2, Math.floor(w / 3)); for (let x = 0; x < cols; x++) { const v = A.peaks[Math.min(N - 1, Math.floor((c.off / A.buf.duration + d / A.buf.duration * x / cols) * N))] * (H / 2 - 5); p += `M${(c.at * TL_PX + x * 3).toFixed(1)} ${H / 2 - v}V${H / 2 + v}`; } s += `<path d="${p}" class="mwave"/>`; }
+    else if (!A) tbAudLoad(c.take); });
+  else { const st = tbStarts(L), dr = L.kind === 'drums', rows = dr ? 9 : 6, rh = (H - 6) / rows;
+    L.cols.forEach((c, k) => c.n.forEach(q => { const r = dr ? DROWS.indexOf(q.s) : 5 - q.s; s += `<rect x="${X(st[k])}" y="${(3 + r * rh).toFixed(1)}" width="${Math.max(2, c.d * TL_PX - 1).toFixed(1)}" height="${Math.max(2, rh - 1).toFixed(1)}" class="mnote${q.t === 'g' ? ' g' : ''}"/>`; })); }
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${s}</svg>`;
+}
+function tbListHtml(T){
+  const lanes = tbOrder(T, tbLanes(T)), bt = T.beats * TQ, cur = (tbTrack(T) || {id:0}).id;
+  const end = Math.max(8 * bt, ...lanes.map(L => tbLaneEnd(T, L))), bars = Math.ceil(end / bt) + 2, W = Math.round(bars * bt * TL_PX), H = 40;
+  let ruler = ''; for (let b = 0; b < bars; b++) ruler += `<span style="left:${(b * bt * TL_PX).toFixed(1)}px">${b + 1}</span>`;
+  const row = L => `<div class="tlane${L.id === cur ? ' cur' : ''}${L.mute ? ' muted' : ''}" data-tl="${L.id}">
+      <div class="tlhead"><span class="tlgrip" data-tlgrip="${L.id}" aria-label="Drag to move ${esc(L.name)} up or down" title="Drag up or down">≡</span><button type="button" class="tlname" data-act="tbtlopen" data-v="${L.id}" title="Open ${esc(L.name)}">${esc(L.name)}<small>${L.kind === 'drums' ? (L.seq ? 'steps' : 'drums') : L.kind === 'audio' ? 'audio' : L.kind === 'wam' ? esc(L.plug || 'instrument') : 'guitar'}</small></button>
+        <button type="button" class="ib${L.mute ? ' sel' : ''}" data-act="tbmixmute" data-v="${L.id}" aria-pressed="${L.mute}" aria-label="Mute ${esc(L.name)}">M</button><button type="button" class="ib${L.solo ? ' sel' : ''}" data-act="tbmixsolo" data-v="${L.id}" aria-pressed="${L.solo}" aria-label="Solo ${esc(L.name)}">S</button></div>
+      <div class="tlbody" data-tlbody="${L.id}" style="width:${W}px">${tbMini(T, L, W, H)}</div></div>`;
+  return `<div class="tlist" id="tlist"><div class="tlscroll"><div class="tlinner" style="--w:${W}px"><div class="tlruler"><div class="tlhead"></div><div class="tlbars" style="width:${W}px">${ruler}<b class="tlph" id="tlph" hidden></b></div></div>${lanes.map(row).join('')}</div></div></div>
+    <span class="hint tip">Drag a track’s strip sideways to move it in time, a bar at a time; drag its ≡ to put it higher or lower. Tap a name to pick that track, double tap a strip (or hold it) to open it.</span>`;
+}
+/* dragging in the tracklist */
+let tlDrag = null;
+document.addEventListener('pointerdown', e => {
+  const grip = e.target.closest && e.target.closest('[data-tlgrip]'), body = !grip && e.target.closest && e.target.closest('[data-tlbody]'); if (!grip && !body) return;
+  const id = +(grip ? grip.dataset.tlgrip : body.dataset.tlbody), lane = e.target.closest('.tlane');
+  tlDrag = {id, kind:grip ? 'v' : 'h', x0:e.clientX, y0:e.clientY, lane, moved:false, hold:setTimeout(() => { if (tlDrag && !tlDrag.moved) { const d = tlDrag; tlDrag = null; tbTlOpen(d.id); } }, 550)};
+  try { (grip || body).setPointerCapture(e.pointerId); } catch (x) {}
+  if (grip) e.preventDefault();
+});
+document.addEventListener('pointermove', e => {
+  if (!tlDrag) return; const d = tlDrag, dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+  if (!d.moved && Math.hypot(dx, dy) < 8) return; if (!d.moved) { d.moved = true; clearTimeout(d.hold); }
+  if (d.kind === 'h') { const T = tbTab(), bt = T.beats * TQ, bars = Math.round(dx / (bt * TL_PX)), L = tbLanes(T).find(x => x.id === d.id), off = L ? (L.kind === 'audio' ? Math.min(...(L.clips || []).map(c => c.at), 1e9) : (L.at || 0)) : 0;
+    d.bars = Math.max(-Math.floor((off === 1e9 ? 0 : off) / bt), bars); d.lane.querySelector('svg').style.transform = `translateX(${d.bars * bt * TL_PX}px)`; }
+  else { d.lane.style.transform = `translateY(${dy}px)`; d.lane.classList.add('drag'); d.dy = dy; }
+});
+document.addEventListener('pointerup', () => {
+  if (!tlDrag) return; const d = tlDrag; tlDrag = null; clearTimeout(d.hold); if (!d.moved) return;
+  const T = tbTab(); if (!T) return;
+  if (d.kind === 'h' && d.bars) { const bt = T.beats * TQ, dt = d.bars * bt;
+    tbEditTab(X => { if (!d.id) { X.gat = Math.max(0, (X.gat || 0) + dt); if (!X.gat) delete X.gat; return; } const tr = X.tracks.find(x => x.id === d.id); if (!tr) return;
+      if (tr.kind === 'audio') (tr.clips || []).forEach(c => { c.at = Math.max(0, c.at + dt); }); else { tr.at = Math.max(0, (tr.at || 0) + dt); if (!tr.at) delete tr.at; } }); }
+  if (d.kind === 'v' && d.id) { const lanes = tbOrder(T, tbLanes(T)).map(x => x.id), from = lanes.indexOf(d.id), to = Math.max(1, Math.min(lanes.length - 1, from + Math.round((d.dy || 0) / (d.lane.offsetHeight || 46))));
+    if (to !== from) tbEditTab(X => { lanes.splice(from, 1); lanes.splice(to, 0, d.id); X.order = lanes.filter(x => x); }); }
+  if (tbp.on && !tbp.rec) tbStart(0); render();
+});
+document.addEventListener('dblclick', e => { const b = e.target.closest && e.target.closest('[data-tlbody]'); if (b) tbTlOpen(+b.dataset.tlbody); });
+function tbTlOpen(id){ state.tabView = 'edit'; tbGoTrack(id); render(); }
+const tbViewSeg = () => `<div class="seg" aria-label="View"><button type="button" data-act="tbview" data-v="list" aria-pressed="${state.tabView === 'list'}" title="Every track on one timeline">▦ Tracks</button><button type="button" data-act="tbview" data-v="edit" aria-pressed="${state.tabView !== 'list'}" title="The track being written">✎ Edit</button></div>`;
+function tbListPage(TT, list){
+  return `<div class="tbx"><div class="row nw tbtracks">${tbViewSeg()}</div><div class="row tbtracks tbadd">${(TT.tracks || []).length < TB_MAXTR ? ['gtr', 'drums', 'audio', 'wam'].map(k => `<button type="button" class="chip" data-act="tbaddtrack" data-v="${k}">＋ ${tbKindName(k)}</button>`).join('') : ''}</div>
+    ${tbListHtml(TT)}${tbMixHtml(TT)}${tbExpHtml(TT)}
+    ${fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div><div class="row"><button type="button" class="btn" data-act="tbnew">＋ New tab</button></div>`)}</div>`;
+}
+function tbSeqPage(T, TT, list){
+  return `<div class="tbx">${tbTracksHtml(TT)}${tbSeqHtml(T)}${tbKitHtml()}${tbMixHtml(TT)}${tbFxHtml(TT)}${tbExpHtml(TT)}
+    ${fold('tbset', 'Tab settings', `${esc(TT.name)} · ${TT.beats}/4`, `<div class="row"><span class="sp-tempo"><button type="button" class="ib" data-act="tbbeats" data-v="-1" aria-label="Fewer beats a bar"${TT.beats <= 1 ? ' disabled' : ''}>−</button><b>${TT.beats}/4</b><button type="button" class="ib" data-act="tbbeats" data-v="1" aria-label="More beats a bar"${TT.beats >= 12 ? ' disabled' : ''}>+</button></span>
+        <button type="button" class="chip${state.tabClick ? ' sel' : ''}" data-act="tbclick" aria-pressed="${!!state.tabClick}">Click</button><button type="button" class="chip${state.tabCount ? ' sel' : ''}" data-act="tbcount" aria-pressed="${!!state.tabCount}">Count in</button></div>`)}
+    ${fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div><div class="row"><button type="button" class="btn" data-act="tbnew">＋ New tab</button></div>`)}</div>`;
+}
 function tbRecBtn(){
   let r = null; try { r = rec; } catch (e) {} const mine = !!r && (r.owned === 'tab' || r.owned === 'track'), onto = (tbDoc() || {}).kind === 'audio';
   return `<button type="button" class="chip tbrec${mine ? ' sel' : ''}" data-act="tbrec" aria-pressed="${mine}" title="${mine ? 'Stop recording' : onto ? 'Record onto this audio track, from the cursor' : 'Record yourself over the tab, with all its tracks. The take goes in Practice, Takes.'}"${r && !mine ? ' disabled' : ''}>${mine ? '■ <span data-rec-time>0:00</span>' : '● <span class="tl">Rec</span>'}</button>`;
@@ -2776,7 +2934,7 @@ function tbEdit(fn){ const T = tbDoc(); if (!T) return; tbUndo.push(JSON.stringi
 function tbUndoDo(redo){
   const T = tbTab(), from = redo ? tbRedo : tbUndo, to = redo ? tbUndo : tbRedo; if (!T || !from.length) return false;
   to.push(JSON.stringify(T)); const o = tbClean(JSON.parse(from.pop()));
-  if (o) { Object.assign(T, o, {id:T.id}); if (!o.tracks) delete T.tracks; ['gmute', 'gsolo', 'gvol', 'gpan', 'gfx', 'genv'].forEach(k => { if (o[k] == null) delete T[k]; }); }
+  if (o) { Object.assign(T, o, {id:T.id}); if (!o.tracks) delete T.tracks; ['gmute', 'gsolo', 'gvol', 'gpan', 'gfx', 'genv', 'gat', 'order'].forEach(k => { if (o[k] == null) delete T[k]; }); }
   if (state.tabTrack && !tbTrack(T)) state.tabTrack = 0;
   tbc.c = Math.min(tbc.c, tbDoc().cols.length); storeTabs(); return true;
 }
@@ -3176,13 +3334,13 @@ function tbEngine(a, M, S){
       if (!tbHeard(T, L)) return;
       if (L.kind === 'audio') { if (!(L.clips || []).length) return; const e = aud(L, tk0, at, spt, out(L, T)); if (e > tk0) { endTick = Math.max(endTick, e); lanes++; played.push(L); } return; }
       if (L.kind === 'wam') {      // a plugin: its notes as MIDI, at their times
-        const sp2 = tbSpans(L).filter(x => x[0] >= tk0), e = tbStarts(L)[L.cols.length]; if (e <= tk0 || !sp2.length) return; endTick = Math.max(endTick, e); lanes++;
+        const o = L.at || 0, sp2 = tbSpans(L).map(x => [x[0] + o, x[1] + o, x[2], x[3]]).filter(x => x[0] >= tk0), e = o + tbStarts(L)[L.cols.length]; if (e <= tk0 || !sp2.length) return; endTick = Math.max(endTick, e); lanes++;
         const W = wamGet(L, a); if (!W) return; const dest = out(L, T), n = W.inst.audioNode;
         if (W.dest !== dest) { try { n.disconnect(); } catch (x) {} n.connect(dest); W.dest = dest; }
         try { n.scheduleEvents(...sp2.flatMap(([s0, s1, nn, v]) => [{type:'wam-midi', time:at(s0), data:{bytes:[0x90, nn, v]}}, {type:'wam-midi', time:at(s1), data:{bytes:[0x80, nn, 0]}}])); } catch (x) {}
         S.wam = (S.wam || 0) + sp2.length; played.push(L); return;
       }
-      const st = tbStarts(L), k = st.findIndex(x => x >= tk0); if (k < 0 || k >= L.cols.length) return;
+      const st = tbStarts(L).map(x => x + (L.at || 0)), k = st.findIndex(x => x >= tk0); if (k < 0 || k >= L.cols.length) return;
       endTick = Math.max(endTick, st[L.cols.length]); if (L.cols.some(c => c.n.length)) lanes++; played.push(L);
       if (L.kind === 'drums') drums(L.cols, k, st, at, kitOf(L), out(L, T)); else gtr(L.cols, k, st, at, spt, out(L, T));
     });
@@ -3205,7 +3363,7 @@ function tbStart(from, opt){
   const E = tbEngine(a, master, tbp), click = E.click;
   const cycle = (t0, first) => {
     const T = tbTab(), A = tbDoc(); if (!tbp.on || !T || !A) { tbStop(); return; }
-    const k0 = Math.min(from, A.cols.length), tk0 = opt.tick != null ? opt.tick : tbStarts(A)[k0];
+    const aoff = A.track ? A.track.at || 0 : T.gat || 0, k0 = Math.min(from, A.cols.length), tk0 = opt.tick != null ? opt.tick : tbStarts(A)[k0] + aoff;
     if (!opt.rec && !tbHas(T, tk0)) { tbStop(); return; }
     const spt = 60 / T.bpm / TQ, bt = T.beats * TQ;
     let t = t0;
@@ -3214,7 +3372,7 @@ function tbStart(from, opt){
     if (first) Object.assign(tbp, {base, tk0, spt});
     const {endTick, lanes} = E.pass(T, A, tk0, at, spt, bt, opt);
     if (state.tabClick || (opt.rec && !lanes)) for (let x = Math.ceil(tk0 / TQ) * TQ; x < endTick; x += TQ) click(at(x), x % bt === 0);
-    const sa = tbStarts(A); for (let k = k0; k < A.cols.length; k++) tbp.events.push({t:at(sa[k]), k});
+    const sa = tbStarts(A).map(x => x + aoff); for (let k = k0; k < A.cols.length; k++) tbp.events.push({t:at(sa[k]), k});
     const end = at(endTick);
     tbp.srcs = tbp.srcs.slice(-1500); tbp.events = tbp.events.filter(e => e.t > a.currentTime - 1);
     tbp.timer = setTimeout(() => { if (!tbp.on) return; if (state.tabLoop && !tbp.rec) cycle(end, false); else tbp.timer = setTimeout(() => tbStop(), Math.max(400, (end - a.currentTime) * 1000 + 300)); }, Math.max(0, (end - a.currentTime - 0.25) * 1000));
@@ -3224,7 +3382,8 @@ function tbStart(from, opt){
     if (!tbp.on) return;
     const now = a.currentTime - avLag(); let cur = null;
     for (const e of tbp.events) if (e.t <= now + 0.01) cur = e;
-    { const ph = document.getElementById('tbaudph'); if (ph && tbp.spt) { const tk = tbp.tk0 + (now - tbp.base) / tbp.spt; ph.hidden = now < tbp.base; ph.style.left = (tk * 1.25) + 'px'; } }      // the audio track's playhead
+    if (tbp.spt) { const tk = tbp.tk0 + (now - tbp.base) / tbp.spt, on = now >= tbp.base, ph = document.getElementById('tbaudph'), lp = document.getElementById('tlph'), sq = document.getElementById('seqgrid');      // the playheads: audio track, tracklist, steps
+      if (ph) { ph.hidden = !on; ph.style.left = (tk * 1.25) + 'px'; } if (lp) { lp.hidden = !on; lp.style.left = (tk * TL_PX) + 'px'; } if (sq) seqPaint(on ? tk : -1); }
     const k = cur ? cur.k : -1, col = k >= 0 ? document.querySelector(`.tbc[data-c="${k}"]`) : null;
     if (k !== tbp.k || (col && !col.classList.contains('on')) || tbp.lit.some(e => !e.isConnected)) {
       tbp.k = k; document.querySelectorAll('.tbc.on').forEach(e => { if (e !== col) e.classList.remove('on'); });
@@ -3274,7 +3433,9 @@ function renderTab(){
       <div class="row"><button type="button" class="btn primary" data-act="tbnew">＋ New tab</button></div></div>
     ${tabs.length ? fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div>`, true) : ''}
     ${fold('tbtext', 'Paste a text tab', '', imp)}</div>`;
+  if (state.tabView === 'list') return tbListPage(TT, list);
   if (T.kind === 'audio') return tbAudioPage(T, TT, list);
+  if (dr && T.track && T.track.seq) return tbSeqPage(T, TT, list);
   const c = tbAt(T), q = c && c.n.find(z => z.s === tbc.s), dc = tbCurDur(), bars = tbBars(T), bi = bars.findIndex(b => tbc.c >= b.from && (tbc.c < b.to || b === bars[bars.length - 1]));
   const rd = !dr && c && c.n.length > 1 ? readings(c.n.filter(z => z.t !== 'x')).sel : null, ph = tbPhLayer();
   const where = c ? `Column ${tbc.c + 1} of ${T.cols.length} · bar ${bi + 1} · ${dr ? DK[tbc.s].name : STRING_ORD[tbc.s] + ' string'}${rd ? ` · sounds like <b>${rd.name}</b>` : ''}${bars[bi] && bars[bi].ticks > T.beats * TQ ? ` · this bar is longer than ${T.beats} beats` : ''}` : `New column · bar ${bi + 1}. ${dr ? 'Tap the drums' : 'Tap the neck'} to put ${dr ? 'hits' : 'notes'} in it${state.tabAdv ? '' : ', then Next ▶'}.`;
@@ -3378,7 +3539,7 @@ function handleTab(act, b){
     case 'tbtrack': tbGoTrack(+v); if (T.kind !== 'drums' && tbDoc().kind === 'drums' && state.neckHidden) setNeckHidden(false); break;
     case 'tbaddtrack': { const X = tbTab(), k = TB_KINDS[v] ? v : 'drums'; let id = Date.now(); while ((X.tracks || []).some(x => x.id === id)) id++; if ((X.tracks || []).length >= TB_MAXTR) break;
       const n = (X.tracks || []).filter(x => x.kind === k).length + (k === 'gtr' ? 1 : 0);
-      tbEditTab(Y => { Y.tracks = (Y.tracks || []).concat([Object.assign({id, kind:k, name:n ? tbKindName(k) + ' ' + (n + 1) : tbKindName(k)}, k === 'audio' ? {clips:[], cols:[]} : {cols:[]}, k === 'drums' && kitOf({kit:state.kitLast}) ? {kit:state.kitLast} : {})]); });
+      tbEditTab(Y => { Y.tracks = (Y.tracks || []).concat([Object.assign({id, kind:k, name:n ? tbKindName(k) + ' ' + (n + 1) : tbKindName(k)}, k === 'audio' ? {clips:[], cols:[]} : {cols:[]}, k === 'drums' && kitOf({kit:state.kitLast}) ? {kit:state.kitLast} : {}, k === 'drums' ? {seq:{res:4, bars:1, rep:4, h:[]}} : {})]); const nt = Y.tracks[Y.tracks.length - 1]; if (nt.seq) seqApply(nt, Y); });
       tbGoTrack(id); if (k === 'drums' && state.neckHidden) setNeckHidden(false); break; }
     case 'tbmutetrack': case 'tbsolotrack': case 'tbmixmute': case 'tbmixsolo': {
       const X = tbTab(), id = act === 'tbmixmute' || act === 'tbmixsolo' ? +v : (tbTrack(X) || {id:0}).id, key = /solo/.test(act) ? 'solo' : 'mute', L = tbMixGet(X, id); if (!L) break;
@@ -3389,6 +3550,24 @@ function handleTab(act, b){
     case 'tbenv': fxEnv = ENV_P[v] ? v : 'vol'; break;
     case 'tbenvclear': { const X = tbTab(), L = fxLane(); tbEditTab(() => fxStore(X, L.id, undefined, Object.assign({}, L.env || {}, {[fxEnv]:[]}))); break; }
     case 'tbwav': tbWav(); return true;
+    case 'tbview': state.tabView = v === 'list' ? 'list' : 'edit'; break;
+    case 'tbtlopen': tbTlOpen(+v); return true;
+    case 'tbseqmode': { const tr = T.track; if (!tr || tr.kind !== 'drums') break;
+      if (v === 'tab') { if (tr.seq) tbEditTab(() => { delete tr.seq; if (!tr.cols.some(c => c.n.length)) tr.cols = []; }); tbc.c = Math.min(tbc.c, tr.cols.length); break; }      // an empty pattern: an empty tab
+      if (tr.seq) break; const r = seqFrom(tr, tbTab(), 4); tbEditTab(() => { tr.seq = r.seq; seqApply(tr, tbTab()); }); tbc.c = Math.min(tbc.c, tr.cols.length); if (r.off) toast(r.off + ' hit' + (r.off > 1 ? 's' : '') + ' moved onto the grid of 16ths'); break; }
+    case 'tbseq': { const tr = T.track, sq = tr && tr.seq; if (!sq) break; const s = +b.dataset.s, i = +b.dataset.i, k = sq.h.findIndex(e => e[0] === s && e[1] === i), was = k >= 0 ? sq.h[k][2] || '' : null;
+      tbEditTab(() => { if (k >= 0) sq.h.splice(k, 1); if (was !== seqHit) { sq.h.push(seqHit ? [s, i, seqHit] : [s, i]); } seqApply(tr, tbTab()); });
+      if (was !== seqHit) drumHit(s, 0, null, seqHit, kitCur()); break; }
+    case 'tbseqhit': seqHit = v === 'a' || v === 'g' ? v : ''; break;
+    case 'tbseqclear': { const tr = T.track; if (!tr || !tr.seq) break; tbEditTab(() => { tr.seq.h = []; seqApply(tr, tbTab()); }); break; }
+    case 'tbseqres': { const tr = T.track, sq = tr && tr.seq, r2 = +v; if (!sq || ![2, 3, 4].includes(r2) || r2 === sq.res) break;
+      tbEditTab(() => { const seen = new Set(); sq.h = sq.h.map(e => [e[0], Math.round(e[1] * r2 / sq.res), e[2]]).filter(e => !seen.has(e[0] + ':' + e[1]) && seen.add(e[0] + ':' + e[1])).map(e => e[2] ? e : [e[0], e[1]]); sq.res = r2; seqApply(tr, tbTab()); }); break; }
+    case 'tbseqbars': { const tr = T.track, sq = tr && tr.seq; if (!sq) break; tbEditTab(() => { const old = sq.bars, nb = num(+v, 1, 4, 1), per0 = old * tbTab().beats * sq.res;
+      if (nb > old) { const add = []; for (let c = 1; c < nb / old; c++) sq.h.forEach(e => add.push([e[0], e[1] + c * per0].concat(e[2] ? [e[2]] : []))); sq.h = sq.h.concat(add); }      // longer: the pattern copied into the new bars
+      sq.bars = nb; sq.h = sq.h.filter(e => e[1] < seqSteps(sq, tbTab())); sq.rep = Math.max(1, Math.round(sq.rep * old / nb)); seqApply(tr, tbTab()); }); break; }
+    case 'tbseqrep': { const tr = T.track, sq = tr && tr.seq; if (!sq) break; tbEditTab(() => { sq.rep = Math.max(1, Math.min(64, sq.rep + +v)); seqApply(tr, tbTab()); }); break; }
+    case 'tbseqbeat': { const tr = T.track, sq = tr && tr.seq, P = TB_BEATS[v]; if (!sq || !P) break; const res = TQ / P[1], X = tbTab();
+      tbEditTab(() => { const h = []; for (let b2 = 0; b2 < X.beats * sq.bars; b2++) for (let j = 0; j < res; j++) P[2](b2 % X.beats, j).forEach(s => h.push([s, b2 * res + j])); sq.res = res; sq.h = h; seqApply(tr, X); }); break; }
     case 'tbwamlist': wamCatalog(); return true;
     case 'tbpfxlist': fxAddOpen = !fxAddOpen; if (fxAddOpen && !wamAll) { wamCatalog(); return true; } break;
     case 'tbpfxadd': case 'tbpfxurl': { const X = tbTab(), L = fxLane(), F = fxOf(L), u = act === 'tbpfxadd' ? b.dataset.u : (($('#wamfxurl') || {}).value || '').trim();
@@ -3442,7 +3621,7 @@ function handleTab(act, b){
     case 'tbrec': { let r0 = null; try { r0 = rec; } catch (e) {} if (r0) takeStop(); else takeStart(T.kind === 'audio' ? 'track' : 'tab'); return true; }
     case 'tbcell': if (tbShift && !tbSel) tbSel = {a:Math.min(tbc.c, Math.max(0, T.cols.length - 1))}; tbc = {c:Math.min(+b.dataset.c, T.cols.length), s:+b.dataset.s}; tbNum = null; { const z = tbAt(T), q = z && z.n.find(x => x.s === tbc.s); if (q && T.kind === 'drums') drumHit(q.s, 0, null, q.t, kitCur()); else if (q && q.t !== 'x') pluck(TUNINGS[state.tuning].midi[q.s] + q.f); } break;
     case 'tbbpm': T.bpm = Math.max(30, Math.min(300, T.bpm + +v)); storeTabs(); break;
-    case 'tbbeats': tbEdit(T => { T.beats = Math.max(1, Math.min(12, T.beats + +v)); }); break;
+    case 'tbbeats': tbEdit(T => { T.beats = Math.max(1, Math.min(12, T.beats + +v)); }); (tbTab().tracks || []).forEach(tr => { if (tr.seq) seqApply(tr, tbTab()); }); storeTabs(); break;
     case 'tbplay': if (tbp.on) tbStop(true); else if (T.kind === 'audio') tbStart(0, state.tabFromCur ? {tick:tba.at} : {}); else tbStart(state.tabFromCur && tbc.c < T.cols.length && T.cols.slice(tbc.c).some(x => x.n.length) ? tbc.c : 0); break;
     case 'tbfromcur': state.tabFromCur = !state.tabFromCur; break;
     case 'tbplayhere': tbStart(tbc.c); break;
@@ -3489,7 +3668,7 @@ function handleTab(act, b){
 /* the keyboard, while the tab has focus */
 function tbKey(e){
   const T = tbDoc(); if (!T) return;
-  if (T.kind === 'audio') { if (e.key === ' ') { e.preventDefault(); handleTab('tbplay', {dataset:{}}); } return; }
+  if (T.kind === 'audio' || (T.track && T.track.seq)) { if (e.key === ' ') { e.preventDefault(); handleTab('tbplay', {dataset:{}}); } return; }
   const k = e.key, ctl = e.ctrlKey || e.metaKey, lk = k.length === 1 ? k.toLowerCase() : k;
   const go = () => { e.preventDefault(); tbRender(); };
   if (ctl && lk === 'z') { tbUndoDo(e.shiftKey); return go(); }
@@ -7945,7 +8124,7 @@ function loadMain(kind, root, type, quiet){
 function nextColor(){ const used = state.layers.map(L => L.color); for (let c = 0; c < 4; c++) if (!used.includes(c)) return c; return 0; }
 
 /* ================= events ================= */
-$('#kit').addEventListener('click', e => { const g = e.target.closest('[data-dk]'); if (!g) return; const T = tbDoc(), k = +g.dataset.dk; if (!T || T.kind !== 'drums') { drumHit(k); return; } tbPut(k, 0, true); tbRender(); });
+$('#kit').addEventListener('click', e => { const g = e.target.closest('[data-dk]'); if (!g) return; const T = tbDoc(), k = +g.dataset.dk; if (!T || T.kind !== 'drums') { drumHit(k); return; } if (T.track && T.track.seq) { drumHit(k, 0, null, seqHit, kitCur()); return; } tbPut(k, 0, true); tbRender(); });
 board.addEventListener('click', e => {
   const cell = e.target.closest('.cell'); if (!cell) return;
   const s = +cell.dataset.s, f = +cell.dataset.f;
@@ -8023,7 +8202,7 @@ function setSound(on){
 var SYNC = null;
 const SYNC_CID = '798129945030-qmhaqovsp8kmfefd7f9mcrcjur3p1av5.apps.googleusercontent.com', SYNC_FILE = 'fretboard-atlas-sync.json';
 const SYNC_META = 'fretboard-atlas-sync-v1', SYNC_BASE = 'fretboard-atlas-sync-base-v1';
-const SYNC_LOCAL = ['tab', 'ptab', 'lastSub', 'pview', 'neckHidden', 'folds', 'secOpen', 'ingOpen', 'tap', 'pinView', 'tabCur', 'tabTrack', 'kitLast', 'fsKey', 'session', 'tkErr', 'sound', 'avDelay', 'micCal', 'rotated'];
+const SYNC_LOCAL = ['tab', 'ptab', 'lastSub', 'pview', 'neckHidden', 'folds', 'secOpen', 'ingOpen', 'tap', 'pinView', 'tabCur', 'tabTrack', 'tabView', 'kitLast', 'fsKey', 'session', 'tkErr', 'sound', 'avDelay', 'micCal', 'rotated'];
 SYNC = {linked:false, token:null, exp:0, fid:null, busy:false, again:false, timer:0, last:0, err:'', gis:null, client:null, pushed:''};
 try { const m = JSON.parse(localStorage.getItem(SYNC_META)); if (m && m.linked) Object.assign(SYNC, {linked:true, last:+m.last || 0}); } catch (e) {}
 function syncMetaSave(){ try { localStorage.setItem(SYNC_META, JSON.stringify({linked:SYNC.linked, last:SYNC.last})); } catch (e) {} }
