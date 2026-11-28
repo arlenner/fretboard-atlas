@@ -663,6 +663,8 @@ body.pv-done .neck-wrap{display:none !important}
 .envsvg line.flat{stroke:var(--muted); stroke-dasharray:4 4}
 .envsvg polyline{fill:none; stroke:var(--accent); stroke-width:2}
 .envsvg circle{fill:var(--surface); stroke:var(--accent); stroke-width:2; cursor:grab}
+.envsvg circle.sel{fill:var(--accent)}
+.wamgui{touch-action:none}
 .tbclipsel .cl{font-size:11px; color:var(--muted); margin-left:4px}
 .tbclipsel b{margin-right:4px}
 .kitrow{gap:8px; align-items:center; padding:3px 4px; border-radius:8px}
@@ -2074,7 +2076,7 @@ const TB_KINDS = {gtr:'Guitar', drums:'Drums', audio:'Audio', wam:'Instrument', 
 /* used when saved tabs are read in, at the start: so they're here, before that */
 const FX_DEF = {filter:{on:false, type:'lowpass', f:8000, q:0.7}, eq:{on:false, lo:0, mid:0, hi:0}, drive:{on:false, amt:0.3}, comp:{on:false, th:-18, ratio:4}, delay:{on:false, sync:'8d', fb:0.35, mix:0.25}, reverb:{on:false, size:2, mix:0.25}};
 const FX_SYNC = {'4':1, '8':0.5, '8d':0.75, '16':0.25, '4t':2 / 3};
-const ENV_P = {vol:['Volume', 0, 1.5, 1], pan:['Pan', -1, 1, 0], cut:['Filter', 40, 18000, 8000], drv:['Drive', 0, 1, 0.3], dly:['Delay', 0, 1, 0.25], rev:['Reverb', 0, 1, 0.25]};
+const ENV_P = {vol:['Volume', 0, 1.5, 1], pan:['Pan', -1, 1, 0], cut:['Filter', 40, 18000, 8000], drv:['Drive', 0, 1, 0.3], dly:['Delay', 0, 1, 0.25], rev:['Reverb', 0, 1, 0.25], pitch:['Pitch', -1200, 1200, 0]};      // pitch in cents: an octave either way
 function wamOk(u){ return typeof u === 'string' && /^https:\/\/[^\s"'<>]+\.m?js(\?[^\s"'<>]*)?$/i.test(u) && u.length <= 500; }
 function tbCleanCols(cs, dr){
   return (Array.isArray(cs) ? cs : []).slice(0, TMAX).filter(c => c && tbDurOk(c.d)).map(c => {
@@ -2567,7 +2569,7 @@ document.addEventListener('dblclick', e => { const el = e.target; if (!el.datase
 document.addEventListener('change', e => { const el = e.target; if (!el.classList || !el.classList.contains('trname')) return; const T = tbTab(), tr = T && (T.tracks || []).find(x => x.id === +el.dataset.tr); if (!tr) return; tr.name = el.value.trim().slice(0, 30) || tr.name; storeTabs(); render(); });
 /* ---- the Effects fold: the track being written. Sliders change a playing tab at once; switching an effect on or off
    starts it again. Envelopes: pick what to shape, then tap the strip to add a point (drag to move, double tap to remove). ---- */
-let fxEnv = 'vol';
+let fxEnv = 'vol', fxPt = -1;      // the envelope being drawn, and its point picked
 const fxLane = () => { const T = tbTab(); return T && tbMixGet(T, (tbTrack(T) || {id:0}).id); };
 function fxGet(T, id){ return id ? ((T.tracks || []).find(x => x.id === id) || {}) : null; }
 function fxStore(T, id, fx, env){
@@ -2598,10 +2600,11 @@ function tbFxHtml(T){
   const W = (Math.ceil(end / bt) + 1) * bt * PX, y = v => { const r = fxEnv === 'cut' ? Math.log(v / P[1]) / Math.log(P[2] / P[1]) : (v - P[1]) / (P[2] - P[1]); return H - 4 - r * (H - 8); };
   let grid = ''; for (let x = 0; x <= end + bt; x += TQ) grid += `<line x1="${x * PX}" y1="0" x2="${x * PX}" y2="${H}" class="${x % bt ? 'b' : 'bar'}"/>`;
   const live = {cut:F.filter.on, drv:F.drive.on, dly:F.delay.on, rev:F.reverb.on}[fxEnv] !== false;
-  const line = E.length ? `<polyline points="${[[0, E[0][1]]].concat(E, [[end + bt, E[E.length - 1][1]]]).map(q => `${q[0] * PX},${y(q[1])}`).join(' ')}"/>${E.map((q, k) => `<circle cx="${q[0] * PX}" cy="${y(q[1])}" r="6" data-k="${k}"/>`).join('')}` : `<line x1="0" y1="${y(P[3])}" x2="${W}" y2="${y(P[3])}" class="flat"/>`;
+  const line = E.length ? `<polyline points="${envPts(E, end + bt).map(q => `${q[0] * PX},${y(q[1])}`).join(' ')}"/>${E.map((q, k) => `<circle cx="${q[0] * PX}" cy="${y(q[1])}" r="6" data-k="${k}"${k === fxPt ? ' class="sel"' : ''}/>`).join('')}` : `<line x1="0" y1="${y(P[3])}" x2="${W}" y2="${y(P[3])}" class="flat"/>`;
   return fold('tbfx', 'Effects and envelopes', `${esc(L.name)}${on.length ? ' · ' + on.map(k => FX_UI[k][0]).join(', ') : ''}${L.env ? ' · envelopes' : ''}`, `<span class="info">For <b>${esc(L.name)}</b>. Pick a track above to change another.</span>${rows}${tbPfxHtml(L)}
-    <div class="row nw"><span class="rl">Envelope</span><div class="seg" aria-label="What the envelope changes">${Object.entries(ENV_P).map(([k, p]) => `<button type="button" data-act="tbenv" data-v="${k}" aria-pressed="${fxEnv === k}">${p[0]}${(L.env || {})[k] ? ' •' : ''}</button>`).join('')}</div>
+    <div class="row nw"><span class="rl">Envelope</span><div class="seg" aria-label="What the envelope changes">${Object.entries(ENV_P).filter(([k]) => !(k === 'pitch' && L.kind === 'drums')).map(([k, p]) => `<button type="button" data-act="tbenv" data-v="${k}" aria-pressed="${fxEnv === k}">${p[0]}${(L.env || {})[k] ? ' •' : ''}</button>`).join('')}</div>
       ${E.length ? `<button type="button" class="btn" data-act="tbenvclear">Clear</button>` : ''}</div>
+    ${E[fxPt] && fxPt < E.length - 1 ? `<div class="row nw"><span class="rl">To the next point</span><div class="seg" aria-label="How it goes to the next point">${Object.entries(ENV_CV).map(([c, n]) => `<button type="button" data-act="tbenvcurve" data-v="${c}" aria-pressed="${(E[fxPt][2] || '') === c}">${n}</button>`).join('')}</div></div>` : ''}
     <div class="envwrap"><svg class="envsvg" id="envsvg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" data-env="${fxEnv}" data-px="${PX}" role="img" aria-label="${P[0]} envelope: tap to add a point, drag to move, double tap to remove">${grid}${line}</svg></div>
     <span class="hint tip">${live ? '' : `Switch on ${({cut:'the filter', drv:'drive', dly:'the delay', rev:'the reverb'})[fxEnv]} for this envelope to be heard. `}Tap the strip to add a point; drag one to move it; double tap one to take it off. Points snap to 16ths. Before the first point and after the last it stays level.</span>`);
 }
@@ -2623,13 +2626,14 @@ document.addEventListener('input', e => {
 /* drawing an envelope: tap adds a point (or picks one up), drag moves it, double tap removes it */
 let envDrag = null;
 function envPt(e, svg){ const r = svg.getBoundingClientRect(), PX = +svg.dataset.px, P = ENV_P[svg.dataset.env], H = 72, x = Math.max(0, e.clientX - r.left), yy = Math.max(4, Math.min(H - 4, e.clientY - r.top)), f = (H - 4 - yy) / (H - 8);
-  return [Math.round(x / PX / 6) * 6, +(svg.dataset.env === 'cut' ? P[1] * Math.pow(P[2] / P[1], f) : P[1] + (P[2] - P[1]) * f).toFixed(svg.dataset.env === 'cut' ? 0 : 3)]; }
+  const v = svg.dataset.env === 'cut' ? P[1] * Math.pow(P[2] / P[1], f) : P[1] + (P[2] - P[1]) * f;
+  return [Math.round(x / PX / 6) * 6, svg.dataset.env === 'pitch' ? Math.round(v / 100) * 100 : +v.toFixed(svg.dataset.env === 'cut' ? 0 : 3)]; }      // pitch: whole semitones
 document.addEventListener('pointerdown', e => {
   const svg = e.target.closest && e.target.closest('#envsvg'); if (!svg) return; e.preventDefault();
   const T = tbTab(), L = fxLane(); if (!T || !L) return; const env = Object.assign({}, L.env || {}), pts = (env[fxEnv] || []).map(q => q.slice()), pt = envPt(e, svg);
   const hit = e.target.tagName === 'circle' ? +e.target.dataset.k : -1;
   tbUndo.push(JSON.stringify(T)); tbRedo = [];
-  let k = hit; if (k < 0) { pts.push(pt); pts.sort((a, b) => a[0] - b[0]); k = pts.indexOf(pt); }
+  let k = hit; if (k < 0) { pts.push(pt); pts.sort((a, b) => a[0] - b[0]); k = pts.indexOf(pt); } fxPt = k;
   env[fxEnv] = pts; fxStore(T, L.id, undefined, env); envDrag = {svg, k, id:pointerIdOf(e)}; try { svg.setPointerCapture(e.pointerId); } catch (x) {}
   if (hit < 0) { storeTabs(); render(); envDrag.svg = document.getElementById('envsvg'); }
 });
@@ -2637,7 +2641,8 @@ const pointerIdOf = e => e.pointerId;
 document.addEventListener('pointermove', e => {
   if (!envDrag) return; const svg = document.getElementById('envsvg'); if (!svg) return; const T = tbTab(), L = fxLane(); if (!T || !L || !L.env || !L.env[fxEnv]) return;
   const pts = L.env[fxEnv].map(q => q.slice()); if (!pts[envDrag.k]) return; pts[envDrag.k] = envPt(e, svg);
-  const moved = pts[envDrag.k]; pts.sort((a, b) => a[0] - b[0]); envDrag.k = pts.indexOf(moved);
+  if (L.env[fxEnv][envDrag.k] && L.env[fxEnv][envDrag.k][2]) pts[envDrag.k][2] = L.env[fxEnv][envDrag.k][2];      // a point keeps its curve as it moves
+  const moved = pts[envDrag.k]; pts.sort((a, b) => a[0] - b[0]); envDrag.k = pts.indexOf(moved); fxPt = envDrag.k;
   fxStore(T, L.id, undefined, Object.assign({}, L.env, {[fxEnv]:pts})); envDraw(svg);
 });
 document.addEventListener('pointerup', () => { if (!envDrag) return; envDrag = null; storeTabs(); render(); });
@@ -2651,7 +2656,7 @@ function envDraw(svg){
   const y = v => { const r = fxEnv === 'cut' ? Math.log(v / P[1]) / Math.log(P[2] / P[1]) : (v - P[1]) / (P[2] - P[1]); return H - 4 - r * (H - 8); };
   svg.querySelectorAll('polyline, circle, line.flat').forEach(x => x.remove());
   if (!E.length) return; const ns = 'http://www.w3.org/2000/svg', pl = document.createElementNS(ns, 'polyline');
-  pl.setAttribute('points', [[0, E[0][1]]].concat(E, [[W / PX, E[E.length - 1][1]]]).map(q => `${q[0] * PX},${y(q[1])}`).join(' ')); svg.appendChild(pl);
+  pl.setAttribute('points', envPts(E, W / PX).map(q => `${q[0] * PX},${y(q[1])}`).join(' ')); svg.appendChild(pl);
   E.forEach((q, k) => { const c = document.createElementNS(ns, 'circle'); c.setAttribute('cx', q[0] * PX); c.setAttribute('cy', y(q[1])); c.setAttribute('r', 6); c.dataset.k = k; svg.appendChild(c); });
 }
 /* ---- export: a WAV of the whole tab (rendered offline, faster than it plays: effects, envelopes, kits and audio takes
@@ -2777,7 +2782,16 @@ async function wamCatalog(){
   wamCatBusy = false; render();
 }
 /* the plugin's own panel stays mounted across redraws */
-function wamMount(){ wamFxMount(); const box = document.getElementById('wamgui'), T = tbDoc(), W = T && T.track && wamI[T.track.id]; if (!box || !W || !W.inst || !wamShow) return;
+function wamTouch(box){
+  if (!box || box.dataset.touch) return; box.dataset.touch = '1'; let tgt = null, moved = false, x0 = 0, y0 = 0;
+  const own = el => el && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName);      // its own sliders and menus already work by touch
+  const send = (type, el, p) => el.dispatchEvent(new MouseEvent(type, {bubbles:true, cancelable:true, composed:true, view:window, clientX:p.clientX, clientY:p.clientY, screenX:p.screenX, screenY:p.screenY, button:0, buttons:type === 'mouseup' || type === 'click' ? 0 : 1}));
+  box.addEventListener('touchstart', e => { const el = e.composedPath()[0], p = e.changedTouches[0]; if (own(el) || e.touches.length > 1) return; tgt = el; moved = false; x0 = p.clientX; y0 = p.clientY; send('mousedown', tgt, p); e.preventDefault(); }, {passive:false});
+  box.addEventListener('touchmove', e => { if (!tgt) return; const p = e.changedTouches[0]; if (Math.hypot(p.clientX - x0, p.clientY - y0) > 3) moved = true; send('mousemove', tgt, p); e.preventDefault(); }, {passive:false});
+  const up = e => { if (!tgt) return; const p = e.changedTouches[0], el = tgt; tgt = null; send('mouseup', el, p); if (!moved) send('click', el, p); e.preventDefault(); };
+  box.addEventListener('touchend', up, {passive:false}); box.addEventListener('touchcancel', up, {passive:false});
+}
+function wamMount(){ wamFxMount(); wamTouch(document.getElementById('wamgui')); wamTouch(document.getElementById('wamfxgui')); const box = document.getElementById('wamgui'), T = tbDoc(), W = T && T.track && wamI[T.track.id]; if (!box || !W || !W.inst || !wamShow) return;
   if (!W.gui) { W.gui = 'making'; Promise.resolve(W.inst.createGui()).then(g => { W.gui = g; wamMount(); }).catch(() => { W.gui = null; }); return; }
   if (W.gui !== 'making' && W.gui.parentNode !== box) { box.innerHTML = ''; box.appendChild(W.gui); } }
 function tbWamHtml(T){
@@ -2974,13 +2988,13 @@ function tbEndOf(T, L){
   return (L.at || 0) + (L.kind === 'keys' ? keysEnd(L) : tbStarts(L)[L.cols.length]);
 }
 /* the built-in sounds: a few oscillators each, shaped by an envelope; a note rings on a little after it ends */
-function keysVoice(a, dest, snd, p, t0, dur, vel, srcs){
+function keysVoice(a, dest, snd, p, t0, dur, vel, srcs, pfn){
   const f = 440 * Math.pow(2, (p - 69) / 12), v = vel / 127, g = a.createGain(), out = a.createGain(); out.gain.value = 0.22 * v; g.connect(out); out.connect(dest);
-  const osc = (type, fr, gain, det) => { const o = a.createOscillator(), og = a.createGain(); o.type = type; o.frequency.value = fr; if (det) o.detune.value = det; og.gain.value = gain; o.connect(og); og.connect(g); srcs.push(o); return o; };
+  const osc = (type, fr, gain, det) => { const o = a.createOscillator(), og = a.createGain(); o.type = type; o.frequency.value = fr; if (det) o.detune.value = det; if (pfn) pfn(o.detune, det || 0); og.gain.value = gain; o.connect(og); og.connect(g); srcs.push(o); return o; };
   const t1 = t0 + dur; let end = t1 + 0.3, os = [];
   g.gain.setValueAtTime(0.0001, t0);
   if (snd === 'piano') { os = [osc('triangle', f, 1), osc('sine', f * 2, 0.35), osc('sine', f * 3, 0.12)]; g.gain.exponentialRampToValueAtTime(1, t0 + 0.004); g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.4); g.gain.setTargetAtTime(0.0001, t0 + 0.4, 0.9 + 200 / f); g.gain.setTargetAtTime(0.0001, t1, 0.12); end = t1 + 0.7; }
-  else if (snd === 'ep') { const m = a.createOscillator(), mg = a.createGain(); m.frequency.value = f; mg.gain.setValueAtTime(f * 1.6, t0); mg.gain.exponentialRampToValueAtTime(f * 0.15, t0 + 0.6); m.connect(mg); srcs.push(m); os = [osc('sine', f, 1)]; mg.connect(os[0].frequency); os.push(m);
+  else if (snd === 'ep') { const m = a.createOscillator(), mg = a.createGain(); m.frequency.value = f; if (pfn) pfn(m.detune, 0); mg.gain.setValueAtTime(f * 1.6, t0); mg.gain.exponentialRampToValueAtTime(f * 0.15, t0 + 0.6); m.connect(mg); srcs.push(m); os = [osc('sine', f, 1)]; mg.connect(os[0].frequency); os.push(m);
     g.gain.exponentialRampToValueAtTime(1, t0 + 0.003); g.gain.setTargetAtTime(0.25, t0 + 0.02, 0.7); g.gain.setTargetAtTime(0.0001, t1, 0.15); end = t1 + 0.8; }
   else if (snd === 'organ') { os = [osc('sine', f, 1), osc('sine', f * 2, 0.6), osc('sine', f * 3, 0.35), osc('sine', f * 4, 0.2), osc('sine', f / 2, 0.4)]; g.gain.linearRampToValueAtTime(0.8, t0 + 0.01); g.gain.setValueAtTime(0.8, t1); g.gain.linearRampToValueAtTime(0.0001, t1 + 0.05); end = t1 + 0.1; }
   else if (snd === 'synth') { const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 6; lp.frequency.setValueAtTime(Math.min(16000, f * 12), t0); lp.frequency.exponentialRampToValueAtTime(Math.min(16000, f * 2.5), t0 + 0.35); g.disconnect(); g.connect(lp); lp.connect(out);
@@ -3389,13 +3403,18 @@ function fxClean(x){
 }
 function envClean(x){
   if (!x || typeof x !== 'object') return null; const o = {};
-  for (const k in ENV_P) { const pts = Array.isArray(x[k]) ? x[k].filter(p => Array.isArray(p) && num(p[0], 0, 1e9, -1) >= 0 && typeof p[1] === 'number' && p[1] >= ENV_P[k][1] && p[1] <= ENV_P[k][2]).map(p => [p[0], p[1]]).sort((a, b) => a[0] - b[0]).slice(0, 200) : []; if (pts.length) o[k] = pts; }
+  for (const k in ENV_P) { const pts = Array.isArray(x[k]) ? x[k].filter(p => Array.isArray(p) && num(p[0], 0, 1e9, -1) >= 0 && typeof p[1] === 'number' && p[1] >= ENV_P[k][1] && p[1] <= ENV_P[k][2]).map(p => ['s', 'f', 'w', 'h'].includes(p[2]) ? [p[0], p[1], p[2]] : [p[0], p[1]]).sort((a, b) => a[0] - b[0]).slice(0, 200) : []; if (pts.length) o[k] = pts; }
   return Object.keys(o).length ? o : null;
 }
 /* an envelope's value at a tick: flat before the first point and after the last, a straight line between */
+/* how an envelope goes from a point to the next: a line, smooth (an S), fast then slow, slow then fast, or held until the next */
+const ENV_CV = {'':'Line', s:'Smooth', f:'Fast', w:'Slow', h:'Hold'};
+function envShape(c, x){ return c === 's' ? (1 - Math.cos(Math.PI * x)) / 2 : c === 'f' ? 1 - (1 - x) * (1 - x) : c === 'w' ? x * x : c === 'h' ? (x >= 1 ? 1 : 0) : x; }
+/* the envelope as a line to draw: each curve in small steps */
+function envPts(E, end){ const out = [[0, E[0][1]]]; E.forEach((q, k) => { const nx = E[k + 1]; out.push([q[0], q[1]]); if (nx && q[2]) for (let i = 1; i < 12; i++) { const tk = q[0] + (nx[0] - q[0]) * i / 12; out.push([tk, envAt(E, tk)]); } }); out.push([end, E[E.length - 1][1]]); return out; }
 function envAt(pts, tick){
   if (!pts || !pts.length) return null; if (tick <= pts[0][0]) return pts[0][1];
-  for (let k = 1; k < pts.length; k++) if (tick <= pts[k][0]) { const [t0, v0] = pts[k - 1], [t1, v1] = pts[k]; return t1 === t0 ? v1 : v0 + (v1 - v0) * (tick - t0) / (t1 - t0); }
+  for (let k = 1; k < pts.length; k++) if (tick <= pts[k][0]) { const [t0, v0, c] = pts[k - 1], [t1, v1] = pts[k]; return t1 === t0 ? v1 : v0 + (v1 - v0) * envShape(c, (tick - t0) / (t1 - t0)); }
   return pts[pts.length - 1][1];
 }
 /* a room, made on the spot: noise dying away over `size` seconds, a little different left and right */
@@ -3432,14 +3451,16 @@ function tbEngine(a, M, S){
       const P = prm[k], pts = E[k]; if (!P || !pts.length) continue;
       const map = v => k === 'drv' ? 1 + v * 12 : v, t0 = at(tk0);
       try { P.cancelScheduledValues(t0); P.setValueAtTime(map(envAt(pts, tk0)), t0);
-        pts.filter(q => q[0] > tk0 && q[0] <= tk1).forEach(q => { if (k === 'cut') P.exponentialRampToValueAtTime(Math.max(20, q[1]), at(q[0])); else P.linearRampToValueAtTime(map(q[1]), at(q[0])); }); } catch (e) {}
+        for (let j = 1; j < pts.length; j++) { const a0 = Math.max(pts[j - 1][0], tk0), a1 = Math.min(pts[j][0], tk1), c = pts[j - 1][2] || ''; if (a1 <= a0) continue;
+          if (!c && a1 === pts[j][0]) { if (k === 'cut') P.exponentialRampToValueAtTime(Math.max(20, pts[j][1]), at(a1)); else P.linearRampToValueAtTime(map(pts[j][1]), at(a1)); continue; }
+          const n = 24, arr = new Float32Array(n + 1); for (let i = 0; i <= n; i++) arr[i] = map(envAt(pts, a0 + (a1 - a0) * i / n)); P.setValueCurveAtTime(arr, at(a0) + 1e-4, at(a1) - at(a0) - 1e-4); } } catch (e) {}
     }
   };
   /* an audio track: each clip from where the tab starts; returns the tick its last clip ends */
-  const aud = (L, tk0, at, spt, dest) => { let end = tk0; (L.clips || []).forEach(c => { const A = tbAudGet(c.take); if (!A) return; const dur = tbClipDur(c), e = c.at + dur / spt; end = Math.max(end, e); if (e <= tk0) return; const skip = Math.max(0, (tk0 - c.at) * spt), s = a.createBufferSource(); s.buffer = A.buf; s.connect(dest); s.start(at(Math.max(c.at, tk0)), c.off + skip, dur - skip); S.srcs.push(s); S.au = (S.au || 0) + 1; }); return end; };
+  const aud = (L, tk0, at, spt, dest, pf) => { let end = tk0; (L.clips || []).forEach(c => { const A = tbAudGet(c.take); if (!A) return; const dur = tbClipDur(c), e = c.at + dur / spt; end = Math.max(end, e); if (e <= tk0) return; const skip = Math.max(0, (tk0 - c.at) * spt), s = a.createBufferSource(); s.buffer = A.buf; s.connect(dest); if (pf && s.detune) pf(s.detune, Math.max(c.at, tk0), (dur - skip) / spt); s.start(at(Math.max(c.at, tk0)), c.off + skip, dur - skip); S.srcs.push(s); S.au = (S.au || 0) + 1; }); return end; };
   const click = (when, acc) => { const cs = a.createBufferSource(), g = a.createGain(); cs.buffer = clickBuf(acc ? 'acc' : 'beat'); g.gain.value = 0.25; cs.connect(g); g.connect(M); cs.start(when); S.srcs.push(cs); };
   /* the guitar: rings until the next note on its string, a rest or a mute */
-  const gtr = (cols, k0, st, at, spt, dest) => {
+  const gtr = (cols, k0, st, at, spt, dest, pf) => {
     const tun = TUNINGS[state.tuning].midi, onStr = [], lastF = [];
     cols.slice(0, k0).forEach(c => c.n.forEach(q => { if (q.t !== 'x') lastF[q.s] = q.f; }));
     const cut = (o, when) => { if (!o.stop || o.stop > when) { o.g.gain.setTargetAtTime(0, when, 0.012); try { o.src.stop(when + 0.08); } catch (e) {} } };
@@ -3451,7 +3472,7 @@ function tbEngine(a, M, S){
         let stopAt = 0, rate = 1;
         if (harm) { src.type = q.t === 'a' ? 'triangle' : 'sine'; src.frequency.value = 440 * Math.pow(2, (tbHarmPitch(q) - 69) / 12); }
         else { src.buffer = makeBuf(bend ? m + 2 : m); rate = src.buffer.rate; src.playbackRate.value = rate; }
-        src.connect(g);
+        src.connect(g); if (pf && src.detune) pf(src.detune, st[k0 + j], Math.max(c.d, 2 * TQ));
         if (harm) {      // a harmonic: a pure, bell-like tone that rings a long time
           g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(q.t === 'a' ? 0.2 : 0.26, t + 0.006); g.gain.exponentialRampToValueAtTime(0.001, t + 2.4); g.connect(dest); stopAt = t + 2.5;
         } else if (q.t === 'x') {
@@ -3482,26 +3503,30 @@ function tbEngine(a, M, S){
   /* one pass of the tab from tick tk0: every heard track scheduled; returns where it ends and how many tracks played */
   const pass = (T, A, tk0, at, spt, bt, opt) => {
     let endTick = tk0, lanes = 0; const played = [];
+    /* a track's pitch envelope, on a note's own pitch (cents), for as long as it sounds */
+    const pfOf = L => { const pts = L.env && L.env.pitch; if (!pts || !pts.length) return null; return (prm, tick, dur, base) => { try { const n = Math.max(2, Math.min(64, Math.ceil(dur / 6) + 1)), arr = new Float32Array(n); for (let i = 0; i < n; i++) arr[i] = (base || 0) + envAt(pts, tick + dur * i / (n - 1)); prm.setValueCurveAtTime(arr, at(tick), Math.max(0.01, dur * spt)); } catch (e) {} }; };
+    /* and for a plugin: pitch bend (taken as 2 semitones either way), every 16th */
+    const bendOf = (L, t0, t1) => { const pts = L.env && L.env.pitch, out = []; if (!pts || !pts.length) return out; for (let tk = t0; tk <= t1; tk += 6) { const v = Math.max(0, Math.min(16383, Math.round(8192 + envAt(pts, tk) / 200 * 8191))); out.push({type:'wam-midi', time:at(tk), data:{bytes:[0xe0, v & 127, v >> 7]}}); } return out; };
     tbLanes(T).forEach(L => {
       if (!tbHeard(T, L)) return;
-      if (L.kind === 'audio') { if (!(L.clips || []).length) return; const e = aud(L, tk0, at, spt, out(L, T)); if (e > tk0) { endTick = Math.max(endTick, e); lanes++; played.push(L); } return; }
+      if (L.kind === 'audio') { if (!(L.clips || []).length) return; const e = aud(L, tk0, at, spt, out(L, T), pfOf(L)); if (e > tk0) { endTick = Math.max(endTick, e); lanes++; played.push(L); } return; }
       if (L.kind === 'keys') {      // keys: the built-in sound, or a plugin
         const o = L.at || 0, ns = (L.notes || []).filter(n => n[0] + o >= tk0); if (!ns.length) return; endTick = Math.max(endTick, o + keysEnd(L)); lanes++; const dest = out(L, T);
         if (L.url) { const W = wamGet(L, a); if (!W) return; const nn = W.inst.audioNode; if (W.dest !== dest) { try { nn.disconnect(); } catch (x) {} nn.connect(dest); W.dest = dest; }
-          try { nn.scheduleEvents(...ns.flatMap(n => [{type:'wam-midi', time:at(n[0] + o), data:{bytes:[0x90, n[2], n[3]]}}, {type:'wam-midi', time:at(n[0] + o + n[1]), data:{bytes:[0x80, n[2], 0]}}])); } catch (x) {} S.wam = (S.wam || 0) + ns.length; }
-        else { ns.forEach(n => keysVoice(a, dest, L.snd || 'piano', n[2], at(n[0] + o), n[1] * spt, n[3], S.srcs)); S.keys = (S.keys || 0) + ns.length; }
+          try { nn.scheduleEvents(...bendOf(L, tk0, o + keysEnd(L)), ...ns.flatMap(n => [{type:'wam-midi', time:at(n[0] + o), data:{bytes:[0x90, n[2], n[3]]}}, {type:'wam-midi', time:at(n[0] + o + n[1]), data:{bytes:[0x80, n[2], 0]}}])); } catch (x) {} S.wam = (S.wam || 0) + ns.length; }
+        else { const pf = pfOf(L); ns.forEach(n => keysVoice(a, dest, L.snd || 'piano', n[2], at(n[0] + o), n[1] * spt, n[3], S.srcs, pf ? (prm, b) => pf(prm, n[0] + o, n[1] + 2 * TQ, b) : null)); S.keys = (S.keys || 0) + ns.length; }
         played.push(L); return;
       }
       if (L.kind === 'wam') {      // a plugin: its notes as MIDI, at their times
         const o = L.at || 0, sp2 = tbSpans(L).map(x => [x[0] + o, x[1] + o, x[2], x[3]]).filter(x => x[0] >= tk0), e = o + tbStarts(L)[L.cols.length]; if (e <= tk0 || !sp2.length) return; endTick = Math.max(endTick, e); lanes++;
         const W = wamGet(L, a); if (!W) return; const dest = out(L, T), n = W.inst.audioNode;
         if (W.dest !== dest) { try { n.disconnect(); } catch (x) {} n.connect(dest); W.dest = dest; }
-        try { n.scheduleEvents(...sp2.flatMap(([s0, s1, nn, v]) => [{type:'wam-midi', time:at(s0), data:{bytes:[0x90, nn, v]}}, {type:'wam-midi', time:at(s1), data:{bytes:[0x80, nn, 0]}}])); } catch (x) {}
+        try { n.scheduleEvents(...bendOf(L, tk0, e), ...sp2.flatMap(([s0, s1, nn, v]) => [{type:'wam-midi', time:at(s0), data:{bytes:[0x90, nn, v]}}, {type:'wam-midi', time:at(s1), data:{bytes:[0x80, nn, 0]}}])); } catch (x) {}
         S.wam = (S.wam || 0) + sp2.length; played.push(L); return;
       }
       const st = tbStarts(L).map(x => x + (L.at || 0)), k = st.findIndex(x => x >= tk0); if (k < 0 || k >= L.cols.length) return;
       endTick = Math.max(endTick, st[L.cols.length]); if (L.cols.some(c => c.n.length)) lanes++; played.push(L);
-      if (L.kind === 'drums') drums(L.cols, k, st, at, kitOf(L), out(L, T)); else gtr(L.cols, k, st, at, spt, out(L, T));
+      if (L.kind === 'drums') drums(L.cols, k, st, at, kitOf(L), out(L, T)); else gtr(L.cols, k, st, at, spt, out(L, T), pfOf(L));
     });
     if (lanes > 1 || (A && A.kind)) endTick = Math.ceil(endTick / bt) * bt;      // with drums, it loops on a bar line so the beat stays even
     if (opt.rec) endTick = endTick > tk0 ? endTick + bt : tk0 + 64 * bt;      // recording: a bar after the end to ring out (or, over nothing, 64 bars of click)
@@ -3707,7 +3732,8 @@ function handleTab(act, b){
     case 'tbfxon': case 'tbfxtype': case 'tbfxsync': { const X = tbTab(), L = fxLane(), F = fxOf(L);
       if (act === 'tbfxon') F[v].on = !F[v].on; else if (act === 'tbfxtype') F.filter.type = v; else F.delay.sync = v;
       fxStore(X, L.id, F); storeTabs(); if (tbp.on && !tbp.rec) tbStart(0); break; }
-    case 'tbenv': fxEnv = ENV_P[v] ? v : 'vol'; break;
+    case 'tbenv': fxEnv = ENV_P[v] ? v : 'vol'; fxPt = -1; break;
+    case 'tbenvcurve': { const X = tbTab(), L = fxLane(), E = ((L.env || {})[fxEnv] || []).map(q => q.slice()); if (!E[fxPt]) break; if (v) E[fxPt][2] = v; else E[fxPt].length = 2; tbEditTab(() => fxStore(X, L.id, undefined, Object.assign({}, L.env || {}, {[fxEnv]:E}))); break; }
     case 'tbenvclear': { const X = tbTab(), L = fxLane(); tbEditTab(() => fxStore(X, L.id, undefined, Object.assign({}, L.env || {}, {[fxEnv]:[]}))); break; }
     case 'tbwav': tbWav(); return true;
     case 'tbkmove': kst.at = Math.max(0, kst.at + +v * (state.keysGrid || 6)); kst.sel = -1; break;
@@ -8216,7 +8242,7 @@ try { if (navigator.storage && navigator.storage.persist) navigator.storage.pers
 lessonsToNps();
 if (state.guideBack) guideRestore();      // the page closed in the middle of a guide: put the neck back
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, keys:{kst, put:keysPut, voice:keysVoice, end:tbEndOf, clean:keysClean}, wam:{hooks:wamHooks, I:wamI, FX:wamFx, fxList:wamFxList, get all(){ return wamAll; }, set all(v){ wamAll = v; }, load:wamLoad, spans:tbSpans, get cat(){ return wamCat; }, set cat(v){ wamCat = v; }, get show(){ return wamShow; }}, get tbWavErr(){ return tbWavErr; }, midiOf, midiBytes, wavOf, tbEngine, envAt, fxOf, tbLength, tba, tbAudC, tbClipFromTake, tbLanes, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, BUILT, kitBuiltLoad, kitSound, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, env:{at:envAt, shape:envShape, pts:envPts, touch:wamTouch}, keys:{kst, put:keysPut, voice:keysVoice, end:tbEndOf, clean:keysClean}, wam:{hooks:wamHooks, I:wamI, FX:wamFx, fxList:wamFxList, get all(){ return wamAll; }, set all(v){ wamAll = v; }, load:wamLoad, spans:tbSpans, get cat(){ return wamCat; }, set cat(v){ wamCat = v; }, get show(){ return wamShow; }}, get tbWavErr(){ return tbWavErr; }, midiOf, midiBytes, wavOf, tbEngine, envAt, fxOf, tbLength, tba, tbAudC, tbClipFromTake, tbLanes, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, BUILT, kitBuiltLoad, kitSound, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, get phrFavs(){ return phrFavs; }, phrFavOk, get sp(){ return sp; }, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, scalesForChord, followView, loopShape, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
