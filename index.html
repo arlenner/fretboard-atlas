@@ -553,6 +553,33 @@ body.pv-done .neck-wrap{display:none !important}
 .tbsheet.drums .tbc i b.t-g{opacity:.6; font-weight:500; font-size:10px}
 .tbsheet.drums .tbc i b.t-a{color:var(--accent); font-weight:800}
 .tbrec.sel{background:var(--bad); border-color:var(--bad); color:#fff}
+.tbtracks .solo{display:inline-block; font-size:10px; font-weight:800; padding:0 4px; border-radius:4px; background:var(--accent); color:var(--on-accent)}
+.mixrow{gap:6px; align-items:center; flex-wrap:nowrap}
+.mixrow .trname{flex:1 1 90px; min-width:60px}
+.mixrow .ib.sel{background:var(--accent); color:var(--on-accent); border-color:var(--accent)}
+.mixs{display:flex; align-items:center; gap:4px; flex:1 1 90px; min-width:70px}
+.mixs small{color:var(--muted); font-size:11px}
+.mixs input{flex:1; min-width:40px; accent-color:var(--accent)}
+.tbaud{overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--surface); overscroll-behavior-x:contain}
+.tba-in{position:relative; width:var(--w); min-width:100%}
+.tba-ruler{position:relative; height:16px; border-bottom:1px solid var(--line)}
+.tba-ruler span{position:absolute; top:1px; font-size:10px; color:var(--muted)}
+.tba-lane{position:relative; height:76px}
+.tba-lane i{position:absolute; top:0; bottom:0; border-left:1px solid color-mix(in srgb, var(--line) 50%, transparent); cursor:pointer}
+.tba-lane i.bar{border-left-color:var(--line)}
+.tba-lane i:hover{background:color-mix(in srgb, var(--accent) 8%, transparent)}
+.tba-clip{position:absolute; top:8px; height:60px; padding:0; border:1px solid color-mix(in srgb, var(--accent) 60%, var(--line)); border-radius:6px; background:color-mix(in srgb, var(--accent) 16%, var(--surface)); overflow:hidden; text-align:left; cursor:pointer}
+.tba-clip svg{position:absolute; inset:4px 0 16px; width:100%; height:40px}
+.tba-clip svg path{stroke:var(--accent); stroke-width:1.2; fill:none}
+.tba-clip small{position:absolute; left:4px; right:4px; bottom:2px; font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--ink)}
+.tba-clip.sel{outline:2px solid var(--accent); outline-offset:1px}
+.tba-clip.miss{border-style:dashed; background:var(--surface-2)}
+.tba-cur, .tba-ph{position:absolute; top:0; bottom:0; width:2px; margin-left:-1px; pointer-events:none}
+.tba-cur{background:var(--accent)}
+.tba-ph{background:var(--ink); opacity:.7}
+.tbclipsel{gap:6px; align-items:center}
+.tbclipsel .cl{font-size:11px; color:var(--muted); margin-left:4px}
+.tbclipsel b{margin-right:4px}
 .kitrow{gap:8px; align-items:center; padding:3px 4px; border-radius:8px}
 .row.kitrow{flex-wrap:nowrap}
 @media (max-width: 560px){ .kitrow{gap:5px} .kitrow b{min-width:74px; font-size:12px} .kitrow .btn{padding-left:9px; padding-right:9px} }
@@ -1957,7 +1984,7 @@ const tbFit = d => { let best = 6; for (const [b] of TBASE) for (const m of ['',
 const DK = [{id:'bd', name:'Kick', sh:'BD', sym:'o'}, {id:'sn', name:'Snare', sh:'SN', sym:'o'}, {id:'hh', name:'Hi-hat', sh:'HH', sym:'x'}, {id:'oh', name:'Open hi-hat', sh:'OH', sym:'o'},
   {id:'t1', name:'High tom', sh:'T1', sym:'o'}, {id:'t2', name:'Low tom', sh:'T2', sym:'o'}, {id:'ft', name:'Floor tom', sh:'FT', sym:'o'}, {id:'cr', name:'Crash', sh:'CR', sym:'X'}, {id:'rd', name:'Ride', sh:'RD', sym:'x'}];
 const DROWS = [7, 8, 3, 2, 4, 5, 6, 1, 0];
-const TB_KINDS = {drums:'Drums'};
+const TB_KINDS = {gtr:'Guitar', drums:'Drums', audio:'Audio'};
 function tbCleanCols(cs, dr){
   return (Array.isArray(cs) ? cs : []).slice(0, TMAX).filter(c => c && tbDurOk(c.d)).map(c => {
     const seen = new Set(), raw = (Array.isArray(c.n) ? c.n : []).filter(q => q && num(q.s, 0, dr ? DK.length - 1 : 5, -1) >= 0 && (dr || num(q.f, 0, 24, -1) >= 0) && !seen.has(q.s) && seen.add(q.s));
@@ -1967,10 +1994,10 @@ function tbCleanCols(cs, dr){
 }
 function tbClean(t){
   if (!t || typeof t !== 'object' || !Array.isArray(t.cols)) return null;
-  const ids = new Set(), tracks = (Array.isArray(t.tracks) ? t.tracks : []).filter(x => x && TB_KINDS[x.kind] && num(x.id, 1, 9e15, 0) && !ids.has(x.id) && ids.add(x.id)).slice(0, 3)
-    .map(x => Object.assign({id:x.id, kind:x.kind, name:String(x.name || TB_KINDS[x.kind]).slice(0, 30), cols:tbCleanCols(x.cols, x.kind === 'drums')}, x.mute === true ? {mute:true} : {}, typeof x.kit === 'string' && /^(k\d{1,15}|@[a-z0-9]{1,12})$/.test(x.kit) ? {kit:x.kit} : {}));
+  const ids = new Set(), tracks = (Array.isArray(t.tracks) ? t.tracks : []).filter(x => x && TB_KINDS[x.kind] && num(x.id, 1, 9e15, 0) && !ids.has(x.id) && ids.add(x.id)).slice(0, 12)
+    .map(x => Object.assign({id:x.id, kind:x.kind, name:String(x.name || TB_KINDS[x.kind]).slice(0, 30), cols:x.kind === 'audio' ? [] : tbCleanCols(x.cols, x.kind === 'drums')}, x.kind === 'audio' ? {clips:tbCleanClips(x.clips)} : {}, x.mute === true ? {mute:true} : {}, x.solo === true ? {solo:true} : {}, tbVolOk(x.vol) ? {vol:x.vol} : {}, tbPanOk(x.pan) ? {pan:x.pan} : {}, typeof x.kit === 'string' && /^(k\d{1,15}|@[a-z0-9]{1,12})$/.test(x.kit) ? {kit:x.kit} : {}));
   return Object.assign({id:num(t.id, 1, 9e15, 0) || Date.now(), name:String(t.name || 'Untitled tab').slice(0, 60), bpm:num(t.bpm, 30, 300, 90), beats:num(t.beats, 1, 12, 4), cols:tbCleanCols(t.cols, false)},
-    t.gmute === true ? {gmute:true} : {}, tracks.length ? {tracks} : {});
+    t.gmute === true ? {gmute:true} : {}, t.gsolo === true ? {gsolo:true} : {}, tbVolOk(t.gvol) ? {gvol:t.gvol} : {}, tbPanOk(t.gpan) ? {gpan:t.gpan} : {}, tracks.length ? {tracks} : {});
 }
 let tabs = [];
 try { const x = JSON.parse(localStorage.getItem(TABKEY)); if (Array.isArray(x)) tabs = x.map(tbClean).filter(Boolean); } catch (e) {}
@@ -1983,28 +2010,50 @@ let tbVw = null;
 function tbDoc(){
   const T = tbTab(), tr = tbTrack(T); if (!tr) return T;
   if (tbVw && tbVw.T === T && tbVw.tr === tr) return tbVw.v;
-  const v = {kind:tr.kind, track:tr, get id(){ return T.id; }, get name(){ return T.name; }, set name(x){ T.name = x; }, get bpm(){ return T.bpm; }, set bpm(x){ T.bpm = x; },
-    get beats(){ return T.beats; }, set beats(x){ T.beats = x; }, get cols(){ return tr.cols; }, set cols(x){ tr.cols = x; }};
+  // another guitar track works like the first (no kind); an audio track has clips, not columns
+  const v = {kind:tr.kind === 'gtr' ? undefined : tr.kind, track:tr, get id(){ return T.id; }, get name(){ return T.name; }, set name(x){ T.name = x; }, get bpm(){ return T.bpm; }, set bpm(x){ T.bpm = x; },
+    get beats(){ return T.beats; }, set beats(x){ T.beats = x; }, get cols(){ return tr.kind === 'audio' ? [] : tr.cols; }, set cols(x){ if (tr.kind !== 'audio') tr.cols = x; }};
   tbVw = {T, tr, v}; return v;
 }
-const tbLanes = T => [{kind:'gtr', cols:T.cols, mute:!!T.gmute}].concat(T.tracks || []);
-/* is there anything to play, from this tick on (in any track that isn't muted)? */
-const tbHas = (T, tick) => !!T && tbLanes(T).some(L => { if (L.mute) return false; const st = tbStarts(L); return L.cols.some((c, k) => c.n.length && st[k] >= tick); });
+/* every track as a lane to play: the tab's own guitar (id 0) first. Mixer: vol 0-1.5, pan -1..1, mute, solo. */
+const tbLanes = T => [{id:0, kind:'gtr', name:'Guitar', cols:T.cols, mute:!!T.gmute, solo:!!T.gsolo, vol:T.gvol == null ? 1 : T.gvol, pan:T.gpan || 0}].concat((T.tracks || []).map(x => Object.assign({vol:1, pan:0}, x)));
+const tbHeard = (T, L) => !L.mute && (!tbLanes(T).some(x => x.solo) || L.solo);      // with any track soloed, only those
+/* is there anything to play, from this tick on (in a track that's heard)? */
+const tbHas = (T, tick) => !!T && tbLanes(T).some(L => { if (!tbHeard(T, L)) return false; if (L.kind === 'audio') return (L.clips || []).length > 0; const st = tbStarts(L); return L.cols.some((c, k) => c.n.length && st[k] >= tick); });
+/* a lane's mixer settings, read and written the same way for the tab's own guitar and the other tracks */
+function tbMixGet(T, id){ const L = tbLanes(T).find(x => x.id === id); return L || null; }
+function tbMixSet(T, id, k, v){
+  if (!id) { const key = {mute:'gmute', solo:'gsolo', vol:'gvol', pan:'gpan'}[k]; if (v === false || (k === 'vol' && v === 1) || (k === 'pan' && v === 0)) delete T[key]; else T[key] = v; return; }
+  const tr = (T.tracks || []).find(x => x.id === id); if (!tr) return;
+  if (v === false || (k === 'vol' && v === 1) || (k === 'pan' && v === 0)) delete tr[k]; else tr[k] = v;
+}
 function tbEditTab(fn){ const T = tbTab(); if (!T) return; tbUndo.push(JSON.stringify(T)); if (tbUndo.length > 200) tbUndo.shift(); tbRedo = []; fn(T); storeTabs(); }
 /* switching track: the cursor stays at the same point in time */
 function tbGoTrack(id){
-  const A0 = tbDoc(), tick = A0 ? tbStarts(A0)[Math.min(tbc.c, A0.cols.length)] : 0;
+  const A0 = tbDoc(), tick = A0 ? (A0.kind === 'audio' ? tba.at : tbStarts(A0)[Math.min(tbc.c, A0.cols.length)]) : 0;
   state.tabTrack = id || 0; tbSel = null; tbNum = null;
-  const A = tbDoc(), st = tbStarts(A), k = st.findIndex(x => x >= tick);
+  const A = tbDoc(); if (A.kind === 'audio') { tba.at = Math.floor(tick / TQ) * TQ; tba.clip = null; return; }
+  const st = tbStarts(A), k = st.findIndex(x => x >= tick);
   tbc = {c:k < 0 ? A.cols.length : Math.min(k, A.cols.length), s:A.kind === 'drums' ? 1 : 5};
 }
+const TB_MAXTR = 12;
+const tbKindName = k => ({gtr:'Guitar', drums:'Drums', audio:'Audio'})[k] || 'Track';
 function tbTracksHtml(T){
-  const tr = T.tracks || [], cur = tbTrack(T), m = cur ? !!cur.mute : !!T.gmute;
-  const one = (id, name, mu) => `<button type="button" data-act="tbtrack" data-v="${id}" aria-pressed="${(cur ? cur.id : 0) === id}">${esc(name)}${mu ? ' <span aria-label="(muted)">🔇</span>' : ''}</button>`;
-  return `<div class="row nw tbtracks"><div class="seg" aria-label="Track">${one(0, 'Guitar', T.gmute)}${tr.map(x => one(x.id, x.name, x.mute)).join('')}</div>
-    ${tr.length < 3 ? `<button type="button" class="chip" data-act="tbaddtrack" data-v="drums" title="A drum track, played with the tab">＋ Drums</button>` : ''}
-    <button type="button" class="chip${m ? ' sel' : ''}" data-act="tbmutetrack" aria-pressed="${m}" title="Leave this track out when the tab plays">Mute</button>
+  const tr = T.tracks || [], cur = tbTrack(T), id = cur ? cur.id : 0, L = tbMixGet(T, id);
+  const one = x => `<button type="button" data-act="tbtrack" data-v="${x.id}" aria-pressed="${id === x.id}">${x.kind === 'audio' ? '<span aria-hidden="true">〰 </span>' : ''}${esc(x.name)}${x.mute ? ' <span aria-label="(muted)">🔇</span>' : ''}${x.solo ? ' <span class="solo" aria-label="(solo)">S</span>' : ''}</button>`;
+  return `<div class="row nw tbtracks"><div class="seg wrapseg" aria-label="Track">${tbLanes(T).map(one).join('')}</div></div>
+    <div class="row nw tbtracks">${tr.length < TB_MAXTR ? ['gtr', 'drums', 'audio'].map(k => `<button type="button" class="chip" data-act="tbaddtrack" data-v="${k}" title="${k === 'audio' ? 'A track to record onto, played with the tab' : 'Another ' + tbKindName(k).toLowerCase() + ' track, played with the tab'}">＋ ${tbKindName(k)}</button>`).join('') : ''}
+    <button type="button" class="chip${L.mute ? ' sel' : ''}" data-act="tbmutetrack" aria-pressed="${L.mute}" title="Leave this track out when the tab plays">Mute</button>
+    <button type="button" class="chip${L.solo ? ' sel' : ''}" data-act="tbsolotrack" aria-pressed="${L.solo}" title="Hear only the soloed tracks">Solo</button>
     ${cur ? `<button type="button" class="ib" data-act="tbtrackdel" aria-label="${tbDelArm === 'tr' + cur.id ? 'Tap again to delete' : 'Delete'} the ${esc(cur.name)} track">${tbDelArm === 'tr' + cur.id ? 'Delete?' : '✕'}</button>` : ''}</div>`;
+}
+/* the mixer: a row a track, with its name, mute, solo, volume and pan. The sliders change a playing tab as you move them. */
+function tbMixHtml(T){
+  const rows = tbLanes(T).map(L => `<div class="row nw mixrow"><input class="task-in trname" type="text" maxlength="30" data-tr="${L.id}" aria-label="Track name" value="${esc(L.name)}"${L.id ? '' : ' disabled title="The tab’s own guitar track"'}>
+    <button type="button" class="ib${L.mute ? ' sel' : ''}" data-act="tbmixmute" data-v="${L.id}" aria-pressed="${L.mute}" aria-label="Mute ${esc(L.name)}">M</button><button type="button" class="ib${L.solo ? ' sel' : ''}" data-act="tbmixsolo" data-v="${L.id}" aria-pressed="${L.solo}" aria-label="Solo ${esc(L.name)}">S</button>
+    <label class="mixs"><small>Vol</small><input type="range" min="0" max="150" step="1" value="${Math.round(L.vol * 100)}" data-mix="${L.id}" data-p="vol" aria-label="${esc(L.name)} volume"></label>
+    <label class="mixs"><small>Pan</small><input type="range" min="-100" max="100" step="1" value="${Math.round(L.pan * 100)}" data-mix="${L.id}" data-p="pan" aria-label="${esc(L.name)} pan, left to right"></label></div>`).join('');
+  return fold('tbmix', 'Mixer', `${tbLanes(T).length} track${tbLanes(T).length === 1 ? '' : 's'}`, rows + '<span class="hint tip">Volume and pan change while it plays. A double tap on a slider puts it back in the middle.</span>');
 }
 /* beats to start from: one bar at the cursor, built a beat at a time so it fits any number of beats */
 const TB_BEATS = {
@@ -2025,22 +2074,24 @@ let drNoise = null, drOpen = null;
 function drumNoise(a){ if (!drNoise || drNoise.ctx !== a) { const b = a.createBuffer(1, a.sampleRate * 2, a.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; drNoise = {ctx:a, b}; } return drNoise.b; }
 /* where a drum's sound goes: straight out, or through the Lo-fi kit's filter (one chain, shared, made the first time) */
 let drFx = null;
-function drRoute(a, fx, n){
-  if (fx !== 'lofi') { n.connect(master); return; }
-  if (!drFx || drFx.a !== a) {
+function drRoute(a, fx, n, dest){
+  dest = dest || master;
+  if (fx !== 'lofi') { n.connect(dest); return; }
+  if (!drFx || drFx.a !== a) drFx = {a, m:new Map()};      // a filter chain for each place it goes
+  let fxin = drFx.m.get(dest); if (!fxin) {
     const lp = a.createBiquadFilter(), hp = a.createBiquadFilter(), sh = a.createWaveShaper(), g = a.createGain(), c = new Float32Array(1024);
     lp.type = 'lowpass'; lp.frequency.value = 3400; lp.Q.value = 0.6; hp.type = 'highpass'; hp.frequency.value = 45;
     for (let k = 0; k < 1024; k++) { const x = k / 511.5 - 1; c[k] = Math.tanh(x * 1.6) / Math.tanh(1.6); } sh.curve = c; g.gain.value = 0.95;
-    hp.connect(lp); lp.connect(sh); sh.connect(g); g.connect(master); drFx = {a, in:hp};
+    hp.connect(lp); lp.connect(sh); sh.connect(g); g.connect(dest); fxin = hp; drFx.m.set(dest, hp);
   }
-  n.connect(drFx.in);
+  n.connect(fxin);
 }
-function drumHit(i, when, out, t, kit){
+function drumHit(i, when, out, t, kit, dest){
   const a = getAudio(), D = DK[i]; if (!a || !D) return;
   if (a.state !== 'running') a.resume().catch(() => {});
   when = Math.max(when || 0, a.currentTime + 0.005);
   const keep = n => { if (out) out.push(n); };
-  const bus0 = a.createGain(); bus0.gain.value = t === "g" ? 0.3 : t === "a" ? 1.35 : 1; drRoute(a, kitFx(kit), bus0);      // a ghost note is soft, an accent hard
+  const bus0 = a.createGain(); bus0.gain.value = t === "g" ? 0.3 : t === "a" ? 1.35 : 1; drRoute(a, kitFx(kit), bus0, dest);      // a ghost note is soft, an accent hard
   const env = (g, peak, dec) => { g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(peak, when + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, when + dec); };
   const filt = (type, f, q) => { const x = a.createBiquadFilter(); x.type = type; x.frequency.value = f; if (q) x.Q.value = q; return x; };
   const noise = (hp, lp, peak, dec) => {
@@ -2331,9 +2382,90 @@ function fsCredits(kit){
   const c = DK.map(d => kitS[kit] && kitS[kit][d.id]).filter(S => S && S.credit && S.credit.lic !== 'CC0');
   return c.length ? `<span class="hint tip">Sounds from Freesound: ${c.map(S => `<a href="${esc(S.credit.url || 'https://freesound.org')}" target="_blank" rel="noopener">${esc(S.credit.name)}</a> by ${esc(S.credit.user)} (${S.credit.lic})`).join('; ')}.</span>` : '';
 }
+/* ---- audio tracks: recordings (takes) placed on a lane at a point in the tab, played with it. A clip is
+   {id, take, at (ticks), off (seconds into the take), len (seconds, or null to its end), name}. The sound itself
+   stays in Takes (this browser); the tab keeps only where each take goes. ---- */
+const tba = {at:0, clip:null};      // the audio track's cursor (ticks, on a beat) and the clip picked
+const tbAudC = {};      // take id -> {buf, peaks}, {p:true} while loading, {miss:true} when it isn't in this browser
+function tbAudGet(id){ const x = tbAudC[id]; if (x && x.buf) return x; if (!x) tbAudLoad(id); return null; }
+async function tbAudLoad(id, blob){
+  if (tbAudC[id] && (tbAudC[id].buf || tbAudC[id].p)) return; tbAudC[id] = {p:true};
+  try {
+    const b = blob || await takeTx((m, s) => s.get(id)) || (takes.find(t => t.id === id) || {}).mem;
+    if (!b) { tbAudC[id] = {miss:true}; return; }
+    const C = window.OfflineAudioContext || window.webkitOfflineAudioContext, ab = await b.arrayBuffer();
+    const buf = await new Promise((res, rej) => { const p = new C(1, 1, 44100).decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
+    const d = buf.getChannelData(0), N = 800, per = Math.max(1, Math.floor(d.length / N)), peaks = new Float32Array(N); let top = 0.001;
+    for (let k = 0; k < N; k++) { let m = 0; for (let i = k * per, e = Math.min(d.length, i + per); i < e; i++) { const v = Math.abs(d[i]); if (v > m) m = v; } peaks[k] = m; if (m > top) top = m; }
+    for (let k = 0; k < N; k++) peaks[k] /= top;
+    tbAudC[id] = {buf, peaks};
+  } catch (e) { tbAudC[id] = {miss:true}; }
+  if (state.tab === 'tab' && (tbDoc() || {}).kind === 'audio' && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) render();
+}
+/* a clip's length in seconds (null until its take is loaded) */
+const tbClipDur = c => { const A = tbAudC[c.take]; return A && A.buf ? Math.max(0.02, c.len != null ? Math.min(c.len, A.buf.duration - c.off) : A.buf.duration - c.off) : (c.len || null); };
+function tbCleanClips(cs){
+  return (Array.isArray(cs) ? cs : []).filter(c => c && num(c.take, 1, 9e15, 0) && num(c.at, 0, 1e9, -1) >= 0).slice(0, 200).map(c => Object.assign({id:num(c.id, 1, 9e15, 0) || c.take, take:c.take, at:c.at, off:typeof c.off === 'number' && c.off >= 0 && c.off < 3600 ? c.off : 0, name:String(c.name || 'Take').slice(0, 60)}, typeof c.len === 'number' && c.len > 0 && c.len < 3600 ? {len:c.len} : {}));
+}
+function tbVolOk(v){ return typeof v === 'number' && v >= 0 && v <= 1.5 && v !== 1; }
+function tbPanOk(v){ return typeof v === 'number' && v >= -1 && v <= 1 && v !== 0; }
+/* a recording onto an audio track, just finished: it goes in at the tick it started from, lined up by the mic's delay */
+function tbClipFromTake(R, meta, blob){
+  const T = tabs.find(t => t.id === R.tab), tr = T && (T.tracks || []).find(x => x.id === R.trk); if (!tr) return;
+  const lat = state.micCal ? state.micCal.ms / 1000 : 0, clip = {id:Date.now(), take:meta.id, at:R.tk0 || 0, off:Math.max(0, (R.base || 0) - (R.recA || 0) + lat), name:meta.song};
+  if (T === tbTab()) { tbUndo.push(JSON.stringify(T)); tbRedo = []; }
+  tr.clips = (tr.clips || []).concat([clip]); storeTabs(); tba.clip = clip.id;
+  tbAudLoad(meta.id, blob); toast(`Take added to ${tr.name}${state.micCal ? '' : '. Calibrate mic timing (Practice, Time) so takes line up'}`);
+}
+const tbClipOf = (T, id) => { const tr = T && T.track; return tr && (tr.clips || []).find(c => c.id === id) || null; };
+/* the audio track: a ruler of bars, the clips (with their waveforms), the cursor; then what to do with them */
+function tbAudioHtml(T){
+  const TT = tbTab(), tr = T.track, bt = TT.beats * TQ, PX = 1.25, spt = 60 / TT.bpm / TQ;      // 30 px a beat
+  let end = 4 * bt;
+  tbLanes(TT).forEach(L => { if (L.kind === 'audio') (L.clips || []).forEach(c => { const d = tbClipDur(c); end = Math.max(end, c.at + (d || 4) / spt); }); else end = Math.max(end, tbStarts(L)[L.cols.length]); });
+  end = Math.max(end, tba.at + bt); const bars = Math.ceil(end / bt) + 1, W = bars * bt * PX;
+  let beats = ''; for (let x = 0; x < bars * bt; x += TQ) beats += `<i data-act="tbaudat" data-v="${x}" class="${x % bt ? '' : 'bar'}" style="left:${x * PX}px;width:${TQ * PX}px" title="Bar ${Math.floor(x / bt) + 1}, beat ${(x % bt) / TQ + 1}"></i>`;
+  let ruler = ''; for (let b = 0; b < bars; b++) ruler += `<span style="left:${b * bt * PX + 3}px">${b + 1}</span>`;
+  const clips = (tr.clips || []).map(c => {
+    const A = tbAudC[c.take], d = tbClipDur(c), w = Math.max(18, (d || 4 * 60 / TT.bpm) / spt * PX); let wave = '';
+    if (A && A.peaks) { const N = A.peaks.length, i0 = c.off / A.buf.duration * N, i1 = (c.off + d) / A.buf.duration * N, cols = Math.max(2, Math.floor(w / 2)); let p = '';
+      for (let x = 0; x < cols; x++) { const v = A.peaks[Math.min(N - 1, Math.floor(i0 + (i1 - i0) * x / cols))] * 15; p += `M${x * 2} ${16 - v}V${16 + v}`; }
+      wave = `<svg viewBox="0 0 ${cols * 2} 32" preserveAspectRatio="none" aria-hidden="true"><path d="${p}"/></svg>`; }
+    else if (!A) tbAudLoad(c.take);
+    return `<button type="button" class="tba-clip${tba.clip === c.id ? ' sel' : ''}${A && A.miss ? ' miss' : ''}" data-act="tbclip" data-v="${c.id}" style="left:${c.at * PX}px;width:${w}px" title="${esc(c.name)}">${wave}<small>${A && A.miss ? 'not in this browser · ' : ''}${esc(c.name)}</small></button>`;
+  }).join('');
+  const sel = tbClipOf(T, tba.clip), recNow = (() => { try { return !!rec && rec.owned === 'track'; } catch (e) { return false; } })();
+  const where = `Bar ${Math.floor(tba.at / bt) + 1}, beat ${(tba.at % bt) / TQ + 1}`;
+  const tk = takes.slice().sort((x, y) => y.ts - x.ts).slice(0, 12);
+  return `<div class="tbaud" id="tbaud" style="--w:${W}px"><div class="tba-in"><div class="tba-ruler">${ruler}</div><div class="tba-lane">${beats}${clips}<b class="tba-cur" style="left:${tba.at * PX}px"></b><b class="tba-ph" id="tbaudph" hidden></b></div></div></div>
+    <div class="tbtools"><div class="row nw"><button type="button" class="ib" data-act="tbaudmove" data-v="${-TQ}" aria-label="A beat back"${tba.at > 0 ? '' : ' disabled'}>◀</button><button type="button" class="ib" data-act="tbaudmove" data-v="${TQ}" aria-label="A beat on">▶</button>
+      <span class="info">${where}</span><button type="button" class="ib" data-act="tbundo" aria-label="Undo"${tbUndo.length ? "" : " disabled"}>↶</button><button type="button" class="ib" data-act="tbredo" aria-label="Redo"${tbRedo.length ? "" : " disabled"}>↷</button>
+      <button type="button" class="btn${recNow ? ' primary' : ''}" data-act="tbrec">${recNow ? '■ Stop recording' : '● Record'}</button></div>
+    ${sel ? `<div class="row tbclipsel"><b>${esc(sel.name)}</b>
+        <span class="cl">Move</span><button type="button" class="ib" data-act="tbclipmove" data-v="-6" aria-label="A 16th earlier">⇤</button><button type="button" class="ib" data-act="tbclipmove" data-v="6" aria-label="A 16th later">⇥</button>
+        <span class="cl">Nudge</span><button type="button" class="ib" data-act="tbclipnudge" data-v="10" aria-label="10 ms earlier">−</button><button type="button" class="ib" data-act="tbclipnudge" data-v="-10" aria-label="10 ms later">+</button></div>
+      <div class="row tbclipsel"><span class="cl">Start</span><button type="button" class="ib" data-act="tbcliptrim" data-e="s" data-v="-6" aria-label="Start a 16th sooner">⇤</button><button type="button" class="ib" data-act="tbcliptrim" data-e="s" data-v="6" aria-label="Cut a 16th off the start">⇥</button>
+        <span class="cl">End</span><button type="button" class="ib" data-act="tbcliptrim" data-e="e" data-v="-6" aria-label="Cut a 16th off the end">⇤</button><button type="button" class="ib" data-act="tbcliptrim" data-e="e" data-v="6" aria-label="End a 16th later">⇥</button>
+        <button type="button" class="btn" data-act="tbclipdel">✕ Take</button></div>` : `<span class="info">Tap a beat to put the cursor there, or a take to move, trim or delete it.</span>`}
+    </div>
+    ${fold('tbtakes', 'Put a take here', tk.length || '', tk.length ? `<div class="phfavs">${tk.map(t => `<div class="phfav"><button type="button" class="btn" data-act="tbclipadd" data-v="${t.id}"><b>${esc(t.song)}</b><small>${fmt(t.ms)} · ${new Date(t.ts).toLocaleDateString()}</small></button></div>`).join('')}</div>` : '<span class="info">No takes yet. Record one here, or in Practice, Takes.</span>')}
+    <span class="hint tip">● Record plays the tab from the cursor (after a count-in, if it’s on in Tab settings) and records you onto this track; it stops when the tab ends, or when you tap ■. Use headphones so the mic only hears you. Takes line up using your mic timing (Practice, Time: calibrate). The recordings stay in this browser; the tab keeps where they go.</span>`;
+}
+function tbAudioPage(T, TT, list){
+  return `<div class="tbx">${tbTracksHtml(TT)}${tbAudioHtml(T)}${tbMixHtml(TT)}
+    ${fold('tbset', 'Tab settings', `${esc(TT.name)} · ${TT.beats}/4${state.tabClick ? ' · click' : ''}${state.tabCount ? ' · count-in' : ''}`, `<div class="row"><button type="button" class="chip${state.tabClick ? ' sel' : ''}" data-act="tbclick" aria-pressed="${!!state.tabClick}" title="A click on every beat">Click</button>
+        <button type="button" class="chip${state.tabCount ? ' sel' : ''}" data-act="tbcount" aria-pressed="${!!state.tabCount}" title="One bar of clicks first">Count in</button>
+        <button type="button" class="chip tog${state.tabFromCur ? ' sel' : ''}" data-act="tbfromcur" aria-pressed="${!!state.tabFromCur}" title="Play starts where the cursor is, not at the beginning">Play from the cursor</button></div>`)}
+    ${fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div><div class="row"><button type="button" class="btn" data-act="tbnew">＋ New tab</button></div>`)}</div>`;
+}
+/* moving the mixer's sliders: saved, and heard at once if the tab is playing */
+function tbMixLive(){ const T = tbTab(); if (!T || !tbp.mix) return; tbLanes(T).forEach(L => { const m = tbp.mix[L.id]; if (!m) return; m.g.gain.value = L.vol; if (m.p) m.p.pan.value = L.pan; }); }
+document.addEventListener('input', e => { const el = e.target; if (!el.dataset || el.dataset.mix == null) return; const T = tbTab(); if (!T) return; tbMixSet(T, +el.dataset.mix, el.dataset.p, +el.value / 100); tbMixLive(); storeTabs(); });
+document.addEventListener('dblclick', e => { const el = e.target; if (!el.dataset || el.dataset.mix == null) return; el.value = el.dataset.p === 'vol' ? 100 : 0; el.dispatchEvent(new Event('input', {bubbles:true})); });
+document.addEventListener('change', e => { const el = e.target; if (!el.classList || !el.classList.contains('trname')) return; const T = tbTab(), tr = T && (T.tracks || []).find(x => x.id === +el.dataset.tr); if (!tr) return; tr.name = el.value.trim().slice(0, 30) || tr.name; storeTabs(); render(); });
 function tbRecBtn(){
-  let r = null; try { r = rec; } catch (e) {} const mine = !!r && r.owned === 'tab';
-  return `<button type="button" class="chip tbrec${mine ? ' sel' : ''}" data-act="tbrec" aria-pressed="${mine}" title="${mine ? 'Stop recording' : 'Record yourself over the tab, with all its tracks. The take goes in Practice, Takes.'}"${r && !mine ? ' disabled' : ''}>${mine ? '■ <span data-rec-time>0:00</span>' : '● <span class="tl">Rec</span>'}</button>`;
+  let r = null; try { r = rec; } catch (e) {} const mine = !!r && (r.owned === 'tab' || r.owned === 'track'), onto = (tbDoc() || {}).kind === 'audio';
+  return `<button type="button" class="chip tbrec${mine ? ' sel' : ''}" data-act="tbrec" aria-pressed="${mine}" title="${mine ? 'Stop recording' : onto ? 'Record onto this audio track, from the cursor' : 'Record yourself over the tab, with all its tracks. The take goes in Practice, Takes.'}"${r && !mine ? ' disabled' : ''}>${mine ? '■ <span data-rec-time>0:00</span>' : '● <span class="tl">Rec</span>'}</button>`;
 }
 let tbc = {c:0, s:5}, tbUndo = [], tbRedo = [], tbDelArm = null, tbNum = null;     // the cursor (column, string), undo, a delete waiting for its second tap, a number being typed
 function tbOpen(id){ tbLast = null; tbSel = null; state.tabCur = id; state.tabTrack = 0; const T = tbDoc(); tbc = {c:T ? T.cols.length : 0, s:5}; tbUndo = []; tbRedo = []; tbNum = null; if (tbp.on) tbStop(true); }
@@ -2341,7 +2473,7 @@ function tbEdit(fn){ const T = tbDoc(); if (!T) return; tbUndo.push(JSON.stringi
 function tbUndoDo(redo){
   const T = tbTab(), from = redo ? tbRedo : tbUndo, to = redo ? tbUndo : tbRedo; if (!T || !from.length) return false;
   to.push(JSON.stringify(T)); const o = tbClean(JSON.parse(from.pop()));
-  if (o) { Object.assign(T, o, {id:T.id}); if (!o.tracks) delete T.tracks; if (!o.gmute) delete T.gmute; }
+  if (o) { Object.assign(T, o, {id:T.id}); if (!o.tracks) delete T.tracks; ['gmute', 'gsolo', 'gvol', 'gpan'].forEach(k => { if (o[k] == null) delete T[k]; }); }
   if (state.tabTrack && !tbTrack(T)) state.tabTrack = 0;
   tbc.c = Math.min(tbc.c, tbDoc().cols.length); storeTabs(); return true;
 }
@@ -2622,6 +2754,8 @@ function tbParse(txt){
 /* ---- playing it: legato notes (h p /) have no pick attack, a slide glides, a bend rises, a new note on a string stops the last ---- */
 const tbp = {on:false, srcs:[], events:[], timer:0, raf:0, lit:[], k:-1};
 function tbStop(quiet){
+  let rk = null; try { rk = rec; } catch (e) {} if (rk && rk.owned === 'track' && tbp.on) { takeStop(); return; }      // stopping the tab stops a recording onto a track
+  if (tbp.mix) Object.values(tbp.mix).forEach(m => { try { m.g.disconnect(); } catch (e) {} }); tbp.mix = {};
   clearTimeout(tbp.timer); cancelAnimationFrame(tbp.raf);
   tbp.srcs.forEach(s => { try { s.stop(); } catch (e) {} });
   tbp.lit.forEach(e => e.classList.remove('playing'));
@@ -2630,16 +2764,21 @@ function tbStop(quiet){
   if (!quiet) render();
 }
 /* play the tab, every track that isn't muted, from column `from` of the track being written */
-function tbStart(from){
-  const A0 = tbDoc(), T0 = tbTab(); if (!A0 || !tbHas(T0, tbStarts(A0)[Math.min(from, A0.cols.length)])) return;
+function tbStart(from, opt){
+  opt = opt || {};
+  const A0 = tbDoc(), T0 = tbTab(); if (!A0 || (!opt.rec && !tbHas(T0, opt.tick != null ? opt.tick : tbStarts(A0)[Math.min(from, A0.cols.length)]))) return;
   if (sp.on) scalePlayStop(true);
   tbStop(true);
   const a = getAudio(); if (!a) return;
   if (a.state !== 'running') a.resume().catch(() => {});
-  tbp.on = true; tbp.dr = tbp.dr || 0;
+  tbp.on = true; tbp.dr = tbp.dr || 0; tbp.rec = !!opt.rec; tbp.mix = {};
+  /* each track's own volume and pan, on the way out */
+  const out = L => { let m = tbp.mix[L.id]; if (!m) { const g = a.createGain(), p = a.createStereoPanner ? a.createStereoPanner() : null; g.gain.value = L.vol; if (p) { p.pan.value = L.pan; g.connect(p); p.connect(master); } else g.connect(master); m = tbp.mix[L.id] = {g, p}; } return m.g; };
+  /* an audio track: each clip from where the tab starts; returns the tick its last clip ends */
+  const aud = (L, tk0, at, spt, dest) => { let end = tk0; (L.clips || []).forEach(c => { const A = tbAudGet(c.take); if (!A) return; const dur = tbClipDur(c), e = c.at + dur / spt; end = Math.max(end, e); if (e <= tk0) return; const skip = Math.max(0, (tk0 - c.at) * spt), s = a.createBufferSource(); s.buffer = A.buf; s.connect(dest); s.start(at(Math.max(c.at, tk0)), c.off + skip, dur - skip); tbp.srcs.push(s); tbp.au = (tbp.au || 0) + 1; }); return end; };
   const click = (when, acc) => { const cs = a.createBufferSource(), g = a.createGain(); cs.buffer = clickBuf(acc ? 'acc' : 'beat'); g.gain.value = 0.25; cs.connect(g); g.connect(master); cs.start(when); tbp.srcs.push(cs); };
   /* the guitar: rings until the next note on its string, a rest or a mute */
-  const gtr = (cols, k0, st, at, spt) => {
+  const gtr = (cols, k0, st, at, spt, dest) => {
     const tun = TUNINGS[state.tuning].midi, onStr = [], lastF = [];
     cols.slice(0, k0).forEach(c => c.n.forEach(q => { if (q.t !== 'x') lastF[q.s] = q.f; }));
     const cut = (o, when) => { if (!o.stop || o.stop > when) { o.g.gain.setTargetAtTime(0, when, 0.012); try { o.src.stop(when + 0.08); } catch (e) {} } };
@@ -2653,16 +2792,16 @@ function tbStart(from){
         else { src.buffer = makeBuf(bend ? m + 2 : m); rate = src.buffer.rate; src.playbackRate.value = rate; }
         src.connect(g);
         if (harm) {      // a harmonic: a pure, bell-like tone that rings a long time
-          g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(q.t === 'a' ? 0.2 : 0.26, t + 0.006); g.gain.exponentialRampToValueAtTime(0.001, t + 2.4); g.connect(master); stopAt = t + 2.5;
+          g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(q.t === 'a' ? 0.2 : 0.26, t + 0.006); g.gain.exponentialRampToValueAtTime(0.001, t + 2.4); g.connect(dest); stopAt = t + 2.5;
         } else if (q.t === 'x') {
           const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
-          g.gain.setValueAtTime(0.5, t); g.gain.setTargetAtTime(0, t + 0.02, 0.02); g.connect(lp); lp.connect(master); stopAt = t + 0.25;
+          g.gain.setValueAtTime(0.5, t); g.gain.setTargetAtTime(0, t + 0.02, 0.02); g.connect(lp); lp.connect(dest); stopAt = t + 0.25;
         } else if (c.pm) {
           const lp = a.createBiquadFilter(), fq = 440 * Math.pow(2, (m - 69) / 12), len = Math.min(0.14, dt * 0.85);
           lp.type = 'lowpass'; lp.frequency.value = Math.min(1600, fq * 3.5); lp.Q.value = 0.7;
-          g.gain.setValueAtTime(0.5, t); g.gain.setTargetAtTime(0, t + len, 0.04); g.connect(lp); lp.connect(master); stopAt = t + len + 0.3;
-        } else if (q.t === 'h' || q.t === 'p' || q.t === 's') { const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1500; g.gain.value = 0.3; g.connect(lp); lp.connect(master); }
-        else { g.gain.value = 0.32; g.connect(master); }
+          g.gain.setValueAtTime(0.5, t); g.gain.setTargetAtTime(0, t + len, 0.04); g.connect(lp); lp.connect(dest); stopAt = t + len + 0.3;
+        } else if (q.t === 'h' || q.t === 'p' || q.t === 's') { const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1500; g.gain.value = 0.3; g.connect(lp); lp.connect(dest); }
+        else { g.gain.value = 0.32; g.connect(dest); }
         if (bend) { src.playbackRate.setValueAtTime(rate * Math.pow(2, -2 / 12), t); src.playbackRate.linearRampToValueAtTime(rate, t + Math.min(0.2, dt * 0.6)); }
         if (q.t === 's' && lastF[q.s] != null && lastF[q.s] !== q.f) { src.playbackRate.setValueAtTime(rate * Math.pow(2, (lastF[q.s] - q.f) / 12), t); src.playbackRate.exponentialRampToValueAtTime(rate, t + Math.min(0.12, dt * 0.5)); }
         if (q.t === 'v' && src.detune) {
@@ -2678,33 +2817,38 @@ function tbStart(from){
       });
     });
   };
-  const drums = (cols, k0, st, at, kit) => cols.slice(k0).forEach((c, j) => c.n.forEach(q => { drumHit(q.s, at(st[k0 + j]), tbp.srcs, q.t, kit); tbp.dr++; }));
+  const drums = (cols, k0, st, at, kit, dest) => cols.slice(k0).forEach((c, j) => c.n.forEach(q => { drumHit(q.s, at(st[k0 + j]), tbp.srcs, q.t, kit, dest); tbp.dr++; }));
   const cycle = (t0, first) => {
     const T = tbTab(), A = tbDoc(); if (!tbp.on || !T || !A) { tbStop(); return; }
-    const k0 = Math.min(from, A.cols.length), tk0 = tbStarts(A)[k0];
-    if (!tbHas(T, tk0)) { tbStop(); return; }
+    const k0 = Math.min(from, A.cols.length), tk0 = opt.tick != null ? opt.tick : tbStarts(A)[k0];
+    if (!opt.rec && !tbHas(T, tk0)) { tbStop(); return; }
     const spt = 60 / T.bpm / TQ, bt = T.beats * TQ;
     let t = t0;
     if (first && state.tabCount) { for (let k = 0; k < T.beats; k++) click(t + k * TQ * spt, !k); t += bt * spt; }
     const base = t, at = tick => base + (tick - tk0) * spt;
+    if (first) Object.assign(tbp, {base, tk0, spt});
     let endTick = tk0, lanes = 0;
     tbLanes(T).forEach(L => {
-      if (L.mute) return; const st = tbStarts(L), k = st.findIndex(x => x >= tk0); if (k < 0 || k >= L.cols.length) return;
+      if (!tbHeard(T, L)) return;
+      if (L.kind === 'audio') { if (!(L.clips || []).length) return; const e = aud(L, tk0, at, spt, out(L)); if (e > tk0) { endTick = Math.max(endTick, e); lanes++; } return; }
+      const st = tbStarts(L), k = st.findIndex(x => x >= tk0); if (k < 0 || k >= L.cols.length) return;
       endTick = Math.max(endTick, st[L.cols.length]); if (L.cols.some(c => c.n.length)) lanes++;
-      if (L.kind === 'drums') drums(L.cols, k, st, at, kitOf(L)); else gtr(L.cols, k, st, at, spt);
+      if (L.kind === 'drums') drums(L.cols, k, st, at, kitOf(L), out(L)); else gtr(L.cols, k, st, at, spt, out(L));
     });
     if (lanes > 1 || A.kind) endTick = Math.ceil(endTick / bt) * bt;      // with drums, it loops on a bar line so the beat stays even
-    if (state.tabClick) for (let x = Math.ceil(tk0 / TQ) * TQ; x < endTick; x += TQ) click(at(x), x % bt === 0);
+    if (opt.rec) endTick = endTick > tk0 ? endTick + bt : tk0 + 64 * bt;      // recording: a bar after the end to ring out (or, over nothing, 64 bars of click)
+    if (state.tabClick || (opt.rec && !lanes)) for (let x = Math.ceil(tk0 / TQ) * TQ; x < endTick; x += TQ) click(at(x), x % bt === 0);
     const sa = tbStarts(A); for (let k = k0; k < A.cols.length; k++) tbp.events.push({t:at(sa[k]), k});
     const end = at(endTick);
     tbp.srcs = tbp.srcs.slice(-1500); tbp.events = tbp.events.filter(e => e.t > a.currentTime - 1);
-    tbp.timer = setTimeout(() => { if (!tbp.on) return; if (state.tabLoop) cycle(end, false); else tbp.timer = setTimeout(() => tbStop(), Math.max(400, (end - a.currentTime) * 1000 + 300)); }, Math.max(0, (end - a.currentTime - 0.25) * 1000));
+    tbp.timer = setTimeout(() => { if (!tbp.on) return; if (state.tabLoop && !tbp.rec) cycle(end, false); else tbp.timer = setTimeout(() => tbStop(), Math.max(400, (end - a.currentTime) * 1000 + 300)); }, Math.max(0, (end - a.currentTime - 0.25) * 1000));
   };
   cycle(a.currentTime + 0.08, true);
   const paint = () => {
     if (!tbp.on) return;
     const now = a.currentTime - avLag(); let cur = null;
     for (const e of tbp.events) if (e.t <= now + 0.01) cur = e;
+    { const ph = document.getElementById('tbaudph'); if (ph && tbp.spt) { const tk = tbp.tk0 + (now - tbp.base) / tbp.spt; ph.hidden = now < tbp.base; ph.style.left = (tk * 1.25) + 'px'; } }      // the audio track's playhead
     const k = cur ? cur.k : -1, col = k >= 0 ? document.querySelector(`.tbc[data-c="${k}"]`) : null;
     if (k !== tbp.k || (col && !col.classList.contains('on')) || tbp.lit.some(e => !e.isConnected)) {
       tbp.k = k; document.querySelectorAll('.tbc.on').forEach(e => { if (e !== col) e.classList.remove('on'); });
@@ -2754,6 +2898,7 @@ function renderTab(){
       <div class="row"><button type="button" class="btn primary" data-act="tbnew">＋ New tab</button></div></div>
     ${tabs.length ? fold('tblist', 'Your tabs', tabs.length, `<div class="phfavs">${list}</div>`, true) : ''}
     ${fold('tbtext', 'Paste a text tab', '', imp)}</div>`;
+  if (T.kind === 'audio') return tbAudioPage(T, TT, list);
   const c = tbAt(T), q = c && c.n.find(z => z.s === tbc.s), dc = tbCurDur(), bars = tbBars(T), bi = bars.findIndex(b => tbc.c >= b.from && (tbc.c < b.to || b === bars[bars.length - 1]));
   const rd = !dr && c && c.n.length > 1 ? readings(c.n.filter(z => z.t !== 'x')).sel : null, ph = tbPhLayer();
   const where = c ? `Column ${tbc.c + 1} of ${T.cols.length} · bar ${bi + 1} · ${dr ? DK[tbc.s].name : STRING_ORD[tbc.s] + ' string'}${rd ? ` · sounds like <b>${rd.name}</b>` : ''}${bars[bi] && bars[bi].ticks > T.beats * TQ ? ` · this bar is longer than ${T.beats} beats` : ''}` : `New column · bar ${bi + 1}. ${dr ? 'Tap the drums' : 'Tap the neck'} to put ${dr ? 'hits' : 'notes'} in it${state.tabAdv ? '' : ', then Next ▶'}.`;
@@ -2785,6 +2930,7 @@ function renderTab(){
       <span class="info tbwhere">${where}</span>
     </div>
     ${dr ? tbFillHtml(T) + tbKitHtml() : ''}
+    ${tbMixHtml(TT)}
     ${fold('tbmore', 'More tools', 'insert, chords, select, labels', `<div class="row"><button type="button" class="btn" data-act="tbins" title="A new empty column here">Insert</button>
         <button type="button" class="btn" data-act="tbdelcol"${c ? '' : ' disabled'}>✕ Column</button>${sel.btn}
         <button type="button" class="btn" data-act="tbdup"${T.cols.length ? '' : ' disabled'} title="Copy this bar right after itself">Repeat this bar</button>
@@ -2812,7 +2958,7 @@ function tbScrollFit(){ const top = $('#tbsheet'), w = $('.neck-wrap'); if (!top
 function tbTransport(){
   const T = tbDoc(); if (!T) return '';
   const c = tbAt(T), rd = !T.kind && c && c.n.length > 1 ? readings(c.n.filter(z => z.t !== 'x')).sel : null;
-  let recT = false; try { recT = !!rec && rec.owned === 'tab'; } catch (e) {}      // recording over it: the tempo stays put, and the timer gets the room
+  let recT = false; try { recT = !!rec && (rec.owned === 'tab' || rec.owned === 'track'); } catch (e) {}      // recording over it: the tempo stays put, and the timer gets the room
   return `<span class="tbtr"><button type="button" class="btn${tbp.on ? ' primary' : ''}" data-act="tbplay" aria-pressed="${tbp.on}"${tbHas(tbTab(), 0) && !recT ? '' : ' disabled'}>${tbp.on ? '■ <span class="tl">Stop</span>' : '▶ <span class="tl">Play</span>'}</button>
     ${recT ? `<b>${T.bpm}</b>` : `<button type="button" class="ib" data-act="tbbpm" data-v="-5" aria-label="5 bpm slower">−</button><b>${T.bpm}</b><button type="button" class="ib" data-act="tbbpm" data-v="5" aria-label="5 bpm faster">+</button>`}<small>bpm</small>
     <button type="button" class="chip${state.tabLoop ? ' sel' : ''}" data-act="tbloop" aria-pressed="${!!state.tabLoop}" aria-label="Loop" title="Loop">↻</button>${tbRecBtn()}</span>${rd ? `<span class="lg-tip">sounds like <b>${rd.name}</b></span>` : ''}`;
@@ -2851,9 +2997,22 @@ function handleTab(act, b){
   if (!T) return false;
   switch (act) {
     case 'tbtrack': tbGoTrack(+v); if (T.kind !== 'drums' && tbDoc().kind === 'drums' && state.neckHidden) setNeckHidden(false); break;
-    case 'tbaddtrack': { const id = Date.now(), have = (tbTab().tracks || []).length; tbEditTab(X => { X.tracks = (X.tracks || []).concat([Object.assign({id, kind:'drums', name:have ? 'Drums ' + (have + 1) : 'Drums', cols:[]}, kitOf({kit:state.kitLast}) ? {kit:state.kitLast} : {})]); }); tbGoTrack(id); if (state.neckHidden) setNeckHidden(false); break; }
-    case 'tbmutetrack': { const X = tbTab(), tr = tbTrack(X); if (tr) { if (tr.mute) delete tr.mute; else tr.mute = true; } else if (X.gmute) delete X.gmute; else X.gmute = true; storeTabs(); if (tbp.on) tbStart(0); break; }
-    case 'tbtrackdel': { const X = tbTab(), tr = tbTrack(X); if (!tr) break; if (tbDelArm !== 'tr' + tr.id) { tbDelArm = 'tr' + tr.id; break; } tbDelArm = null; if (tbp.on) tbStop(true); tbEditTab(Y => { Y.tracks = Y.tracks.filter(x => x.id !== tr.id); if (!Y.tracks.length) delete Y.tracks; }); state.tabTrack = 0; tbc.c = Math.min(tbc.c, X.cols.length); tbc.s = 5; break; }
+    case 'tbaddtrack': { const X = tbTab(), k = TB_KINDS[v] ? v : 'drums'; let id = Date.now(); while ((X.tracks || []).some(x => x.id === id)) id++; if ((X.tracks || []).length >= TB_MAXTR) break;
+      const n = (X.tracks || []).filter(x => x.kind === k).length + (k === 'gtr' ? 1 : 0);
+      tbEditTab(Y => { Y.tracks = (Y.tracks || []).concat([Object.assign({id, kind:k, name:n ? tbKindName(k) + ' ' + (n + 1) : tbKindName(k)}, k === 'audio' ? {clips:[], cols:[]} : {cols:[]}, k === 'drums' && kitOf({kit:state.kitLast}) ? {kit:state.kitLast} : {})]); });
+      tbGoTrack(id); if (k === 'drums' && state.neckHidden) setNeckHidden(false); break; }
+    case 'tbmutetrack': case 'tbsolotrack': case 'tbmixmute': case 'tbmixsolo': {
+      const X = tbTab(), id = act === 'tbmixmute' || act === 'tbmixsolo' ? +v : (tbTrack(X) || {id:0}).id, key = /solo/.test(act) ? 'solo' : 'mute', L = tbMixGet(X, id); if (!L) break;
+      tbMixSet(X, id, key, !L[key]); storeTabs(); if (tbp.on && !tbp.rec) tbStart(0); break; }
+    case 'tbaudat': tba.at = Math.max(0, +v); tba.clip = null; break;
+    case 'tbaudmove': tba.at = Math.max(0, tba.at + +v); break;
+    case 'tbclip': tba.clip = tba.clip === +v ? null : +v; break;
+    case 'tbclipadd': { const tk = takes.find(x => x.id === +v); if (!tk || !T.track) break; const id = Date.now(); tbEditTab(() => { T.track.clips = (T.track.clips || []).concat([{id, take:tk.id, at:tba.at, off:0, name:tk.song}]); }); tba.clip = id; tbAudLoad(tk.id); break; }
+    case 'tbclipdel': { const c = tbClipOf(T, tba.clip); if (!c) break; tbEditTab(() => { T.track.clips = T.track.clips.filter(x => x !== c); }); tba.clip = null; break; }
+    case 'tbclipmove': { const c = tbClipOf(T, tba.clip); if (!c) break; tbEditTab(() => { c.at = Math.max(0, c.at + +v); }); break; }
+    case 'tbclipnudge': { const c = tbClipOf(T, tba.clip); if (!c) break; tbEditTab(() => { c.off = Math.max(0, Math.round((c.off + +v / 1000) * 1000) / 1000); }); break; }
+    case 'tbcliptrim': { const c = tbClipOf(T, tba.clip), d = c && tbClipDur(c), A = c && tbAudC[c.take]; if (!c || !d || !A || !A.buf) break; const spt = 60 / T.bpm / TQ, dt = +v * spt;
+      tbEditTab(() => { if (b.dataset.e === 's') { const dd = Math.max(-c.off, Math.min(d - 0.05, dt)); c.at = Math.max(0, c.at + Math.round(dd / spt)); c.off += dd; c.len = d - dd; } else c.len = Math.max(0.05, Math.min(A.buf.duration - c.off, d + dt)); if (c.len >= A.buf.duration - c.off - 0.001) delete c.len; }); break; }    case 'tbtrackdel': { const X = tbTab(), tr = tbTrack(X); if (!tr) break; if (tbDelArm !== 'tr' + tr.id) { tbDelArm = 'tr' + tr.id; break; } tbDelArm = null; if (tbp.on) tbStop(true); tbEditTab(Y => { Y.tracks = Y.tracks.filter(x => x.id !== tr.id); if (!Y.tracks.length) delete Y.tracks; }); state.tabTrack = 0; tbc.c = Math.min(tbc.c, X.cols.length); tbc.s = 5; break; }
     case 'tbbeat': tbBeat(v); break;
     case 'tbkitplay': drumHit(+v, 0, null, '', kitCur()); return true;
     case 'tbkitclear': kitClear(+v); return true;
@@ -2876,11 +3035,11 @@ function handleTab(act, b){
     case 'tbfcres': { const F = tbFillCfg(); F.cres = !F.cres; break; }
     case 'tbfcrash': { const F = tbFillCfg(); F.crash = !F.crash; break; }
     case 'tbfill': tbFill(); break;
-    case 'tbrec': { let r0 = null; try { r0 = rec; } catch (e) {} if (r0) takeStop(); else takeStart('tab'); return true; }
+    case 'tbrec': { let r0 = null; try { r0 = rec; } catch (e) {} if (r0) takeStop(); else takeStart(T.kind === 'audio' ? 'track' : 'tab'); return true; }
     case 'tbcell': if (tbShift && !tbSel) tbSel = {a:Math.min(tbc.c, Math.max(0, T.cols.length - 1))}; tbc = {c:Math.min(+b.dataset.c, T.cols.length), s:+b.dataset.s}; tbNum = null; { const z = tbAt(T), q = z && z.n.find(x => x.s === tbc.s); if (q && T.kind === 'drums') drumHit(q.s, 0, null, q.t, kitCur()); else if (q && q.t !== 'x') pluck(TUNINGS[state.tuning].midi[q.s] + q.f); } break;
     case 'tbbpm': T.bpm = Math.max(30, Math.min(300, T.bpm + +v)); storeTabs(); break;
     case 'tbbeats': tbEdit(T => { T.beats = Math.max(1, Math.min(12, T.beats + +v)); }); break;
-    case 'tbplay': if (tbp.on) tbStop(true); else tbStart(state.tabFromCur && tbc.c < T.cols.length && T.cols.slice(tbc.c).some(x => x.n.length) ? tbc.c : 0); break;
+    case 'tbplay': if (tbp.on) tbStop(true); else if (T.kind === 'audio') tbStart(0, state.tabFromCur ? {tick:tba.at} : {}); else tbStart(state.tabFromCur && tbc.c < T.cols.length && T.cols.slice(tbc.c).some(x => x.n.length) ? tbc.c : 0); break;
     case 'tbfromcur': state.tabFromCur = !state.tabFromCur; break;
     case 'tbplayhere': tbStart(tbc.c); break;
     case 'tbloop': state.tabLoop = !state.tabLoop; break;
@@ -2926,6 +3085,7 @@ function handleTab(act, b){
 /* the keyboard, while the tab has focus */
 function tbKey(e){
   const T = tbDoc(); if (!T) return;
+  if (T.kind === 'audio') { if (e.key === ' ') { e.preventDefault(); handleTab('tbplay', {dataset:{}}); } return; }
   const k = e.key, ctl = e.ctrlKey || e.metaKey, lk = k.length === 1 ? k.toLowerCase() : k;
   const go = () => { e.preventDefault(); tbRender(); };
   if (ctl && lk === 'z') { tbUndoDo(e.shiftKey); return go(); }
@@ -6307,7 +6467,7 @@ async function takeStart(over){
   try {
     const a = await audioForMic(r.stream), R = {stream:r.stream, chunks:[], nodes:[], mime, owned:null};
     let out = r.stream;
-    if (c.mix) {       // the mic arrives late, so the backing is held back by the same delay
+    if (c.mix && ov !== 'track') {       // the mic arrives late, so the backing is held back by the same delay
       const dest = a.createMediaStreamDestination(), src = a.createMediaStreamSource(r.stream), d = a.createDelay(1);
       d.delayTime.value = Math.max(0, Math.min(0.9, (state.micCal ? state.micCal.ms : 0) / 1000));
       src.connect(dest); bus.connect(d); d.connect(dest); R.nodes = [src, d]; R.bus = bus; out = dest.stream;
@@ -6318,18 +6478,19 @@ async function takeStart(over){
     R.mr.onerror = () => takeStop();
     r.stream.getAudioTracks().forEach(t => { t.onended = () => { if (rec === R) takeStop(); }; });
     R.mr.start(1000); R.t0 = Date.now(); rec = R;
-    if (ov === 'tab') { const T = tbTab(); if (loop.on) loopStop(); if (metro.on) metroStop(); tbStart(0); R.owned = 'tab'; R.song = song || T.name; }
+    if (ov === 'track') { const T = tbTab(), A = tbDoc(); if (loop.on) loopStop(); if (metro.on) metroStop(); R.recA = getAudio().currentTime; R.tab = T.id; R.trk = A.track.id; tbStart(0, {rec:true, tick:tba.at}); R.owned = 'track'; R.base = tbp.base; R.tk0 = tbp.tk0; R.song = song || T.name + ' · ' + A.track.name; }
+    else if (ov === 'tab') { const T = tbTab(); if (loop.on) loopStop(); if (metro.on) metroStop(); tbStart(0); R.owned = 'tab'; R.song = song || T.name; }
     else if (ov === 'loop') { if (!loop.on) { const had = metro.on; loopStart(true); R.owned = had ? 'loop' : 'both'; } R.song = song || loop.chords.slice(0, 8).map(x => x.name).join(' ') + (loop.chords.length > 8 ? ' …' : ''); }
     else if (ov === 'click') { if (!metro.on) { metroStart(); R.owned = 'metro'; } R.song = song || 'Over a click'; }
     else R.song = song || 'Free take';
-    R.bpm = ov === 'none' ? null : ov === 'tab' ? tbTab().bpm : state.metro.bpm;
+    R.bpm = ov === 'none' ? null : ov === 'tab' || ov === 'track' ? tbTab().bpm : state.metro.bpm;
   } catch (e) { if (rec) takeStop(); else closeMic(r.stream); state.tkErr = 'The recording could not start. Try again, or reload the page.'; }
   requestWake(); render();
 }
 function takeStop(){
   if (!rec) return;
   const R = rec; rec = null; R.ms = Date.now() - R.t0;
-  if (R.owned === 'both' || R.owned === 'loop') { if (loop.on) loopStop(); } else if (R.owned === 'metro' && metro.on) metroStop(); else if (R.owned === 'tab' && tbp.on) tbStop(true);
+  if (R.owned === 'both' || R.owned === 'loop') { if (loop.on) loopStop(); } else if (R.owned === 'metro' && metro.on) metroStop(); else if ((R.owned === 'tab' || R.owned === 'track') && tbp.on) tbStop(true);
   try { if (R.mr.state !== 'inactive') R.mr.stop(); else takeSave(R); } catch (e) { takeSave(R); }
   releaseWake(); render();
 }
@@ -6342,6 +6503,7 @@ async function takeSave(R){
   const meta = {id:Date.now(), ts:R.t0, ms:R.ms, song:R.song || 'Free take', bpm:R.bpm || null, star:false, size:blob.size, mime:blob.type};
   try { await takeTx((m, b) => { m.put(meta); b.put(blob, meta.id); }, 'readwrite'); takes.push(meta); toast('Take saved'); }
   catch (e) { meta.mem = blob; takes.push(meta); toast('This browser would not store the take. Download it before closing the page.'); }
+  if (R.trk) tbClipFromTake(R, meta, blob);      // recorded onto an audio track: it goes there too
   if (R.ms >= 20000 && !(state.session && !state.session.done)) logEntry({kind:'take', key:'take|' + meta.song.toLowerCase(), title:'Take: ' + meta.song, ms:R.ms, bpm:null, clean:null});
   render();
 }
@@ -7301,7 +7463,7 @@ try { if (navigator.storage && navigator.storage.persist) navigator.storage.pers
 lessonsToNps();
 if (state.guideBack) guideRestore();      // the page closed in the middle of a guide: put the neck back
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, BUILT, kitBuiltLoad, kitSound, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, tba, tbAudC, tbClipFromTake, tbLanes, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, BUILT, kitBuiltLoad, kitSound, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, get phrFavs(){ return phrFavs; }, phrFavOk, get sp(){ return sp; }, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, scalesForChord, followView, loopShape, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
@@ -7320,7 +7482,7 @@ function render(){
   if (hold) panel.style.minHeight = panel.offsetHeight + 'px';
   // the scale player stops when its layer no longer has a scale position to play (changed, cleared or removed)
   if (sp.on) { const pl = state.layers.find(x => x.id === sp.layerId); if (!pl || pl.kind !== 'scale' || !pl.pos) scalePlayStop(true); }
-  if (tbp.on && state.tab !== 'tab' && !(rec && rec.owned === 'tab')) tbStop(true);      // recording over it, it keeps playing      // a tab only plays while it's open
+  if (tbp.on && state.tab !== 'tab' && !(rec && (rec.owned === 'tab' || rec.owned === 'track'))) tbStop(true);      // recording over it, it keeps playing      // a tab only plays while it's open
   document.body.classList.toggle('tabed', state.tab === 'tab');      // writing tab: a small phone gives the transport the room Focus took
   renderToolbar();
   renderBoard();
