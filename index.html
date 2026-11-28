@@ -471,6 +471,9 @@ body.pv-done .neck-wrap{display:none !important}
 .tbc i b{font-size:12px; font-weight:650; padding:0 2px; background:var(--surface); line-height:16px; font-variant-numeric:tabular-nums; border-radius:4px; white-space:nowrap}
 .tbc i b.t-h, .tbc i b.t-p, .tbc i b.t-s{color:var(--accent)}
 .tbc i b.t-x{color:var(--muted)}
+.tbc i b.acc{font-weight:900; box-shadow:inset 0 -2px 0 var(--ink, currentColor)}      /* an accent: bold, underlined */
+.tbc i b.gh{font-weight:500; color:var(--muted)}
+.tbc i b sup{font-size:8px; font-weight:800; margin-left:1px; vertical-align:4px; line-height:0; color:var(--accent)}
 .tbc i b.t-n, .tbc i b.t-a{color:var(--accent); font-style:italic}
 .tbtr{display:inline-flex; align-items:center; gap:6px; color:var(--ink, inherit)}
 .tbtr .btn{padding:3px 12px; white-space:nowrap; flex:none}
@@ -2133,7 +2136,7 @@ function wamOk(u){ return typeof u === 'string' && /^https:\/\/[^\s"'<>]+\.m?js(
 function tbCleanCols(cs, dr){
   return (Array.isArray(cs) ? cs : []).slice(0, TMAX).filter(c => c && tbDurOk(c.d)).map(c => {
     const seen = new Set(), raw = (Array.isArray(c.n) ? c.n : []).filter(q => q && num(q.s, 0, dr ? DK.length - 1 : 5, -1) >= 0 && (dr || num(q.f, 0, 24, -1) >= 0) && !seen.has(q.s) && seen.add(q.s));
-    const n = dr ? raw.map(q => Object.assign({s:q.s, f:0}, q.t === 'g' || q.t === 'a' ? {t:q.t} : {})) : raw.map(q => Object.assign({s:q.s, f:q.f}, TTECH[q.t] ? {t:q.t} : {}, q.t !== 'x' && num(q.len, 1, 9999, 0) ? {len:q.len} : {}));
+    const n = dr ? raw.map(q => Object.assign({s:q.s, f:0}, q.t === 'g' || q.t === 'a' ? {t:q.t} : {})) : raw.map(q => Object.assign({s:q.s, f:q.f}, TTECH[q.t] ? {t:q.t} : {}, q.t !== 'x' && num(q.len, 1, 9999, 0) ? {len:q.len} : {}, q.dy === 'g' || q.dy === 'a' ? {dy:q.dy} : {}, q.at === 'T' || q.at === 'P' ? {at:q.at} : {}));
     return Object.assign({d:c.d, n}, typeof c.lab === 'string' && c.lab.trim() ? {lab:c.lab.trim().slice(0, 24)} : {}, !dr && c.pm === true ? {pm:true} : {});
   });
 }
@@ -2778,7 +2781,7 @@ function midiBytes(T){
       if (drum) { const n = GM_DRUM[DK[q.s].id], v = q.t === 'g' ? 40 : q.t === 'a' ? 122 : 96; evs.push({t:st[k] * K, o:3, d:[0x90 | c0, n, v]}, {t:(st[k] + Math.min(c.d, 6)) * K, o:2, d:[0x80 | c0, n, 0]}); return; }
       if (q.t === 'x') return;
       let e = st[k] + Math.min(2 * TQ, q.len || 1e9); for (let j = k + 1; j < L.cols.length; j++) { if (!L.cols[j].n.length || L.cols[j].n.some(z => z.s === q.s)) { e = Math.min(e, st[j]); break; } } e = Math.min(e, st[L.cols.length]);
-      const n = Math.max(0, Math.min(127, q.t === 'n' || q.t === 'a' ? tbHarmPitch(q, tun) : tun[q.s] + q.f)), v = c.pm ? 70 : q.t === 'h' || q.t === 'p' ? 80 : 96;
+      const n = Math.max(0, Math.min(127, q.t === 'n' || q.t === 'a' ? tbHarmPitch(q, tun) : tun[q.s] + q.f)), v = tbVelOf(q, c, 96);
       evs.push({t:st[k] * K, o:3, d:[0x90 | c0, n, v]}, {t:Math.max(st[k] + 1, e) * K, o:2, d:[0x80 | c0, n, 0]});
     }));
     tracks.push(track(evs));
@@ -2825,7 +2828,7 @@ function tbSpans(L){
     if (q.t === 'x' || tun[q.s] == null) return;
     let e = st[k] + Math.min(2 * TQ, q.len || 1e9); for (let j = k + 1; j < L.cols.length; j++) if (!L.cols[j].n.length || L.cols[j].n.some(z => z.s === q.s)) { e = Math.min(e, st[j]); break; }
     e = Math.max(st[k] + 1, Math.min(e, st[L.cols.length]));
-    out.push([st[k], e, Math.max(0, Math.min(127, q.t === 'n' || q.t === 'a' ? tbHarmPitch(q, tun) : tun[q.s] + q.f)), c.pm ? 70 : q.t === 'h' || q.t === 'p' ? 80 : 100]);
+    out.push([st[k], e, Math.max(0, Math.min(127, q.t === 'n' || q.t === 'a' ? tbHarmPitch(q, tun) : tun[q.s] + q.f)), tbVelOf(q, c, 100)]);
   }));
   return out;
 }
@@ -3293,6 +3296,26 @@ function tbBars(T){
 /* a note as tab text: h7 p5 /9 \5 7b 7~ x. A slide shows which way it goes from the last note on that string. */
 const tbPre = (q, pf) => q.t === 'n' ? '<' : q.t === 'h' ? 'h' : q.t === 'p' ? 'p' : q.t === 's' ? (pf != null && pf > q.f ? '\\' : '/') : '';
 const tbCore = q => q.t === 'x' ? 'x' : String(q.f) + (q.t === 'b' ? 'b' : q.t === 'v' ? '~' : q.t === 'n' ? '>' : q.t === 'a' ? 'PH' : '');
+/* a note on the tab sheet: a ghost note in brackets, an accent bold (its class), slap and pop as T and P beside it, as bass tab writes them */
+const tbShow = (q, pf) => { const x = tbPre(q, pf) + tbCore(q); return (q.dy === 'g' ? '(' + x + ')' : x) + (q.at ? `<sup>${q.at}</sup>` : ''); };
+/* how hard a note is played, as a MIDI velocity (for plugins and the MIDI file) */
+const tbVelOf = (q, c, base) => q.dy === 'g' ? 45 : q.dy === 'a' ? 122 : q.at ? 112 : c.pm ? 70 : q.t === 'h' || q.t === 'p' ? 80 : base;
+/* the sound of how a note is played, put between it and its track: harder or softer (a ghost, duller too); a slap or a pop,
+   brighter, with the click of a thumb hitting the string or a finger snapping it back. Returns where the note goes. */
+const tbNoise = new WeakMap();
+function tbTouch(a, dest, q, t, S){
+  let nd = dest;
+  if (q.at) {
+    const hs = a.createBiquadFilter(); hs.type = 'highshelf'; hs.frequency.value = q.at === 'P' ? 1800 : 900; hs.gain.value = q.at === 'P' ? 11 : 8; hs.connect(nd); nd = hs;
+    let nb = tbNoise.get(a); if (!nb) { nb = a.createBuffer(1, Math.round(a.sampleRate * 0.05), a.sampleRate); const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; tbNoise.set(a, nb); }
+    const n = a.createBufferSource(), bp = a.createBiquadFilter(), ng = a.createGain(); n.buffer = nb; bp.type = 'bandpass'; bp.frequency.value = q.at === 'P' ? 4200 : 2000; bp.Q.value = 1.2;
+    ng.gain.setValueAtTime(q.at === 'P' ? 0.45 : 0.35, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.03); n.connect(bp); bp.connect(ng); ng.connect(dest); n.start(t); n.stop(t + 0.05); if (S) S.srcs.push(n);
+  }
+  if (q.dy === 'g') { const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1200; lp.connect(nd); nd = lp; }
+  const vf = q.dy === 'a' ? 1.5 : q.dy === 'g' ? 0.4 : q.at ? 1.2 : 1;
+  if (vf !== 1) { const vg = a.createGain(); vg.gain.value = vf; vg.connect(nd); nd = vg; }
+  return nd;
+}
 /* put a note on string s at fret f in the cursor's column. From the neck, the same note again takes it off; Step moves on. */
 function tbPut(s, f, fromNeck){
   const T = tbDoc(); if (!T) return; tbSel = null;
@@ -3584,21 +3607,23 @@ function tbEngine(a, M, S){
       if (!c.n.length) onStr.forEach((o, s) => { if (o) { cut(o, t); onStr[s] = null; } });      // a rest stops everything
       c.n.forEach(q => {
         const m = tun[q.s] + q.f, harm = q.t === 'n' || q.t === 'a', src = harm ? a.createOscillator() : a.createBufferSource(), g = a.createGain(), bend = q.t === 'b';
+        const nd = tbTouch(a, dest, q, t, S);      // how it's played
         let stopAt = 0, rate = 1;
         if (harm) { src.type = q.t === 'a' ? 'triangle' : 'sine'; src.frequency.value = 440 * Math.pow(2, (tbHarmPitch(q, tun) - 69) / 12); }
         else { const v = gsVoice(bend ? m + 2 : m, snd); src.buffer = v.b; rate = v.r; src.playbackRate.value = rate; }
         src.connect(g); if (pf && src.detune) pf(src.detune, st[k0 + j], Math.max(c.d, 2 * TQ));
         if (harm) {      // a harmonic: a pure, bell-like tone that rings a long time
-          g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(q.t === 'a' ? 0.2 : 0.26, t + 0.006); g.gain.exponentialRampToValueAtTime(0.001, t + 2.4); g.connect(dest); stopAt = t + 2.5;
+          g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(q.t === 'a' ? 0.2 : 0.26, t + 0.006); g.gain.exponentialRampToValueAtTime(0.001, t + 2.4); g.connect(nd); stopAt = t + 2.5;
         } else if (q.t === 'x') {
           const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
-          g.gain.setValueAtTime(0.5, t); g.gain.setTargetAtTime(0, t + 0.02, 0.02); g.connect(lp); lp.connect(dest); stopAt = t + 0.25;
+          g.gain.setValueAtTime(0.5, t); g.gain.setTargetAtTime(0, t + 0.02, 0.02); g.connect(lp); lp.connect(nd); stopAt = t + 0.25;
         } else if (c.pm) {
           const lp = a.createBiquadFilter(), fq = 440 * Math.pow(2, (m - 69) / 12), len = Math.min(0.14, dt * 0.85);
           lp.type = 'lowpass'; lp.frequency.value = Math.min(1600, fq * 3.5); lp.Q.value = 0.7;
-          g.gain.setValueAtTime(0.5, t); g.gain.setTargetAtTime(0, t + len, 0.04); g.connect(lp); lp.connect(dest); stopAt = t + len + 0.3;
-        } else if (q.t === 'h' || q.t === 'p' || q.t === 's') { const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1500; g.gain.value = 0.3; g.connect(lp); lp.connect(dest); }
-        else { g.gain.value = 0.32; g.connect(dest); }
+          g.gain.setValueAtTime(0.5, t); g.gain.setTargetAtTime(0, t + len, 0.04); g.connect(lp); lp.connect(nd); stopAt = t + len + 0.3;
+        } else if (q.t === 'h' || q.t === 'p' || q.t === 's') { const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1500; g.gain.value = 0.3; g.connect(lp); lp.connect(nd); }
+        else { g.gain.value = 0.32; g.connect(nd); }
+        if (q.dy === 'g' && !harm && q.t !== 'x') { const e2 = t + Math.min(0.16, dt); if (!stopAt || e2 < stopAt) { g.gain.setTargetAtTime(0, e2, 0.03); stopAt = e2 + 0.2; } }      // a ghost note: barely there, and short
         if (bend) { src.playbackRate.setValueAtTime(rate * Math.pow(2, -2 / 12), t); src.playbackRate.linearRampToValueAtTime(rate, t + Math.min(0.2, dt * 0.6)); }
         if (q.t === 's' && lastF[q.s] != null && lastF[q.s] !== q.f) { src.playbackRate.setValueAtTime(rate * Math.pow(2, (lastF[q.s] - q.f) / 12), t); src.playbackRate.exponentialRampToValueAtTime(rate, t + Math.min(0.12, dt * 0.5)); }
         if (q.t === 'v' && src.detune) {
@@ -3707,7 +3732,7 @@ function tbSheet(T){
     const rows = rws.map(s => {
       const q = c && c.n.find(z => z.s === s), at = cur && tbc.s === s;
       const mu = mutes.get(k + ':' + s), cls = [at ? 'at' : '', mu && !q ? 'mu mu-' + mu : ''].filter(Boolean).join(' ');
-      return `<i data-act="tbcell" data-c="${k}" data-s="${s}"${cls ? ` class="${cls}"` : ''}${mu && !q ? ' title="Muted here"' : ''}>${q ? `<b class="${q.t ? 't-' + q.t : ''}${mu === 'own' ? ' cut' : ''}"${q.len ? ` title="Muted after ${tbLenName(q.len)}"` : ''}>${dr ? (q.t === 'g' ? '(' + DK[s].sym + ')' : q.t === 'a' ? DK[s].sym.toUpperCase() : DK[s].sym) : tbPre(q, last[s]) + tbCore(q)}</b>` : mu ? '<b class="mk" aria-label="muted">◼</b>' : ''}</i>`;
+      return `<i data-act="tbcell" data-c="${k}" data-s="${s}"${cls ? ` class="${cls}"` : ''}${mu && !q ? ' title="Muted here"' : ''}>${q ? `<b class="${q.t ? 't-' + q.t : ''}${mu === 'own' ? ' cut' : ''}${q.dy === 'a' ? ' acc' : q.dy === 'g' ? ' gh' : ''}"${q.len ? ` title="Muted after ${tbLenName(q.len)}"` : ''}>${dr ? (q.t === 'g' ? '(' + DK[s].sym + ')' : q.t === 'a' ? DK[s].sym.toUpperCase() : DK[s].sym) : tbShow(q, last[s])}</b>` : mu ? '<b class="mk" aria-label="muted">◼</b>' : ''}</i>`;
     }).join('');
     if (c) { c.n.forEach(q => { if (q.t !== 'x') last[q.s] = q.f; }); tick += c.d; }
     const len = TSYM[dc.b] + (dc.m === 'dot' ? '.' : ''), g = !ghost && tpOf[k];
@@ -3762,7 +3787,9 @@ function renderTab(){
         <button type="button" class="chip${dc.m === 'tri' ? ' sel' : ''}" data-act="tbtri" aria-pressed="${dc.m === 'tri'}" title="Three in the time of two">Triplet</button>
       </div>
       ${dr ? tbVelRow(q) : `<div class="row nw"><div class="seg" aria-label="Technique">${Object.entries(TTECH).map(([k, [t, h]]) => `<button type="button" data-act="tbtech" data-v="${k}" aria-pressed="${!!q && q.t === k}" title="${h}"${q || k === 'x' ? '' : ' disabled'}>${t === '/' ? '/ \\' : esc(t)}</button>`).join('')}</div>
-        <button type="button" class="chip${(c ? c.pm : state.tabPm) ? ' sel' : ''}" data-act="tbpm" aria-pressed="${!!(c ? c.pm : state.tabPm)}" title="Palm mute: rest the picking hand on the strings by the bridge. Stays on for the columns you write next.">PM</button></div>`}
+        <button type="button" class="chip${(c ? c.pm : state.tabPm) ? ' sel' : ''}" data-act="tbpm" aria-pressed="${!!(c ? c.pm : state.tabPm)}" title="Palm mute: rest the picking hand on the strings by the bridge. Stays on for the columns you write next.">PM</button></div>
+      <div class="row nw"><div class="seg" aria-label="How hard">${[['g', 'Ghost', 'Barely there: a ghost note, short and soft'], ['', 'Normal', ''], ['a', 'Accent', 'Play it harder']].map(([v, t, h]) => `<button type="button" data-act="tbdyn" data-v="${v}" aria-pressed="${!!q && (q.dy || '') === v}"${q && q.t !== 'x' ? '' : ' disabled'}${h ? ` title="${h}"` : ''}>${t}</button>`).join('')}</div>
+        <div class="seg" aria-label="Slap or pop">${[['T', 'Slap', 'Slap: the thumb hits the string (T)'], ['P', 'Pop', 'Pop: a finger pulls the string and lets it snap back (P)']].map(([v, t, h]) => `<button type="button" data-act="tbatk" data-v="${v}" aria-pressed="${!!q && q.at === v}"${q && q.t !== 'x' ? '' : ' disabled'} title="${h}">${t}</button>`).join('')}</div></div>`}
       <div class="row nw tbmuterow"><button type="button" class="chip" data-act="tbsplit" data-v="2"${tbCanSplit(c, 2) ? '' : ' disabled'} title="Split this column into two halves: the note keeps the first, the second is empty for a new note">Split ½</button>
         <button type="button" class="chip" data-act="tbsplit" data-v="3"${tbCanSplit(c, 3) ? '' : ' disabled'} title="Split this column into a triplet: the note keeps the first, the other two are empty">Split ⅓</button>
         ${dr ? '' : muteRow}</div>
@@ -3893,6 +3920,9 @@ function handleTab(act, b){
     case 'tbwamuse': case 'tbwamurl': { const tr = T.track; if (!tr) break; const u = act === 'tbwamuse' ? b.dataset.u : (($('#wamurl') || {}).value || '').trim();
       if (!wamOk(u)) { toast('That needs to be the https address of a plugin’s .js file.'); return true; }
       tbEditTab(() => { tr.url = u; if (act === 'tbwamuse') tr.plug = b.dataset.n; else delete tr.plug; delete tr.wst; }); if (act === 'tbwamurl') wamRemember('inst', u); wamShow = false; wamLoad(tbTrack(tbTab())); return true; }
+    case 'tbdyn': case 'tbatk': { if (T.kind) break; const k = act === 'tbdyn' ? 'dy' : 'at'; let hit = null;
+      tbEdit(X => { const z = X.cols[tbc.c], q = z && z.n.find(x => x.s === tbc.s); if (!q || q.t === 'x') return; if (!v || q[k] === v) delete q[k]; else q[k] = v; hit = q; });
+      if (!hit) toast('Put a note on this string first.'); break; }
     case 'tbgsnd': { const S = GSND[v], tr = T.track, X = tbTab(); if (!S) break; const L = tr || {kind:'gtr'}; if (!!S.bass !== tbIsBass(L)) break;
       tbEditTab(() => { if (tr) tr.snd = v; else X.gsnd = v; }); const m = tunOf(L)[1] + 3; Promise.resolve(gsLoad(v)).then(() => pluck(m, 0, true, v)); break; }      // a C, in its new sound
     case 'tbneck': { const tr = T.track; if (!tr || tr.kind !== 'gtr' || (v === 'bass') === tbIsBass(tr)) break;
@@ -4031,7 +4061,10 @@ function tbKey(e){
     }
     case 'Insert': case 'i': tbEdit(T => T.cols.splice(tbc.c, 0, tbNew())); return go();
     case 'r': handleTab('tbrest', {dataset:{}}); e.preventDefault(); return;
-    case 'h': case 'p': case 's': case 'b': case 'v': case 'x': case 'n': case 'a': tbTech(lk); return go();
+    case 'h': case 'p': case 's': case 'b': case 'v': case 'x': case 'n': case 'a':
+      if (e.shiftKey && (lk === 'a' || lk === 'p')) { handleTab(lk === 'a' ? 'tbdyn' : 'tbatk', {dataset:{v:lk === 'a' ? 'a' : 'P'}}); return go(); }      // Shift: accent, pop
+      tbTech(lk); return go();
+    case 'g': if (e.shiftKey) { handleTab('tbdyn', {dataset:{v:'g'}}); return go(); } return;      // Shift+G: a ghost note
     case 'm': tbPmToggle(); return go();
     case 'o': { const z = tbAt(T), q = z && z.n.find(x => x.s === tbc.s); if (q) tbEdit(() => { delete q.len; }); else tbMuteHere(); return go(); }
     case '/': case '\\': tbTech('s'); return go();
@@ -4041,7 +4074,7 @@ function tbKey(e){
       tbSetDur(to, d.m); return go();
     }
     case '.': { const d = tbCurDur(); tbSetDur(d.b, d.m === 'dot' ? '' : 'dot'); return go(); }
-    case 't': { const d = tbCurDur(); tbSetDur(d.b, d.m === 'tri' ? '' : 'tri'); return go(); }
+    case 't': { if (e.shiftKey) { handleTab('tbatk', {dataset:{v:'T'}}); return go(); } const d = tbCurDur(); tbSetDur(d.b, d.m === 'tri' ? '' : 'tri'); return go(); }      // Shift+T: slap
     case ' ': case 'Enter': if (tbp.on) tbStop(true); else tbStart(k === 'Enter' && tbc.c < n ? tbc.c : 0); return go();
   }
 }
