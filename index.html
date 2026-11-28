@@ -673,17 +673,16 @@ body.pv-done .neck-wrap{display:none !important}
 .envsvg polyline{fill:none; stroke:var(--accent); stroke-width:2}
 .envsvg circle{fill:var(--surface); stroke:var(--accent); stroke-width:2; cursor:grab}
 .envsvg circle.sel{fill:var(--accent)}
-.wamdock{position:fixed; z-index:40; left:8px; right:8px; bottom:calc(76px + env(safe-area-inset-bottom)); max-height:52vh; display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,.35); overflow:hidden}
+.wamdock{position:fixed; z-index:200; inset:0; display:flex; flex-direction:column; background:#111; padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 .wamdock[hidden]{display:none}
-body.wdopen{padding-bottom:54vh}
-@media (min-width:900px){ body.wdopen{padding-bottom:0} }
-@media (min-width:900px){ .wamdock{left:auto; right:16px; bottom:16px; width:min(820px, 62vw); max-height:70vh} }
-.wdhead{display:flex; align-items:center; gap:6px; padding:6px 8px; border-bottom:1px solid var(--line)}
+body.wdopen{overflow:hidden}
+.wdhead{display:flex; align-items:center; gap:6px; padding:8px 10px; background:var(--surface); border-bottom:1px solid var(--line)}
 .wdhead b{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.wdtip{font-size:11px; color:var(--muted); text-align:right; max-width:40%}
 /* the strip down the right scrolls the controls (a finger on the controls works them, so it can't) */
 .wamscroll{flex:1; min-height:0; overflow:auto; padding:4px 30px 4px 4px; background:#111; touch-action:pan-x pan-y; overscroll-behavior:contain}
-.wdstrip{position:absolute; right:0; bottom:0; top:41px; width:26px; display:flex; align-items:center; justify-content:center; color:var(--on-accent, #fff); font-weight:900; background:color-mix(in srgb, var(--accent) 55%, #222); touch-action:none; cursor:grab; user-select:none}
-.wamsizer{overflow:hidden}
+.wdstrip{position:absolute; right:env(safe-area-inset-right); bottom:env(safe-area-inset-bottom); top:calc(50px + env(safe-area-inset-top)); width:26px; display:flex; align-items:center; justify-content:center; color:var(--on-accent, #fff); font-weight:900; background:color-mix(in srgb, var(--accent) 55%, #222); touch-action:none; cursor:grab; user-select:none}
+.wamsizer{overflow:hidden; margin:0 auto}
 .wamfit{transform-origin:0 0; touch-action:none}
 .wamgui{touch-action:none}
 .tbclipsel .cl{font-size:11px; color:var(--muted); margin-left:4px}
@@ -2922,7 +2921,7 @@ function wamDockFor(){
 }
 function wamDockMake(){
   const d = document.createElement('div'); d.id = 'wamdock'; d.className = 'wamdock'; d.hidden = true; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Plugin controls');
-  d.innerHTML = `<div class="wdhead"><b class="wdname"></b><button type="button" class="chip sel" data-wd="fit" aria-pressed="true" title="Shrink the controls to fit the screen">Fit</button><button type="button" class="ib" data-wd="close" aria-label="Close the controls">✕</button></div>
+  d.innerHTML = `<div class="wdhead"><b class="wdname"></b><small class="wdtip" hidden>Turn the phone sideways: bigger</small><button type="button" class="chip sel" data-wd="fit" aria-pressed="true" title="Shrink the controls to fit the screen">Fit</button><button type="button" class="ib" data-wd="close" aria-label="Close the controls">✕</button></div>
     <div class="wamscroll"><div class="wamsizer"><div class="wamfit"></div></div></div><div class="wdstrip" title="Drag here to scroll the controls" aria-hidden="true">⋮</div>`;
   d.addEventListener('click', e => { const b = e.target.closest('[data-wd]'); if (!b) return;
     if (b.dataset.wd === 'close') { wamShow = false; fxGui = null; render(); }
@@ -2933,15 +2932,22 @@ function wamDockMake(){
   strip.addEventListener('pointermove', e => { if (!p0) return; sc.scrollTop -= e.clientY - p0.y; sc.scrollLeft -= e.clientX - p0.x; p0 = {x:e.clientX, y:e.clientY}; });
   const end = () => { p0 = null; }; strip.addEventListener('pointerup', end); strip.addEventListener('pointercancel', end);
   document.body.appendChild(d); wamTouch(d.querySelector('.wamfit'));
-  if (window.ResizeObserver) wamDockRO = new ResizeObserver(() => wamDockSize());
+  let raf = 0; const again = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (!d.hidden) wamDockSize(); }); };      // once a frame at most: sizing it can make it resize itself
+  if (window.ResizeObserver) wamDockRO = new ResizeObserver(again); addEventListener('resize', again);      // and when the phone turns
   return d;
 }
 function wamDockSize(){
   const d = wamDockEl, fit = d && d.querySelector('.wamfit'), g = fit && fit.firstElementChild, sz = d && d.querySelector('.wamsizer'), sc = d && d.querySelector('.wamscroll'); if (!g) return;
-  fit.style.transform = ''; fit.style.width = ''; fit.style.height = '';
-  const w = Math.max(g.scrollWidth, g.offsetWidth, 1), h = Math.max(g.scrollHeight, g.offsetHeight, 1), room = sc.clientWidth - 30, k = wamDockFit && w > room && room > 50 ? room / w : 1;
+  // its real size: everything it draws, inside its shadow too (its own box can be smaller than its controls), at full size and unclipped
+  fit.style.transform = ''; fit.style.width = 'max-content'; fit.style.height = ''; sz.style.width = ''; sz.style.height = ''; sz.style.overflow = 'visible';
+  const r0 = fit.getBoundingClientRect(); let w = Math.max(g.scrollWidth, g.offsetWidth, 1), h = Math.max(g.scrollHeight, g.offsetHeight, 1), n = 0;
+  const walk = el => { if (n++ > 4000) return; const r = el.getBoundingClientRect(); if (r.width > 0 && r.height > 0) { w = Math.max(w, r.right - r0.left); h = Math.max(h, r.bottom - r0.top); } for (const c of el.children) walk(c); if (el.shadowRoot) for (const c of el.shadowRoot.children) walk(c); };
+  walk(g); w = Math.ceil(w); h = Math.ceil(h); sz.style.overflow = '';
+  // Fit: the whole of it on the screen, smaller if need be (never bigger)
+  const rw = sc.clientWidth - 38, rh = sc.clientHeight - 10, k = wamDockFit && rw > 50 && rh > 50 ? Math.min(1, rw / w, rh / h) : 1;
   fit.style.width = w + 'px'; fit.style.height = h + 'px'; fit.style.transform = k < 1 ? `scale(${k})` : '';
   sz.style.width = Math.ceil(w * k) + 'px'; sz.style.height = Math.ceil(h * k) + 'px';
+  d.querySelector('.wdtip').hidden = !(k < 0.75 && innerHeight > innerWidth && w > h);      // a wide plugin on an upright phone: it'd be bigger sideways
 }
 function wamMount(){
   const o = wamDockFor(); if (!wamDockEl && !o) return; if (!wamDockEl) wamDockEl = wamDockMake();
@@ -8480,7 +8486,7 @@ try { if (navigator.storage && navigator.storage.persist) navigator.storage.pers
 lessonsToNps();
 if (state.guideBack) guideRestore();      // the page closed in the middle of a guide: put the neck back
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, wamMore:WAM_MORE, env:{at:envAt, shape:envShape, pts:envPts, touch:wamTouch}, mic:{open:openMic, side:micSide, fill:micListFill}, gs:{SND:GSND, buf:gsBuf, bad:gsBad, busy:gsBusy, hooks:gsHooks, load:gsLoad, voice:gsVoice, of:gsOf, swap:tbNeckSwap}, keys:{kst, put:keysPut, voice:keysVoice, end:tbEndOf, clean:keysClean}, wam:{hooks:wamHooks, remember:wamRemember, I:wamI, FX:wamFx, fxList:wamFxList, get all(){ return wamAll; }, set all(v){ wamAll = v; }, load:wamLoad, spans:tbSpans, get cat(){ return wamCat; }, set cat(v){ wamCat = v; }, get show(){ return wamShow; }}, get tbWavErr(){ return tbWavErr; }, midiOf, midiBytes, wavOf, tbEngine, envAt, fxOf, tbLength, tba, tbAudC, tbClipFromTake, tbLanes, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, BUILT, kitBuiltLoad, kitSound, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, wamMore:WAM_MORE, env:{at:envAt, shape:envShape, pts:envPts, touch:wamTouch}, mic:{open:openMic, side:micSide, fill:micListFill}, gs:{SND:GSND, buf:gsBuf, bad:gsBad, busy:gsBusy, hooks:gsHooks, load:gsLoad, voice:gsVoice, of:gsOf, swap:tbNeckSwap}, keys:{kst, put:keysPut, voice:keysVoice, end:tbEndOf, clean:keysClean}, wam:{hooks:wamHooks, remember:wamRemember, dockSize:wamDockSize, I:wamI, FX:wamFx, fxList:wamFxList, get all(){ return wamAll; }, set all(v){ wamAll = v; }, load:wamLoad, spans:tbSpans, get cat(){ return wamCat; }, set cat(v){ wamCat = v; }, get show(){ return wamShow; }}, get tbWavErr(){ return tbWavErr; }, midiOf, midiBytes, wavOf, tbEngine, envAt, fxOf, tbLength, tba, tbAudC, tbClipFromTake, tbLanes, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, BUILT, kitBuiltLoad, kitSound, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, get phrFavs(){ return phrFavs; }, phrFavOk, get sp(){ return sp; }, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, scalesForChord, followView, loopShape, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
