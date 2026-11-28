@@ -578,6 +578,8 @@ body.pv-done .neck-wrap{display:none !important}
 .tba-cur{background:var(--accent)}
 .tba-ph{background:var(--ink); opacity:.7}
 .tbclipsel{gap:6px; align-items:center}
+.wamgui{overflow:auto; max-height:70vh; border:1px solid var(--line); border-radius:10px; background:#111; margin:6px 0; padding:4px}
+#wamurl{flex:1 1 auto; min-width:0}
 .fxrow{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:6px 0; border-top:1px solid var(--line)}
 .fxrow:not(.on) .fxs, .fxrow:not(.on) .seg{opacity:.45}
 .fxs{display:flex; align-items:center; gap:6px; flex:1 1 150px; min-width:130px}
@@ -1998,7 +2000,7 @@ const tbFit = d => { let best = 6; for (const [b] of TBASE) for (const m of ['',
 const DK = [{id:'bd', name:'Kick', sh:'BD', sym:'o'}, {id:'sn', name:'Snare', sh:'SN', sym:'o'}, {id:'hh', name:'Hi-hat', sh:'HH', sym:'x'}, {id:'oh', name:'Open hi-hat', sh:'OH', sym:'o'},
   {id:'t1', name:'High tom', sh:'T1', sym:'o'}, {id:'t2', name:'Low tom', sh:'T2', sym:'o'}, {id:'ft', name:'Floor tom', sh:'FT', sym:'o'}, {id:'cr', name:'Crash', sh:'CR', sym:'X'}, {id:'rd', name:'Ride', sh:'RD', sym:'x'}];
 const DROWS = [7, 8, 3, 2, 4, 5, 6, 1, 0];
-const TB_KINDS = {gtr:'Guitar', drums:'Drums', audio:'Audio'};
+const TB_KINDS = {gtr:'Guitar', drums:'Drums', audio:'Audio', wam:'Instrument'};
 function tbCleanCols(cs, dr){
   return (Array.isArray(cs) ? cs : []).slice(0, TMAX).filter(c => c && tbDurOk(c.d)).map(c => {
     const seen = new Set(), raw = (Array.isArray(c.n) ? c.n : []).filter(q => q && num(q.s, 0, dr ? DK.length - 1 : 5, -1) >= 0 && (dr || num(q.f, 0, 24, -1) >= 0) && !seen.has(q.s) && seen.add(q.s));
@@ -2009,7 +2011,7 @@ function tbCleanCols(cs, dr){
 function tbClean(t){
   if (!t || typeof t !== 'object' || !Array.isArray(t.cols)) return null;
   const ids = new Set(), tracks = (Array.isArray(t.tracks) ? t.tracks : []).filter(x => x && TB_KINDS[x.kind] && num(x.id, 1, 9e15, 0) && !ids.has(x.id) && ids.add(x.id)).slice(0, 12)
-    .map(x => Object.assign({id:x.id, kind:x.kind, name:String(x.name || TB_KINDS[x.kind]).slice(0, 30), cols:x.kind === 'audio' ? [] : tbCleanCols(x.cols, x.kind === 'drums')}, x.kind === 'audio' ? {clips:tbCleanClips(x.clips)} : {}, x.mute === true ? {mute:true} : {}, x.solo === true ? {solo:true} : {}, tbVolOk(x.vol) ? {vol:x.vol} : {}, tbPanOk(x.pan) ? {pan:x.pan} : {}, fxClean(x.fx) ? {fx:fxClean(x.fx)} : {}, envClean(x.env) ? {env:envClean(x.env)} : {}, typeof x.kit === 'string' && /^(k\d{1,15}|@[a-z0-9]{1,12})$/.test(x.kit) ? {kit:x.kit} : {}));
+    .map(x => Object.assign({id:x.id, kind:x.kind, name:String(x.name || TB_KINDS[x.kind]).slice(0, 30), cols:x.kind === 'audio' ? [] : tbCleanCols(x.cols, x.kind === 'drums')}, x.kind === 'audio' ? {clips:tbCleanClips(x.clips)} : {}, x.kind === 'wam' ? Object.assign({}, wamOk(x.url) ? {url:x.url} : {}, typeof x.plug === 'string' && x.plug ? {plug:x.plug.slice(0, 60)} : {}, typeof x.wst === 'string' && x.wst.length <= 100000 ? {wst:x.wst} : {}) : {}, x.mute === true ? {mute:true} : {}, x.solo === true ? {solo:true} : {}, tbVolOk(x.vol) ? {vol:x.vol} : {}, tbPanOk(x.pan) ? {pan:x.pan} : {}, fxClean(x.fx) ? {fx:fxClean(x.fx)} : {}, envClean(x.env) ? {env:envClean(x.env)} : {}, typeof x.kit === 'string' && /^(k\d{1,15}|@[a-z0-9]{1,12})$/.test(x.kit) ? {kit:x.kit} : {}));
   return Object.assign({id:num(t.id, 1, 9e15, 0) || Date.now(), name:String(t.name || 'Untitled tab').slice(0, 60), bpm:num(t.bpm, 30, 300, 90), beats:num(t.beats, 1, 12, 4), cols:tbCleanCols(t.cols, false)},
     t.gmute === true ? {gmute:true} : {}, t.gsolo === true ? {gsolo:true} : {}, tbVolOk(t.gvol) ? {gvol:t.gvol} : {}, tbPanOk(t.gpan) ? {gpan:t.gpan} : {}, fxClean(t.gfx) ? {gfx:fxClean(t.gfx)} : {}, envClean(t.genv) ? {genv:envClean(t.genv)} : {}, tracks.length ? {tracks} : {});
 }
@@ -2025,7 +2027,7 @@ function tbDoc(){
   const T = tbTab(), tr = tbTrack(T); if (!tr) return T;
   if (tbVw && tbVw.T === T && tbVw.tr === tr) return tbVw.v;
   // another guitar track works like the first (no kind); an audio track has clips, not columns
-  const v = {kind:tr.kind === 'gtr' ? undefined : tr.kind, track:tr, get id(){ return T.id; }, get name(){ return T.name; }, set name(x){ T.name = x; }, get bpm(){ return T.bpm; }, set bpm(x){ T.bpm = x; },
+  const v = {kind:tr.kind === 'gtr' || tr.kind === 'wam' ? undefined : tr.kind, track:tr, get id(){ return T.id; }, get name(){ return T.name; }, set name(x){ T.name = x; }, get bpm(){ return T.bpm; }, set bpm(x){ T.bpm = x; },
     get beats(){ return T.beats; }, set beats(x){ T.beats = x; }, get cols(){ return tr.kind === 'audio' ? [] : tr.cols; }, set cols(x){ if (tr.kind !== 'audio') tr.cols = x; }};
   tbVw = {T, tr, v}; return v;
 }
@@ -2051,12 +2053,12 @@ function tbGoTrack(id){
   tbc = {c:k < 0 ? A.cols.length : Math.min(k, A.cols.length), s:A.kind === 'drums' ? 1 : 5};
 }
 const TB_MAXTR = 12;
-const tbKindName = k => ({gtr:'Guitar', drums:'Drums', audio:'Audio'})[k] || 'Track';
+const tbKindName = k => ({gtr:'Guitar', drums:'Drums', audio:'Audio', wam:'Instrument'})[k] || 'Track';
 function tbTracksHtml(T){
   const tr = T.tracks || [], cur = tbTrack(T), id = cur ? cur.id : 0, L = tbMixGet(T, id);
   const one = x => `<button type="button" data-act="tbtrack" data-v="${x.id}" aria-pressed="${id === x.id}">${x.kind === 'audio' ? '<span aria-hidden="true">〰 </span>' : ''}${esc(x.name)}${x.mute ? ' <span aria-label="(muted)">🔇</span>' : ''}${x.solo ? ' <span class="solo" aria-label="(solo)">S</span>' : ''}</button>`;
   return `<div class="row nw tbtracks"><div class="seg wrapseg" aria-label="Track">${tbLanes(T).map(one).join('')}</div></div>
-    <div class="row nw tbtracks">${tr.length < TB_MAXTR ? ['gtr', 'drums', 'audio'].map(k => `<button type="button" class="chip" data-act="tbaddtrack" data-v="${k}" title="${k === 'audio' ? 'A track to record onto, played with the tab' : 'Another ' + tbKindName(k).toLowerCase() + ' track, played with the tab'}">＋ ${tbKindName(k)}</button>`).join('') : ''}
+    <div class="row tbtracks tbadd">${tr.length < TB_MAXTR ? ['gtr', 'drums', 'audio', 'wam'].map(k => `<button type="button" class="chip" data-act="tbaddtrack" data-v="${k}" title="${k === 'audio' ? 'A track to record onto, played with the tab' : k === 'wam' ? 'A track played by a plugin instrument (a Web Audio Module)' : 'Another ' + tbKindName(k).toLowerCase() + ' track, played with the tab'}">＋ ${tbKindName(k)}</button>`).join('') : ''}
     <button type="button" class="chip${L.mute ? ' sel' : ''}" data-act="tbmutetrack" aria-pressed="${L.mute}" title="Leave this track out when the tab plays">Mute</button>
     <button type="button" class="chip${L.solo ? ' sel' : ''}" data-act="tbsolotrack" aria-pressed="${L.solo}" title="Hear only the soloed tracks">Solo</button>
     ${cur ? `<button type="button" class="ib" data-act="tbtrackdel" aria-label="${tbDelArm === 'tr' + cur.id ? 'Tap again to delete' : 'Delete'} the ${esc(cur.name)} track">${tbDelArm === 'tr' + cur.id ? 'Delete?' : '✕'}</button>` : ''}</div>`;
@@ -2597,7 +2599,7 @@ async function tbWav(){
     const S = {srcs:[], mix:{}, dr:0, au:0}, E = tbEngine(off, M, S), base = 0.05; drOpen = null;
     E.pass(T, null, 0, tick => base + tick * spt, spt, bt, {});
     const buf = await off.startRendering();
-    await tbSave(wavOf(buf), tbFileName(T, 'wav')); toast('WAV made');
+    await tbSave(wavOf(buf), tbFileName(T, 'wav')); toast(tbLanes(T).some(L => L.kind === 'wam' && tbHeard(T, L)) ? 'WAV made, without the instrument tracks (they can’t play offline yet)' : 'WAV made');
   } catch (e) { tbWavErr = String(e && e.stack || e); toast('The WAV couldn’t be made in this browser.'); }
   finally { tbWavBusy = false; render(); }
 }
@@ -2623,7 +2625,7 @@ function midiBytes(T){
     const st = tbStarts(L), evs = [{t:0, o:0, d:text(3, L.name)}], drum = L.kind === 'drums';
     let c0 = 9; if (!drum) { if (ch % 16 === 9) ch++; c0 = ch % 16; ch++; }      // channel 10 is for drums
     const vol = Math.round(Math.min(1, L.vol) * 100); evs.push({t:0, o:1, d:[0xb0 | c0, 7, vol]}, {t:0, o:1, d:[0xb0 | c0, 10, Math.round(64 + L.pan * 63)]});
-    if (!drum) evs.push({t:0, o:1, d:[0xc0 | c0, 25]});      // steel-string guitar
+    if (!drum) evs.push({t:0, o:1, d:[0xc0 | c0, L.kind === 'wam' ? 0 : 25]});      // steel-string guitar (a plugin track: piano)
     L.cols.forEach((c, k) => c.n.forEach(q => {
       if (drum) { const n = GM_DRUM[DK[q.s].id], v = q.t === 'g' ? 40 : q.t === 'a' ? 122 : 96; evs.push({t:st[k] * K, o:3, d:[0x90 | c0, n, v]}, {t:(st[k] + Math.min(c.d, 6)) * K, o:2, d:[0x80 | c0, n, 0]}); return; }
       if (q.t === 'x') return;
@@ -2641,6 +2643,66 @@ function tbExpHtml(T){
   return fold('tbexp', 'Export', 'WAV, MIDI', `<div class="row"><button type="button" class="btn" data-act="tbwav"${tbWavBusy ? ' disabled' : ''} title="Every track mixed, with its effects and envelopes">${tbWavBusy ? 'Making the WAV…' : 'WAV mixdown'}</button>
       <button type="button" class="btn" data-act="tbmidi" title="The guitar and drum tracks as notes, for any DAW">MIDI file</button></div>
     <span class="hint tip">The WAV is the whole tab once through, as you hear it (mute or solo to leave tracks out), with a couple of seconds for the last sounds to die away. The MIDI file has a track for each guitar and drum track, at the tab’s tempo and time; drums use the General MIDI map on channel 10, and audio tracks aren’t in it.</span>`);
+}
+/* ---- instrument tracks: a Web Audio Module (WAM 2) plugin played by the track's notes, written on the neck like a guitar
+   track. A plugin loads from its own web address, from the community list at webaudiomodules.com or any address you give;
+   it is someone else's code, running in this page. The tab keeps the address and, when you ask, the plugin's settings. ---- */
+const WAM_SDK = 'https://cdn.jsdelivr.net/npm/@webaudiomodules/sdk@0.0.12/dist/index.js';
+const WAM_LIST = 'https://www.webaudiomodules.com/community/plugins.json', WAM_BASE = 'https://www.webaudiomodules.com/community/plugins/';
+const wamHooks = {imp:u => import(u), host:async a => { const {initializeWamHost} = await import(WAM_SDK); const [gid] = await initializeWamHost(a); return gid; }};
+const wamI = {};      // track id -> {url, ctx, inst, gui, name, busy, err}
+let wamHost = null, wamCat = null, wamCatBusy = false, wamShow = false;
+const wamOk = u => typeof u === 'string' && /^https:\/\/[^\s"'<>]+\.m?js(\?[^\s"'<>]*)?$/i.test(u) && u.length <= 500;
+function wamHostFor(a){ if (!wamHost || wamHost.ctx !== a) wamHost = {ctx:a, p:wamHooks.host(a)}; return wamHost.p; }
+async function wamLoad(tr){
+  const a = getAudio(); if (!a || !wamOk(tr.url)) return;
+  const old = wamI[tr.id]; if (old && old.url === tr.url && old.ctx === a && (old.inst || old.busy)) return;
+  if (old && old.inst) { try { old.inst.audioNode.disconnect(); } catch (e) {} }
+  const W = wamI[tr.id] = {url:tr.url, ctx:a, busy:true, name:tr.plug || ''}; render();
+  try {
+    const gid = await wamHostFor(a), mod = await wamHooks.imp(tr.url), WAM = mod && mod.default; if (!WAM || !WAM.createInstance) throw new Error('not a plugin');
+    const inst = await WAM.createInstance(gid, a); if (wamI[tr.id] !== W) return;
+    if (tr.wst) { try { await inst.audioNode.setState(JSON.parse(tr.wst)); } catch (e) {} }
+    Object.assign(W, {inst, busy:false, name:(inst.descriptor && inst.descriptor.name) || inst.name || tr.plug || 'Plugin'});
+    if (!tr.plug || tr.plug !== W.name) { tr.plug = String(W.name).slice(0, 60); storeTabs(); }
+  } catch (e) { Object.assign(W, {busy:false, err:'This plugin didn’t load: ' + String(e && e.message || e).slice(0, 140)}); }
+  render();
+}
+/* the plugin, ready on this audio context (and starting to load if it isn't) */
+function wamGet(L, a){ const W = wamI[L.id]; if (W && W.inst && W.url === L.url && W.ctx === a) return W; if (L.url && (!W || W.url !== L.url || W.ctx !== getAudio()) && a === getAudio()) wamLoad(L); return null; }
+/* every note of a track as [start tick, end tick, MIDI note, velocity]: a note lasts until the next on its string, a rest, its mute, or 2 beats */
+function tbSpans(L){
+  const tun = TUNINGS[state.tuning].midi, st = tbStarts(L), out = [];
+  L.cols.forEach((c, k) => c.n.forEach(q => {
+    if (q.t === 'x') return;
+    let e = st[k] + Math.min(2 * TQ, q.len || 1e9); for (let j = k + 1; j < L.cols.length; j++) if (!L.cols[j].n.length || L.cols[j].n.some(z => z.s === q.s)) { e = Math.min(e, st[j]); break; }
+    e = Math.max(st[k] + 1, Math.min(e, st[L.cols.length]));
+    out.push([st[k], e, Math.max(0, Math.min(127, q.t === 'n' || q.t === 'a' ? tbHarmPitch(q) : tun[q.s] + q.f)), c.pm ? 70 : q.t === 'h' || q.t === 'p' ? 80 : 100]);
+  }));
+  return out;
+}
+/* stop every plugin's notes (the tab stopped) */
+function wamHush(){ Object.values(wamI).forEach(W => { if (!W.inst) return; const n = W.inst.audioNode; try { if (n.clearEvents) n.clearEvents(); n.scheduleEvents({type:'wam-midi', time:W.ctx.currentTime, data:{bytes:[0xb0, 123, 0]}}); } catch (e) {} }); }
+async function wamCatalog(){
+  if (wamCat || wamCatBusy) return; wamCatBusy = true; render();
+  try { const r = await fetch(WAM_LIST); const all = await r.json(); wamCat = all.filter(p => p && wamOk(WAM_BASE + p.path) && (p.category || []).some(c => /Instrument/.test(c)) && !(p.category || []).some(c => /External Device/.test(c)) && !/Audio Player/.test((p.category || []).join())).map(p => ({name:String(p.name).slice(0, 60), vendor:String(p.vendor || '').slice(0, 60), desc:String(p.description || '').slice(0, 160), url:WAM_BASE + p.path})); }
+  catch (e) { wamCat = []; toast('Couldn’t get the plugin list. Check the connection.'); }
+  wamCatBusy = false; render();
+}
+/* the plugin's own panel stays mounted across redraws */
+function wamMount(){ const box = document.getElementById('wamgui'), T = tbDoc(), W = T && T.track && wamI[T.track.id]; if (!box || !W || !W.inst || !wamShow) return;
+  if (!W.gui) { W.gui = 'making'; Promise.resolve(W.inst.createGui()).then(g => { W.gui = g; wamMount(); }).catch(() => { W.gui = null; }); return; }
+  if (W.gui !== 'making' && W.gui.parentNode !== box) { box.innerHTML = ''; box.appendChild(W.gui); } }
+function tbWamHtml(T){
+  const tr = T.track, W = wamI[tr.id], st = !tr.url ? 'No plugin yet' : W && W.busy ? 'Loading…' : W && W.err ? W.err : W && W.inst ? 'Ready' : 'Loads when it plays, or tap Load';
+  const cat = wamCat ? (wamCat.length ? wamCat.map(p => `<div class="phfav"><button type="button" class="btn${tr.url === p.url ? ' sel' : ''}" data-act="tbwamuse" data-u="${esc(p.url)}" data-n="${esc(p.name)}"><b>${esc(p.name)}</b><small>${esc(p.vendor)}${p.desc ? ' · ' + esc(p.desc) : ''}</small></button></div>`).join('') : '<span class="info">No instruments found.</span>') : '';
+  return fold('tbwam', 'Instrument', tr.plug ? esc(tr.plug) : 'choose a plugin', `<div class="row nw"><b>${esc(tr.plug || 'No plugin')}</b><span class="info">${esc(st)}</span></div>
+    <div class="row">${tr.url ? `<button type="button" class="btn" data-act="tbwamload">${W && W.inst ? 'Reload' : 'Load'}</button><button type="button" class="chip${wamShow ? ' sel' : ''}" data-act="tbwamgui" aria-pressed="${wamShow}"${W && W.inst ? '' : ' disabled'}>Its controls</button><button type="button" class="btn" data-act="tbwamkeep"${W && W.inst ? '' : ' disabled'} title="Save the plugin’s settings with the tab">Keep its settings</button>` : ''}
+      <button type="button" class="btn" data-act="tbwamlist"${wamCatBusy ? ' disabled' : ''}>${wamCat ? 'Community instruments' : wamCatBusy ? 'Getting the list…' : 'Find instruments'}</button></div>
+    ${wamShow && W && W.inst ? '<div id="wamgui" class="wamgui"></div>' : ''}
+    ${cat ? `<div class="phfavs">${cat}</div>` : ''}
+    <div class="row nw"><input class="task-in" id="wamurl" type="url" autocomplete="off" spellcheck="false" placeholder="https://…/index.js" aria-label="A plugin’s address" value="${esc(tr.url && !(wamCat || []).some(p => p.url === tr.url) ? tr.url : '')}"><button type="button" class="btn" data-act="tbwamurl">Use</button></div>
+    <span class="hint tip">Write the notes on the neck, as on a guitar track; the plugin plays them. Plugins are Web Audio Modules: someone else’s code, loaded from its own site and run in this page, under its own licence. Only load ones you trust. The community list is at webaudiomodules.com. Instrument tracks aren’t in the WAV yet; they are in the MIDI file.</span>`);
 }
 function tbRecBtn(){
   let r = null; try { r = rec; } catch (e) {} const mine = !!r && (r.owned === 'tab' || r.owned === 'track'), onto = (tbDoc() || {}).kind === 'audio';
@@ -2744,7 +2806,7 @@ function tbPut(s, f, fromNeck){
     if (T.kind === 'drums' && !off && (s === 2 || s === 3)) c.n = c.n.filter(q => q.s !== 5 - s);      // the hi-hat is open or closed, not both
   });
   tbc.s = s;
-  if (!off) { if (T.kind === 'drums') drumHit(s, 0, null, '', kitCur()); else pluck(TUNINGS[state.tuning].midi[s] + f); if (fromNeck && state.tabAdv) tbc.c = Math.min(tbc.c + 1, T.cols.length); }
+  if (!off) { const wt = T.track && T.track.kind === 'wam' && wamI[T.track.id]; if (T.kind === 'drums') drumHit(s, 0, null, '', kitCur()); else if (wt && wt.inst) { const nn = TUNINGS[state.tuning].midi[s] + f, a = getAudio(); try { if (!wt.dest) wt.inst.audioNode.connect(master); wt.inst.audioNode.scheduleEvents({type:'wam-midi', time:a.currentTime, data:{bytes:[0x90, nn, 100]}}, {type:'wam-midi', time:a.currentTime + 0.5, data:{bytes:[0x80, nn, 0]}}); } catch (e) {} } else pluck(TUNINGS[state.tuning].midi[s] + f); if (fromNeck && state.tabAdv) tbc.c = Math.min(tbc.c + 1, T.cols.length); }
 }
 function tbTech(t){
   if ((tbDoc() || {}).kind) return;
@@ -2934,7 +2996,7 @@ function tbParse(txt){
 const tbp = {on:false, srcs:[], events:[], timer:0, raf:0, lit:[], k:-1};
 function tbStop(quiet){
   let rk = null; try { rk = rec; } catch (e) {} if (rk && rk.owned === 'track' && tbp.on) { takeStop(); return; }      // stopping the tab stops a recording onto a track
-  if (tbp.mix) Object.values(tbp.mix).forEach(m => { try { m.g.disconnect(); } catch (e) {} }); tbp.mix = {};
+  if (tbp.mix) Object.values(tbp.mix).forEach(m => { try { m.g.disconnect(); } catch (e) {} }); tbp.mix = {}; if (tbp.on) wamHush(); Object.values(wamI).forEach(W => { W.dest = null; });
   clearTimeout(tbp.timer); cancelAnimationFrame(tbp.raf);
   tbp.srcs.forEach(s => { try { s.stop(); } catch (e) {} });
   tbp.lit.forEach(e => e.classList.remove('playing'));
@@ -3052,6 +3114,13 @@ function tbEngine(a, M, S){
     tbLanes(T).forEach(L => {
       if (!tbHeard(T, L)) return;
       if (L.kind === 'audio') { if (!(L.clips || []).length) return; const e = aud(L, tk0, at, spt, out(L, T)); if (e > tk0) { endTick = Math.max(endTick, e); lanes++; played.push(L); } return; }
+      if (L.kind === 'wam') {      // a plugin: its notes as MIDI, at their times
+        const sp2 = tbSpans(L).filter(x => x[0] >= tk0), e = tbStarts(L)[L.cols.length]; if (e <= tk0 || !sp2.length) return; endTick = Math.max(endTick, e); lanes++;
+        const W = wamGet(L, a); if (!W) return; const dest = out(L, T), n = W.inst.audioNode;
+        if (W.dest !== dest) { try { n.disconnect(); } catch (x) {} n.connect(dest); W.dest = dest; }
+        try { n.scheduleEvents(...sp2.flatMap(([s0, s1, nn, v]) => [{type:'wam-midi', time:at(s0), data:{bytes:[0x90, nn, v]}}, {type:'wam-midi', time:at(s1), data:{bytes:[0x80, nn, 0]}}])); } catch (x) {}
+        S.wam = (S.wam || 0) + sp2.length; played.push(L); return;
+      }
       const st = tbStarts(L), k = st.findIndex(x => x >= tk0); if (k < 0 || k >= L.cols.length) return;
       endTick = Math.max(endTick, st[L.cols.length]); if (L.cols.some(c => c.n.length)) lanes++; played.push(L);
       if (L.kind === 'drums') drums(L.cols, k, st, at, kitOf(L), out(L, T)); else gtr(L.cols, k, st, at, spt, out(L, T));
@@ -3157,6 +3226,7 @@ function renderTab(){
     : `<span class="info">Mute after</span><div class="seg" aria-label="Mute this note after">${[[0, 'Rings'], ...TBASE.slice().reverse().map(([b, l]) => [b, l])].map(([d, l]) => `<button type="button" data-act="tbmute" data-v="${d}" aria-pressed="${!!q && (q.len || 0) === d}" title="${d ? 'Stop it ringing after a ' + tbLenName(d) : 'Let it ring until the next note on this string'}"${q && q.t !== 'x' ? '' : ' disabled'}>${l}</button>`).join('')}</div>${q && q.len && !tbDec(q.len) ? `<span class="info">muted after ${tbLenName(q.len)}</span>` : ''}`;
   return `<div class="tbx">
     ${tbTracksHtml(TT)}
+    ${T.track && T.track.kind === 'wam' ? tbWamHtml(T) : ''}
     ${tbSheet(T)}
     <div class="tbtools">
       <div class="row nw tbedit"><button type="button" class="ib" data-act="tbmove" data-v="-1" aria-label="Previous column"${tbc.c <= 0 ? ' disabled' : ''}>◀</button><button type="button" class="btn primary" data-act="tbmove" data-v="1" title="Move to the next column"${tbc.c >= T.cols.length ? ' disabled' : ''}>Next ▶</button>
@@ -3258,6 +3328,14 @@ function handleTab(act, b){
     case 'tbenv': fxEnv = ENV_P[v] ? v : 'vol'; break;
     case 'tbenvclear': { const X = tbTab(), L = fxLane(); tbEditTab(() => fxStore(X, L.id, undefined, Object.assign({}, L.env || {}, {[fxEnv]:[]}))); break; }
     case 'tbwav': tbWav(); return true;
+    case 'tbwamlist': wamCatalog(); return true;
+    case 'tbwamuse': case 'tbwamurl': { const tr = T.track; if (!tr) break; const u = act === 'tbwamuse' ? b.dataset.u : (($('#wamurl') || {}).value || '').trim();
+      if (!wamOk(u)) { toast('That needs to be the https address of a plugin’s .js file.'); return true; }
+      tbEditTab(() => { tr.url = u; if (act === 'tbwamuse') tr.plug = b.dataset.n; else delete tr.plug; delete tr.wst; }); wamShow = false; wamLoad(tbTrack(tbTab())); return true; }
+    case 'tbwamload': { const tr = T.track, W = tr && wamI[tr.id]; if (!tr) break; if (W && W.inst) { try { W.inst.audioNode.disconnect(); } catch (e) {} } delete wamI[tr.id]; wamLoad(tr); return true; }
+    case 'tbwamgui': wamShow = !wamShow; break;
+    case 'tbwamkeep': { const tr = T.track, W = tr && wamI[tr.id]; if (!W || !W.inst) break;
+      Promise.resolve(W.inst.audioNode.getState()).then(s => { const j = JSON.stringify(s); if (!j || j.length > 100000) { toast('Its settings are too big to keep with the tab.'); return; } tr.wst = j; storeTabs(); toast('Its settings are kept with the tab'); }).catch(() => toast('This plugin wouldn’t give its settings.')); return true; }
     case 'tbmidi': { const X = tbTab(); if (!tbLanes(X).some(L => L.kind !== 'audio' && L.cols.some(c => c.n.length))) { toast('There are no notes to put in a MIDI file yet.'); return true; } tbSave(midiOf(X), tbFileName(X, 'mid')); return true; }
     case 'tbaudat': tba.at = Math.max(0, +v); tba.clip = null; break;
     case 'tbaudmove': tba.at = Math.max(0, tba.at + +v); break;
@@ -7718,7 +7796,7 @@ try { if (navigator.storage && navigator.storage.persist) navigator.storage.pers
 lessonsToNps();
 if (state.guideBack) guideRestore();      // the page closed in the middle of a guide: put the neck back
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, get tbWavErr(){ return tbWavErr; }, midiOf, midiBytes, wavOf, tbEngine, envAt, fxOf, tbLength, tba, tbAudC, tbClipFromTake, tbLanes, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, BUILT, kitBuiltLoad, kitSound, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, wam:{hooks:wamHooks, I:wamI, load:wamLoad, spans:tbSpans, get cat(){ return wamCat; }, set cat(v){ wamCat = v; }, get show(){ return wamShow; }}, get tbWavErr(){ return tbWavErr; }, midiOf, midiBytes, wavOf, tbEngine, envAt, fxOf, tbLength, tba, tbAudC, tbClipFromTake, tbLanes, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, BUILT, kitBuiltLoad, kitSound, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, get phrFavs(){ return phrFavs; }, phrFavOk, get sp(){ return sp; }, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, scalesForChord, followView, loopShape, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
@@ -7746,6 +7824,7 @@ function render(){
   pvFollow();
   if (state.tab !== 'practice') state.lastSub[grpOf(state.tab)] = state.tab;
   panel.innerHTML = subNav() + (state.tab === 'finder' ? renderFinder() : state.tab === 'circle' ? renderCircle() : state.tab === 'pins' ? renderPins() : state.tab === 'tab' ? renderTab() : state.tab === 'practice' ? renderPractice() : renderLayers());
+  wamMount();      // a plugin's own controls, put back after the redraw
   { const r = panel.querySelector('.ptabs:not(.subtabs)'), b = r && r.querySelector('[aria-selected="true"]'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - r.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; }     // keep the open section in sight
   panel.querySelectorAll('.scfam').forEach(r => { const b = r.querySelector('[aria-pressed="true"]'); if (b && r.scrollWidth > r.clientWidth) r.scrollLeft = b.offsetLeft - (r.clientWidth - b.offsetWidth) / 2; });      // and the scale family you're in
 
