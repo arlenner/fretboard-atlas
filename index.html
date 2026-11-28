@@ -553,6 +553,16 @@ body.pv-done .neck-wrap{display:none !important}
 .tbsheet.drums .tbc i b.t-g{opacity:.6; font-weight:500; font-size:10px}
 .tbsheet.drums .tbc i b.t-a{color:var(--accent); font-weight:800}
 .tbrec.sel{background:var(--bad); border-color:var(--bad); color:#fff}
+.kitrow{gap:8px; align-items:center; padding:3px 4px; border-radius:8px}
+.row.kitrow{flex-wrap:nowrap}
+@media (max-width: 560px){ .kitrow{gap:5px} .kitrow b{min-width:74px; font-size:12px} .kitrow .btn{padding-left:9px; padding-right:9px} }
+.kitrow b{min-width:96px; font-size:13px}
+.kitrow .info{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.kitload{position:relative; overflow:hidden; cursor:pointer; flex:none}
+.kitload input{position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer}
+.kitrow.kitdrop{outline:2px dashed var(--accent); background:color-mix(in srgb, var(--accent) 10%, transparent)}
+.kit .dk.kitdrop .hd, .kit .dk.kitdrop .cy, .kit .dk.kitdrop .pill{stroke:var(--accent); stroke-width:4; stroke-dasharray:6 4}
+.kit .mine{fill:var(--accent)}
 @media (max-width: 560px){ .tbtr .tl{display:none} .tbtr{gap:4px} .tbtr .btn{padding:3px 10px} body.tabed:not(.focus) .focus-btn{display:none} body.tabed:not(.focus) .legend{padding-right:104px} }
 /* open: the header lights up and the contents sit in a box joined to it; shut: a plain bar with a chevron */
 .fold-h i{transition:transform .15s}
@@ -1950,7 +1960,7 @@ function tbCleanCols(cs, dr){
 function tbClean(t){
   if (!t || typeof t !== 'object' || !Array.isArray(t.cols)) return null;
   const ids = new Set(), tracks = (Array.isArray(t.tracks) ? t.tracks : []).filter(x => x && TB_KINDS[x.kind] && num(x.id, 1, 9e15, 0) && !ids.has(x.id) && ids.add(x.id)).slice(0, 3)
-    .map(x => Object.assign({id:x.id, kind:x.kind, name:String(x.name || TB_KINDS[x.kind]).slice(0, 30), cols:tbCleanCols(x.cols, x.kind === 'drums')}, x.mute === true ? {mute:true} : {}));
+    .map(x => Object.assign({id:x.id, kind:x.kind, name:String(x.name || TB_KINDS[x.kind]).slice(0, 30), cols:tbCleanCols(x.cols, x.kind === 'drums')}, x.mute === true ? {mute:true} : {}, typeof x.kit === 'string' && /^k\d{1,15}$/.test(x.kit) ? {kit:x.kit} : {}));
   return Object.assign({id:num(t.id, 1, 9e15, 0) || Date.now(), name:String(t.name || 'Untitled tab').slice(0, 60), bpm:num(t.bpm, 30, 300, 90), beats:num(t.beats, 1, 12, 4), cols:tbCleanCols(t.cols, false)},
     t.gmute === true ? {gmute:true} : {}, tracks.length ? {tracks} : {});
 }
@@ -2005,7 +2015,7 @@ function tbBeat(k){
    square waves high-passed (the classic drum-machine cymbal) for the hi-hats, ride and crash ---- */
 let drNoise = null, drOpen = null;
 function drumNoise(a){ if (!drNoise || drNoise.ctx !== a) { const b = a.createBuffer(1, a.sampleRate * 2, a.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; drNoise = {ctx:a, b}; } return drNoise.b; }
-function drumHit(i, when, out, t){
+function drumHit(i, when, out, t, kit){
   const a = getAudio(), D = DK[i]; if (!a || !D) return;
   if (a.state !== 'running') a.resume().catch(() => {});
   when = Math.max(when || 0, a.currentTime + 0.005);
@@ -2029,6 +2039,8 @@ function drumHit(i, when, out, t){
     bp.connect(f); f.connect(g); g.connect(bus0); env(g, peak, dec); return g;
   };
   const choke = () => { if (drOpen && drOpen.at < when) { drOpen.g.gain.cancelScheduledValues(when); drOpen.g.gain.setTargetAtTime(0.0001, when, 0.008); drOpen = null; } };
+  const S = kitMine(i, kit);      // your own sound on this drum, in the kit being played
+  if (S) { const s = a.createBufferSource(), g = a.createGain(); s.buffer = S.buf; g.gain.value = S.gain; s.connect(g); g.connect(bus0); if (D.id === 'hh' || D.id === 'oh' || D.id === 'cr') choke(); if (D.id === 'oh') drOpen = {g, at:when}; s.start(when); s.stop(when + Math.min(S.buf.duration, 8) + 0.01); keep(s); kitHits++; return; }
   switch (D.id) {
     case 'bd': tone(150, 42, 0.75, 0.42); noise(0, 900, 0.12, 0.025); break;
     case 'sn': noise(1400, 0, 0.42, 0.2); tone(230, 170, 0.28, 0.11, 'triangle'); break;
@@ -2043,7 +2055,7 @@ function drumHit(i, when, out, t){
 }
 /* the kit, drawn where the neck is: tap a drum to put it in the column at the cursor. on: the drums in that column. */
 function kitSvg(on, tall){
-  const g = (i, inner, lx, ly) => `<g class="dk${on.has(i) ? ' on' : ''}" data-dk="${i}" role="button" aria-label="${DK[i].name}${on.has(i) ? ' (in this column)' : ''}" aria-pressed="${on.has(i)}">${inner}<text x="${lx}" y="${ly}">${i === 3 ? 'Open' : DK[i].name}<tspan class="kn"> ${i + 1}</tspan></text></g>`;
+  const g = (i, inner, lx, ly) => `<g class="dk${on.has(i) ? ' on' : ''}${kitMine(i, kitCur()) ? ' own' : ''}" data-dk="${i}" role="button" aria-label="${DK[i].name}${on.has(i) ? ' (in this column)' : ''}" aria-pressed="${on.has(i)}">${inner}<text x="${lx}" y="${ly}">${i === 3 ? 'Open' : DK[i].name}<tspan class="kn"> ${i + 1}</tspan>${kitMine(i, kitCur()) ? '<tspan class="mine"> ●</tspan>' : ''}</text></g>`;
   const drum = (cx, cy, rx, ry, h) => `<path class="sh" d="M${cx - rx} ${cy} v${h} a${rx} ${ry} 0 0 0 ${2 * rx} 0 v${-h}"/><ellipse class="hd" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`;
   const cym = (cx, cy, rx, ry, sl) => `<line class="st" x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy + (sl || 95)}"/><ellipse class="cy" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/><ellipse class="bell" cx="${cx}" cy="${cy - 1}" rx="${rx * 0.18}" ry="${ry * 0.35}"/>`;
   const hat = (cx, cy, rx, sl) => `<line class="st" x1="${cx}" y1="${cy + 4}" x2="${cx}" y2="${cy + sl}"/><ellipse class="cy" cx="${cx}" cy="${cy}" rx="${rx}" ry="${rx * 0.21}"/><ellipse class="cy" cx="${cx}" cy="${cy + 6}" rx="${rx}" ry="${rx * 0.18}"/>`;
@@ -2130,6 +2142,91 @@ function tbFillHtml(T){
 /* how hard a drum is hit: a ghost note, normal, or an accent */
 function tbVel(v){ tbEdit(T => { const c = T.cols[tbc.c], q = c && c.n.find(x => x.s === tbc.s); if (!q) return; if (!v || q.t === v) delete q.t; else q.t = v; }); }
 const tbVelRow = q => `<div class="row nw"><div class="seg" aria-label="How hard">${[['g', 'Ghost', 'Soft: a ghost note'], ['', 'Normal', ''], ['a', 'Accent', 'Hit it harder']].map(([v, t, h]) => `<button type="button" data-act="tbvel" data-v="${v}" aria-pressed="${!!q && (q.t || '') === v}"${q ? '' : ' disabled'}${h ? ` title="${h}"` : ''}>${t}</button>`).join('')}</div></div>`;
+/* ---- your own kits: sounds of your own on any drum, in kits you can switch between. Each drum track picks its kit
+   (Built-in, or one of yours), so songs can sound different. A drum with no sound in a kit plays the built-in one.
+   Drag a sound file onto a drum, or Load one in Kit (a phone's file picker). The sounds stay in this browser
+   (IndexedDB) like recordings; the kit names are in localStorage; neither is synced. Each sound is levelled when read in. ---- */
+const KITKEY = 'fretboard-atlas-kits-v1';
+let kits = [];      // [{id:'k1', name}]
+try { const x = JSON.parse(localStorage.getItem(KITKEY)); if (Array.isArray(x)) kits = x.filter(k => k && /^k\d{1,15}$/.test(k.id)).map(k => ({id:k.id, name:String(k.name || 'My kit').slice(0, 30)})); } catch (e) {}
+const kitSave = () => { try { localStorage.setItem(KITKEY, JSON.stringify(kits)); } catch (e) {} };
+const kitS = {};      // kit id -> drum id -> {name, buf, gain}
+let kitDb = null, kitHits = 0, kitDelArm = null;
+function kitStore(){
+  if (!kitDb) kitDb = new Promise((res, rej) => { try { const q = indexedDB.open('fretboard-atlas-kit', 1); q.onupgradeneeded = () => q.result.createObjectStore('s', {keyPath:'id'}); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); } catch (e) { rej(e); } });
+  return kitDb;
+}
+async function kitTx(mode, fn){ const db = await kitStore(); return new Promise((res, rej) => { const t = db.transaction('s', mode); let r; t.oncomplete = () => res(r && r.result); t.onerror = t.onabort = () => rej(t.error); r = fn(t.objectStore('s')); }); }
+async function kitDecode(blob){
+  const C = window.OfflineAudioContext || window.webkitOfflineAudioContext, ab = blob instanceof ArrayBuffer ? blob.slice(0) : await blob.arrayBuffer();      // decoding uses it up, so a stored copy is copied again
+  const buf = await new Promise((res, rej) => { const p = new C(1, 1, 44100).decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
+  const d = buf.getChannelData(0), n = Math.min(d.length, buf.sampleRate * 2); let pk = 0; for (let i = 0; i < n; i++) { const v = Math.abs(d[i]); if (v > pk) pk = v; }
+  return {buf, gain:pk > 0.001 ? Math.min(4, 0.8 / pk) : 1};
+}
+/* the kit a drum track plays (from a tab made on another device, a kit this browser doesn't have is the built-in one) */
+const kitOf = tr => tr && tr.kit && kits.some(k => k.id === tr.kit) ? tr.kit : '';
+const kitCur = () => { const T = tbDoc(); return T && T.kind === 'drums' ? kitOf(T.track) : ''; };
+const kitMine = (i, kit) => kit && kitS[kit] && kitS[kit][DK[i].id];
+function kitNew(name){
+  let n = Date.now(); while (kits.some(k => k.id === 'k' + n)) n++; const id = 'k' + n; kits.push({id, name:(name || (kits.length ? 'Kit ' + (kits.length + 1) : 'My kit')).slice(0, 30)}); kitSave(); kitS[id] = {};
+  const T = tbDoc(); if (T && T.kind === 'drums') { T.track.kit = id; storeTabs(); state.kitLast = id; }
+  return id;
+}
+const KIT_EXT = /\.(wav|wave|mp3|m4a|aac|ogg|oga|opus|flac|webm|aif|aiff|caf)$/i;
+async function kitSet(i, file){
+  const D = DK[i]; if (!D || !file) return;
+  if (!/^audio\//.test(file.type || '') && !KIT_EXT.test(file.name || '')) { toast('That isn’t a sound file. Try a WAV, MP3, M4A or OGG.'); return; }
+  if (file.size > 8e6) { toast('That file is too big for a drum. Use a short one-shot sound, under 8 MB.'); return; }
+  let x; try { x = await kitDecode(file); } catch (e) { toast('This browser couldn’t read that file as audio.'); return; }
+  let kit = kitCur(), made = false; if (!kit) { kit = kitNew(); made = true; }      // the built-in kit stays as it is: your sound starts a kit of your own
+  const name = String(file.name || 'sound').replace(/\.[^.]+$/, '').slice(0, 40) || 'sound';
+  (kitS[kit] = kitS[kit] || {})[D.id] = Object.assign({name}, x);
+  toast(made ? `${D.name}: ${name}, in a new kit, “${kits.find(k => k.id === kit).name}”` : `${D.name}: ${name}`); drumHit(i, 0, null, '', kit); render();
+  // then kept for next time: the bytes themselves (stored in the database, not as a file beside it)
+  try { const data = await file.arrayBuffer(); await kitTx('readwrite', s => s.put({id:kit + ':' + D.id, kit, drum:D.id, name, data, type:file.type || '', size:data.byteLength, at:Date.now()})); }
+  catch (e) { toast('Using it now, but this browser wouldn’t keep it for next time.'); }
+}
+async function kitClear(i){ const kit = kitCur(), D = DK[i]; if (!kit || !D || !kitS[kit]) return; delete kitS[kit][D.id]; render(); try { await kitTx('readwrite', s => s.delete(kit + ':' + D.id)); } catch (e) {} }
+async function kitDelete(kit){
+  const k = kits.find(x => x.id === kit); if (!k) return;
+  kits = kits.filter(x => x !== k); kitSave(); const ids = Object.keys(kitS[kit] || {}); delete kitS[kit];
+  tabs.forEach(t => (t.tracks || []).forEach(tr => { if (tr.kit === kit) delete tr.kit; })); storeTabs();
+  toast(`Deleted the kit “${k.name}”`); render();
+  try { await kitTx('readwrite', s => ids.forEach(d => s.delete(kit + ':' + d))); } catch (e) {}
+}
+async function kitLoadAll(){
+  try {
+    const all = (await kitTx('readonly', s => s.getAll())) || [];
+    for (const r of all) { if (!kits.some(k => k.id === r.kit) || !DK.some(d => d.id === r.drum) || !(r.data || r.blob)) continue; try { (kitS[r.kit] = kitS[r.kit] || {})[r.drum] = Object.assign({name:r.name}, await kitDecode(r.data || r.blob)); } catch (e) {} }
+    if (all.length && state.tab === 'tab' && (tbDoc() || {}).kind === 'drums') render();
+  } catch (e) {}
+}
+function tbKitHtml(){
+  const kit = kitCur(), K = kits.find(k => k.id === kit), own = kit ? DK.filter(d => kitS[kit] && kitS[kit][d.id]).length : 0;
+  const pick = (id, name) => `<button type="button" data-act="tbkitpick" data-v="${id}" aria-pressed="${kit === id}">${esc(name)}</button>`;
+  return fold('tbkit', 'Kit', K ? `${esc(K.name)} · ${own} of ${DK.length} your own` : 'Built-in', `<div class="row"><div class="seg wrapseg" aria-label="The kit this track plays">${pick('', 'Built-in')}${kits.map(k => pick(k.id, k.name)).join('')}</div>
+      <button type="button" class="chip" data-act="tbkitnew" title="A new kit of your own, for this track">＋ New kit</button></div>
+    ${K ? `<div class="row"><input class="task-in" id="kitname" type="text" maxlength="30" autocomplete="off" aria-label="Kit name" value="${esc(K.name)}">
+      <button type="button" class="btn" data-act="tbkitdel" title="Delete this kit and its sounds">${kitDelArm === kit ? 'Delete it?' : 'Delete kit'}</button></div>` : ''}
+    ${DK.map((d, i) => { const S = kitMine(i, kit);
+    return `<div class="row nw kitrow" data-kitdrop="${i}"><b>${d.name}</b><span class="info">${S ? '● ' + esc(S.name) : 'built-in'}</span>
+      <button type="button" class="ib" data-act="tbkitplay" data-v="${i}" aria-label="Hear the ${d.name.toLowerCase()}">▶</button>
+      <label class="btn kitload">Load…<input type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac,.aif,.aiff" data-kit="${i}" aria-label="Load a sound for the ${d.name.toLowerCase()}"></label>
+      ${S ? `<button type="button" class="ib" data-act="tbkitclear" data-v="${i}" aria-label="Back to the built-in ${d.name.toLowerCase()}">✕</button>` : ''}</div>`; }).join('')}
+    <span class="hint tip">Drag a sound file onto a drum in the kit (or onto its row here), or Load one. ${kit ? 'It goes in this kit.' : 'The built-in kit stays as it is: your first sound starts a kit of your own.'} Each drum track plays its own kit, and a drum with no sound of yours plays the built-in one. Short one-shot sounds work best: WAV, MP3, M4A or OGG. Kits stay in this browser and aren’t synced.</span>`);
+}
+/* dropping a file on a drum (or its row) */
+function kitDropAt(e){ const el = e.target && e.target.closest ? e.target.closest('#kit [data-dk], [data-kitdrop]') : null; return el ? +(el.dataset.dk != null ? el.dataset.dk : el.dataset.kitdrop) : -1; }
+const kitHasFile = e => !!e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
+document.addEventListener('dragover', e => { if (!kitHasFile(e)) return; const i = kitDropAt(e); document.querySelectorAll('.kitdrop').forEach(x => x.classList.remove('kitdrop')); if (i < 0) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; e.target.closest('[data-dk], [data-kitdrop]').classList.add('kitdrop'); });
+document.addEventListener('dragleave', e => { if (e.target && e.target.classList) e.target.classList.remove('kitdrop'); });
+document.addEventListener('drop', e => { if (!kitHasFile(e)) return; const i = kitDropAt(e); document.querySelectorAll('.kitdrop').forEach(x => x.classList.remove('kitdrop')); if (i < 0) return; e.preventDefault(); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) kitSet(i, f); });
+document.addEventListener('change', e => {
+  const el = e.target; if (!el || !el.dataset) return;
+  if (el.id === 'kitname') { const K = kits.find(k => k.id === kitCur()); if (K) { K.name = el.value.trim().slice(0, 30) || K.name; kitSave(); render(); } return; }
+  if (el.dataset.kit == null || !el.files || !el.files[0]) return; kitSet(+el.dataset.kit, el.files[0]); el.value = '';
+});
+kitLoadAll();
 function tbRecBtn(){
   let r = null; try { r = rec; } catch (e) {} const mine = !!r && r.owned === 'tab';
   return `<button type="button" class="chip tbrec${mine ? ' sel' : ''}" data-act="tbrec" aria-pressed="${mine}" title="${mine ? 'Stop recording' : 'Record yourself over the tab, with all its tracks. The take goes in Practice, Takes.'}"${r && !mine ? ' disabled' : ''}>${mine ? '■ <span data-rec-time>0:00</span>' : '● <span class="tl">Rec</span>'}</button>`;
@@ -2232,7 +2329,7 @@ function tbPut(s, f, fromNeck){
     if (T.kind === 'drums' && !off && (s === 2 || s === 3)) c.n = c.n.filter(q => q.s !== 5 - s);      // the hi-hat is open or closed, not both
   });
   tbc.s = s;
-  if (!off) { if (T.kind === 'drums') drumHit(s); else pluck(TUNINGS[state.tuning].midi[s] + f); if (fromNeck && state.tabAdv) tbc.c = Math.min(tbc.c + 1, T.cols.length); }
+  if (!off) { if (T.kind === 'drums') drumHit(s, 0, null, '', kitCur()); else pluck(TUNINGS[state.tuning].midi[s] + f); if (fromNeck && state.tabAdv) tbc.c = Math.min(tbc.c + 1, T.cols.length); }
 }
 function tbTech(t){
   if ((tbDoc() || {}).kind) return;
@@ -2477,7 +2574,7 @@ function tbStart(from){
       });
     });
   };
-  const drums = (cols, k0, st, at) => cols.slice(k0).forEach((c, j) => c.n.forEach(q => { drumHit(q.s, at(st[k0 + j]), tbp.srcs, q.t); tbp.dr++; }));
+  const drums = (cols, k0, st, at, kit) => cols.slice(k0).forEach((c, j) => c.n.forEach(q => { drumHit(q.s, at(st[k0 + j]), tbp.srcs, q.t, kit); tbp.dr++; }));
   const cycle = (t0, first) => {
     const T = tbTab(), A = tbDoc(); if (!tbp.on || !T || !A) { tbStop(); return; }
     const k0 = Math.min(from, A.cols.length), tk0 = tbStarts(A)[k0];
@@ -2490,7 +2587,7 @@ function tbStart(from){
     tbLanes(T).forEach(L => {
       if (L.mute) return; const st = tbStarts(L), k = st.findIndex(x => x >= tk0); if (k < 0 || k >= L.cols.length) return;
       endTick = Math.max(endTick, st[L.cols.length]); if (L.cols.some(c => c.n.length)) lanes++;
-      if (L.kind === 'drums') drums(L.cols, k, st, at); else gtr(L.cols, k, st, at, spt);
+      if (L.kind === 'drums') drums(L.cols, k, st, at, kitOf(L)); else gtr(L.cols, k, st, at, spt);
     });
     if (lanes > 1 || A.kind) endTick = Math.ceil(endTick / bt) * bt;      // with drums, it loops on a bar line so the beat stays even
     if (state.tabClick) for (let x = Math.ceil(tk0 / TQ) * TQ; x < endTick; x += TQ) click(at(x), x % bt === 0);
@@ -2583,7 +2680,7 @@ function renderTab(){
         ${dr ? '' : muteRow}</div>
       <span class="info tbwhere">${where}</span>
     </div>
-    ${dr ? tbFillHtml(T) : ''}
+    ${dr ? tbFillHtml(T) + tbKitHtml() : ''}
     ${fold('tbmore', 'More tools', 'insert, chords, select, labels', `<div class="row"><button type="button" class="btn" data-act="tbins" title="A new empty column here">Insert</button>
         <button type="button" class="btn" data-act="tbdelcol"${c ? '' : ' disabled'}>✕ Column</button>${sel.btn}
         <button type="button" class="btn" data-act="tbdup"${T.cols.length ? '' : ' disabled'} title="Copy this bar right after itself">Repeat this bar</button>
@@ -2650,10 +2747,15 @@ function handleTab(act, b){
   if (!T) return false;
   switch (act) {
     case 'tbtrack': tbGoTrack(+v); if (T.kind !== 'drums' && tbDoc().kind === 'drums' && state.neckHidden) setNeckHidden(false); break;
-    case 'tbaddtrack': { const id = Date.now(), have = (tbTab().tracks || []).length; tbEditTab(X => { X.tracks = (X.tracks || []).concat([{id, kind:'drums', name:have ? 'Drums ' + (have + 1) : 'Drums', cols:[]}]); }); tbGoTrack(id); if (state.neckHidden) setNeckHidden(false); break; }
+    case 'tbaddtrack': { const id = Date.now(), have = (tbTab().tracks || []).length; tbEditTab(X => { X.tracks = (X.tracks || []).concat([Object.assign({id, kind:'drums', name:have ? 'Drums ' + (have + 1) : 'Drums', cols:[]}, kitOf({kit:state.kitLast}) ? {kit:state.kitLast} : {})]); }); tbGoTrack(id); if (state.neckHidden) setNeckHidden(false); break; }
     case 'tbmutetrack': { const X = tbTab(), tr = tbTrack(X); if (tr) { if (tr.mute) delete tr.mute; else tr.mute = true; } else if (X.gmute) delete X.gmute; else X.gmute = true; storeTabs(); if (tbp.on) tbStart(0); break; }
     case 'tbtrackdel': { const X = tbTab(), tr = tbTrack(X); if (!tr) break; if (tbDelArm !== 'tr' + tr.id) { tbDelArm = 'tr' + tr.id; break; } tbDelArm = null; if (tbp.on) tbStop(true); tbEditTab(Y => { Y.tracks = Y.tracks.filter(x => x.id !== tr.id); if (!Y.tracks.length) delete Y.tracks; }); state.tabTrack = 0; tbc.c = Math.min(tbc.c, X.cols.length); tbc.s = 5; break; }
     case 'tbbeat': tbBeat(v); break;
+    case 'tbkitplay': drumHit(+v, 0, null, '', kitCur()); return true;
+    case 'tbkitclear': kitClear(+v); return true;
+    case 'tbkitpick': { const tr = T.track; if (!tr) break; if (v) tr.kit = v; else delete tr.kit; state.kitLast = v; kitDelArm = null; storeTabs(); if (tbp.on) tbStart(0); break; }
+    case 'tbkitnew': kitNew(); kitDelArm = null; break;
+    case 'tbkitdel': { const k = kitCur(); if (!k) break; if (kitDelArm !== k) { kitDelArm = k; break; } kitDelArm = null; kitDelete(k); return true; }
     case 'tbvel': tbVel(v); break;
     case 'tbfk': tbFillCfg().k = v; break;
     case 'tbfr': { const F = tbFillCfg(); F.r = +v; if (!Number.isInteger(tbFillLen(T, F) / F.r)) F.len = 24; break; }
@@ -2662,7 +2764,7 @@ function handleTab(act, b){
     case 'tbfcrash': { const F = tbFillCfg(); F.crash = !F.crash; break; }
     case 'tbfill': tbFill(); break;
     case 'tbrec': { let r0 = null; try { r0 = rec; } catch (e) {} if (r0) takeStop(); else takeStart('tab'); return true; }
-    case 'tbcell': if (tbShift && !tbSel) tbSel = {a:Math.min(tbc.c, Math.max(0, T.cols.length - 1))}; tbc = {c:Math.min(+b.dataset.c, T.cols.length), s:+b.dataset.s}; tbNum = null; { const z = tbAt(T), q = z && z.n.find(x => x.s === tbc.s); if (q && T.kind === 'drums') drumHit(q.s); else if (q && q.t !== 'x') pluck(TUNINGS[state.tuning].midi[q.s] + q.f); } break;
+    case 'tbcell': if (tbShift && !tbSel) tbSel = {a:Math.min(tbc.c, Math.max(0, T.cols.length - 1))}; tbc = {c:Math.min(+b.dataset.c, T.cols.length), s:+b.dataset.s}; tbNum = null; { const z = tbAt(T), q = z && z.n.find(x => x.s === tbc.s); if (q && T.kind === 'drums') drumHit(q.s, 0, null, q.t, kitCur()); else if (q && q.t !== 'x') pluck(TUNINGS[state.tuning].midi[q.s] + q.f); } break;
     case 'tbbpm': T.bpm = Math.max(30, Math.min(300, T.bpm + +v)); storeTabs(); break;
     case 'tbbeats': tbEdit(T => { T.beats = Math.max(1, Math.min(12, T.beats + +v)); }); break;
     case 'tbplay': if (tbp.on) tbStop(true); else tbStart(state.tabFromCur && tbc.c < T.cols.length && T.cols.slice(tbc.c).some(x => x.n.length) ? tbc.c : 0); break;
@@ -6954,7 +7056,7 @@ panel.addEventListener('keydown', e => {
   tbChordAdd(h.root, h.type); tbChordQ = ''; tbRender(); const i = $('#tbchord'); if (i) i.focus({preventScroll:true});
 });
 panel.addEventListener('click', e => { tbShift = e.shiftKey; }, true);      // shift-click selects columns
-panel.addEventListener('keydown', e => { if (e.target.id === 'tbsheet') tbKey(e); else if ((e.target.id === 'tbname' || e.target.id === 'tblab') && e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+panel.addEventListener('keydown', e => { if (e.target.id === 'tbsheet') tbKey(e); else if ((e.target.id === 'tbname' || e.target.id === 'tblab' || e.target.id === 'kitname') && e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
 /* the tab's name and a column's label: saved as typed in, without redrawing (a tap elsewhere would be lost) */
 panel.addEventListener('change', e => {
   const T = tbDoc(), id = e.target.id; if (!T || (id !== 'tbname' && id !== 'tblab')) return;
@@ -7085,7 +7187,7 @@ try { if (navigator.storage && navigator.storage.persist) navigator.storage.pers
 lessonsToNps();
 if (state.guideBack) guideRestore();      // the page closed in the middle of a guide: put the neck back
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, DK, drumHit, kitSvg, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, get phrFavs(){ return phrFavs; }, phrFavOk, get sp(){ return sp; }, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, scalesForChord, followView, loopShape, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
@@ -7240,7 +7342,7 @@ function setSound(on){
 var SYNC = null;
 const SYNC_CID = '798129945030-qmhaqovsp8kmfefd7f9mcrcjur3p1av5.apps.googleusercontent.com', SYNC_FILE = 'fretboard-atlas-sync.json';
 const SYNC_META = 'fretboard-atlas-sync-v1', SYNC_BASE = 'fretboard-atlas-sync-base-v1';
-const SYNC_LOCAL = ['tab', 'ptab', 'lastSub', 'pview', 'neckHidden', 'folds', 'secOpen', 'ingOpen', 'tap', 'pinView', 'tabCur', 'tabTrack', 'session', 'tkErr', 'sound', 'avDelay', 'micCal', 'rotated'];
+const SYNC_LOCAL = ['tab', 'ptab', 'lastSub', 'pview', 'neckHidden', 'folds', 'secOpen', 'ingOpen', 'tap', 'pinView', 'tabCur', 'tabTrack', 'kitLast', 'session', 'tkErr', 'sound', 'avDelay', 'micCal', 'rotated'];
 SYNC = {linked:false, token:null, exp:0, fid:null, busy:false, again:false, timer:0, last:0, err:'', gis:null, client:null, pushed:''};
 try { const m = JSON.parse(localStorage.getItem(SYNC_META)); if (m && m.linked) Object.assign(SYNC, {linked:true, last:+m.last || 0}); } catch (e) {}
 function syncMetaSave(){ try { localStorage.setItem(SYNC_META, JSON.stringify({linked:SYNC.linked, last:SYNC.last})); } catch (e) {} }
