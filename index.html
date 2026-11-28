@@ -673,6 +673,18 @@ body.pv-done .neck-wrap{display:none !important}
 .envsvg polyline{fill:none; stroke:var(--accent); stroke-width:2}
 .envsvg circle{fill:var(--surface); stroke:var(--accent); stroke-width:2; cursor:grab}
 .envsvg circle.sel{fill:var(--accent)}
+.wamdock{position:fixed; z-index:40; left:8px; right:8px; bottom:calc(76px + env(safe-area-inset-bottom)); max-height:52vh; display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,.35); overflow:hidden}
+.wamdock[hidden]{display:none}
+body.wdopen{padding-bottom:54vh}
+@media (min-width:900px){ body.wdopen{padding-bottom:0} }
+@media (min-width:900px){ .wamdock{left:auto; right:16px; bottom:16px; width:min(820px, 62vw); max-height:70vh} }
+.wdhead{display:flex; align-items:center; gap:6px; padding:6px 8px; border-bottom:1px solid var(--line)}
+.wdhead b{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+/* the strip down the right scrolls the controls (a finger on the controls works them, so it can't) */
+.wamscroll{flex:1; min-height:0; overflow:auto; padding:4px 30px 4px 4px; background:#111; touch-action:pan-x pan-y; overscroll-behavior:contain}
+.wdstrip{position:absolute; right:0; bottom:0; top:41px; width:26px; display:flex; align-items:center; justify-content:center; color:var(--on-accent, #fff); font-weight:900; background:color-mix(in srgb, var(--accent) 55%, #222); touch-action:none; cursor:grab; user-select:none}
+.wamsizer{overflow:hidden}
+.wamfit{transform-origin:0 0; touch-action:none}
 .wamgui{touch-action:none}
 .tbclipsel .cl{font-size:11px; color:var(--muted); margin-left:4px}
 .tbclipsel b{margin-right:4px}
@@ -2899,9 +2911,49 @@ function wamTouch(box){
   const up = e => { if (!tgt) return; const p = e.changedTouches[0], el = tgt; tgt = null; send('mouseup', el, p); if (!moved) send('click', el, p); e.preventDefault(); };
   box.addEventListener('touchend', up, {passive:false}); box.addEventListener('touchcancel', up, {passive:false});
 }
-function wamMount(){ wamFxMount(); wamTouch(document.getElementById('wamgui')); wamTouch(document.getElementById('wamfxgui')); const box = document.getElementById('wamgui'), T = tbDoc(), W = T && T.track && wamI[T.track.id]; if (!box || !W || !W.inst || !wamShow) return;
-  if (!W.gui) { W.gui = 'making'; Promise.resolve(W.inst.createGui()).then(g => { W.gui = g; wamMount(); }).catch(() => { W.gui = null; }); return; }
-  if (W.gui !== 'making' && W.gui.parentNode !== box) { box.innerHTML = ''; box.appendChild(W.gui); } }
+/* a plugin's own controls, in a panel of their own over the page. The page's redraws never touch it: many plugins draw
+   themselves again each time they're moved, so a tap on a note used to pile copies up. A finger on the controls works them;
+   the strip down the right side scrolls. Fit shrinks controls wider than the screen to fit. */
+let wamDockEl = null, wamDockFit = true, wamDockRO = null;
+function wamDockFor(){
+  if (state.tab !== 'tab') return null;
+  if (fxGui) { const X = wamFx[fxGui]; if (X && X.inst) return X; }
+  const T = tbDoc(), W = T && T.track && wamI[T.track.id]; return wamShow && W && W.inst ? W : null;
+}
+function wamDockMake(){
+  const d = document.createElement('div'); d.id = 'wamdock'; d.className = 'wamdock'; d.hidden = true; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Plugin controls');
+  d.innerHTML = `<div class="wdhead"><b class="wdname"></b><button type="button" class="chip sel" data-wd="fit" aria-pressed="true" title="Shrink the controls to fit the screen">Fit</button><button type="button" class="ib" data-wd="close" aria-label="Close the controls">✕</button></div>
+    <div class="wamscroll"><div class="wamsizer"><div class="wamfit"></div></div></div><div class="wdstrip" title="Drag here to scroll the controls" aria-hidden="true">⋮</div>`;
+  d.addEventListener('click', e => { const b = e.target.closest('[data-wd]'); if (!b) return;
+    if (b.dataset.wd === 'close') { wamShow = false; fxGui = null; render(); }
+    else { wamDockFit = !wamDockFit; b.classList.toggle('sel', wamDockFit); b.setAttribute('aria-pressed', wamDockFit); wamDockSize(); } });
+  // the strip: drag it to scroll the controls, up and down or side to side
+  const sc = d.querySelector('.wamscroll'), strip = d.querySelector('.wdstrip'); let p0 = null;
+  strip.addEventListener('pointerdown', e => { p0 = {x:e.clientX, y:e.clientY}; try { strip.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); });
+  strip.addEventListener('pointermove', e => { if (!p0) return; sc.scrollTop -= e.clientY - p0.y; sc.scrollLeft -= e.clientX - p0.x; p0 = {x:e.clientX, y:e.clientY}; });
+  const end = () => { p0 = null; }; strip.addEventListener('pointerup', end); strip.addEventListener('pointercancel', end);
+  document.body.appendChild(d); wamTouch(d.querySelector('.wamfit'));
+  if (window.ResizeObserver) wamDockRO = new ResizeObserver(() => wamDockSize());
+  return d;
+}
+function wamDockSize(){
+  const d = wamDockEl, fit = d && d.querySelector('.wamfit'), g = fit && fit.firstElementChild, sz = d && d.querySelector('.wamsizer'), sc = d && d.querySelector('.wamscroll'); if (!g) return;
+  fit.style.transform = ''; fit.style.width = ''; fit.style.height = '';
+  const w = Math.max(g.scrollWidth, g.offsetWidth, 1), h = Math.max(g.scrollHeight, g.offsetHeight, 1), room = sc.clientWidth - 30, k = wamDockFit && w > room && room > 50 ? room / w : 1;
+  fit.style.width = w + 'px'; fit.style.height = h + 'px'; fit.style.transform = k < 1 ? `scale(${k})` : '';
+  sz.style.width = Math.ceil(w * k) + 'px'; sz.style.height = Math.ceil(h * k) + 'px';
+}
+function wamMount(){
+  const o = wamDockFor(); if (!wamDockEl && !o) return; if (!wamDockEl) wamDockEl = wamDockMake();
+  document.body.classList.toggle('wdopen', !!o);      // the page gets room under it, to scroll everything clear
+  if (!o) { wamDockEl.hidden = true; return; }      // put away, not taken out: it stays as it was
+  const fit = wamDockEl.querySelector('.wamfit'), was = wamDockEl.hidden; wamDockEl.hidden = false;
+  wamDockEl.querySelector('.wdname').textContent = (o.inst.descriptor && o.inst.descriptor.name) || o.name || 'Plugin';
+  if (!o.gui) { o.gui = 'making'; Promise.resolve(o.inst.createGui()).then(g => { o.gui = g; wamMount(); }).catch(() => { o.gui = null; fit.innerHTML = '<span class="info" style="color:#ddd">This plugin has no controls of its own.</span>'; }); }
+  if (!o.gui || o.gui === 'making') { if (wamDockRO) wamDockRO.disconnect(); fit.innerHTML = '<span class="info" style="color:#ddd">Opening its controls…</span>'; return; }
+  if (o.gui.parentNode !== fit) { if (wamDockRO) wamDockRO.disconnect(); fit.innerHTML = ''; fit.appendChild(o.gui); if (wamDockRO) wamDockRO.observe(o.gui); wamDockSize(); }
+  else if (was) wamDockSize();
+}
 function tbWamHtml(T){
   const tr = T.track, W = wamI[tr.id], st = !tr.url ? 'No plugin yet' : W && W.busy ? 'Loading…' : W && W.err ? W.err : W && W.inst ? 'Ready' : 'Loads when it plays, or tap Load';
   const one = p => `<div class="phfav"><button type="button" class="btn${tr.url === p.url ? ' sel' : ''}" data-act="tbwamuse" data-u="${esc(p.url)}" data-n="${esc(p.name)}"><b>${esc(p.name)}</b><small>${esc(p.vendor)}${p.desc ? ' · ' + esc(p.desc) : ''}</small></button>${p.mine ? `<button type="button" class="ib" data-act="tbwamforget" data-u="${esc(p.url)}" aria-label="Take ${esc(p.name)} off this list">✕</button>` : ''}</div>`;
@@ -2913,7 +2965,7 @@ function tbWamHtml(T){
   return fold('tbwam', 'Instrument', tr.plug ? esc(tr.plug) : 'choose a plugin', `${reps}<div class="row nw"><b>${esc(tr.plug || 'No plugin')}</b><span class="info">${esc(st)}</span></div>
     <div class="row">${tr.url ? `<button type="button" class="btn" data-act="tbwamload">${W && W.inst ? 'Reload' : 'Load'}</button><button type="button" class="chip${wamShow ? ' sel' : ''}" data-act="tbwamgui" aria-pressed="${wamShow}"${W && W.inst ? '' : ' disabled'}>Its controls</button><button type="button" class="btn" data-act="tbwamkeep"${W && W.inst ? '' : ' disabled'} title="Save the plugin’s settings with the tab">Keep its settings</button>` : ''}
       <button type="button" class="btn" data-act="tbwamlist"${wamCatBusy ? ' disabled' : ''}>${wamCat ? 'Community instruments' : wamCatBusy ? 'Getting the list…' : 'Find instruments'}</button></div>
-    ${wamShow && W && W.inst ? '<div id="wamgui" class="wamgui"></div>' : ''}
+    ${wamShow && W && W.inst ? '<span class="hint">Its controls are open in their own panel. ✕ there closes it.</span>' : ''}
     ${cat ? `<div class="phfavs">${cat}</div>` : ''}
     <div class="row nw"><input class="task-in" id="wamurl" type="url" autocomplete="off" spellcheck="false" placeholder="https://…/index.js" aria-label="A plugin’s address" value="${esc(tr.url && !(wamCat || []).some(p => p.url === tr.url) ? tr.url : '')}"><button type="button" class="btn" data-act="tbwamurl">Use</button></div>
     <span class="hint tip">Write the notes on the neck, as on a guitar track; the plugin plays them. Plugins are Web Audio Modules: someone else’s code, loaded from its own site and run in this page, under its own licence. Only load ones you trust. The community list is at webaudiomodules.com. Instrument tracks aren’t in the WAV yet; they are in the MIDI file.</span>`);
@@ -2961,7 +3013,7 @@ function tbPfxHtml(L){
   const rows = ps.map((P, k) => { const key = L.id + ':' + k, X = wamFx[key], st = P.on === false ? 'off' : X && X.busy ? 'Loading…' : X && X.err ? X.err : X && X.inst ? 'Ready' : 'Loads when it plays';
     return `<div class="row nw pfxrow"><button type="button" class="chip${P.on === false ? '' : ' sel'}" data-act="tbpfxon" data-v="${k}" aria-pressed="${P.on !== false}">${esc(P.name || 'Plugin')}</button><span class="info">${esc(st)}</span>
       <button type="button" class="ib${fxGui === key ? ' sel' : ''}" data-act="tbpfxgui" data-v="${k}" aria-label="Its controls"${X && X.inst ? '' : ' disabled'}>⚙</button><button type="button" class="ib" data-act="tbpfxkeep" data-v="${k}" aria-label="Keep its settings with the tab" title="Keep its settings with the tab"${X && X.inst ? '' : ' disabled'}>💾</button><button type="button" class="ib" data-act="tbpfxdel" data-v="${k}" aria-label="Take ${esc(P.name || 'it')} off">✕</button></div>
-      ${fxGui === key && X && X.inst ? '<div id="wamfxgui" class="wamgui"></div>' : ''}`; }).join('');
+      `; }).join('');
   const groups = {}; wamFxList().forEach(p => (groups[p.type] = groups[p.type] || []).push(p));
   const add = !fxAddOpen ? '' : `${wamAll ? '' : `<span class="info">${wamCatBusy ? 'Getting the community list…' : 'No community list yet.'}</span>`}${Object.entries(groups).map(([g, list]) => `<div class="pfxgrp"><small>${esc(g)}${g.startsWith('More') ? ' (no licence stated there)' : ''}</small><div class="row">${list.map(p => `<button type="button" class="chip" data-act="tbpfxadd" data-u="${esc(p.url)}" data-n="${esc(p.name)}" title="${esc(p.vendor + (p.desc ? ': ' + p.desc : ''))}">${esc(p.name)}</button>${p.mine ? `<button type="button" class="ib" data-act="tbwamforget" data-u="${esc(p.url)}" aria-label="Take ${esc(p.name)} off this list">✕</button>` : ''}`).join('')}</div></div>`).join('')}
     <div class="row nw"><input class="task-in" id="wamfxurl" type="url" autocomplete="off" spellcheck="false" placeholder="https://…/index.js" aria-label="A plugin effect’s address"><button type="button" class="btn" data-act="tbpfxurl">Use</button></div>`;
@@ -2969,9 +3021,6 @@ function tbPfxHtml(L){
     ${ps.length < WAM_FX_MAX ? `<div class="row"><button type="button" class="btn" data-act="tbpfxlist" aria-expanded="${fxAddOpen}">${fxAddOpen ? 'Close' : '＋ Add a plugin effect'}</button></div>${add}` : ''}
     ${ps.length || fxAddOpen ? '<span class="hint tip">Plugin effects are Web Audio Modules: someone else’s code from its own site, running in this page under its own licence. Only add ones you trust. They play live; the WAV leaves them out for now.</span>' : ''}</div>`;
 }
-function wamFxMount(){ const box = document.getElementById('wamfxgui'), X = fxGui && wamFx[fxGui]; if (!box || !X || !X.inst) return;
-  if (!X.gui) { X.gui = 'making'; Promise.resolve(X.inst.createGui()).then(g => { X.gui = g; wamFxMount(); }).catch(() => { X.gui = null; }); return; }
-  if (X.gui !== 'making' && X.gui.parentNode !== box) { box.innerHTML = ''; box.appendChild(X.gui); } }
 /* ---- the drum step sequencer: a pattern of steps (16ths, 8ths or 8th triplets) over 1 to 4 bars, repeated. While a drum track
    is in Steps, its columns are made from the pattern, so it plays, mixes and exports like any other; Tab turns it back into
    columns to write fills by hand. seq: {res (steps a beat), bars, rep, h:[[drum, step, kind]]}, kind '' | 'a' | 'g'. ---- */
