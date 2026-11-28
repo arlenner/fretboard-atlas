@@ -579,7 +579,12 @@ body.pv-done .neck-wrap{display:none !important}
 .tba-ph{background:var(--ink); opacity:.7}
 .tbclipsel{gap:6px; align-items:center}
 .wamgui{overflow:auto; max-height:70vh; border:1px solid var(--line); border-radius:10px; background:#111; margin:6px 0; padding:4px}
-#wamurl{flex:1 1 auto; min-width:0}
+#wamurl, #wamfxurl{flex:1 1 auto; min-width:0}
+.pfx{border-top:1px solid var(--line); padding-top:8px; margin-top:4px}
+.pfxrow{gap:6px; align-items:center}
+.pfxrow .info{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.pfxrow .ib.sel{background:var(--accent); color:var(--on-accent)}
+.pfxgrp small{display:block; color:var(--muted); font-size:11px; margin:6px 0 2px}
 .fxrow{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:6px 0; border-top:1px solid var(--line)}
 .fxrow:not(.on) .fxs, .fxrow:not(.on) .seg{opacity:.45}
 .fxs{display:flex; align-items:center; gap:6px; flex:1 1 150px; min-width:130px}
@@ -2527,7 +2532,7 @@ function tbFxHtml(T){
   let grid = ''; for (let x = 0; x <= end + bt; x += TQ) grid += `<line x1="${x * PX}" y1="0" x2="${x * PX}" y2="${H}" class="${x % bt ? 'b' : 'bar'}"/>`;
   const live = {cut:F.filter.on, drv:F.drive.on, dly:F.delay.on, rev:F.reverb.on}[fxEnv] !== false;
   const line = E.length ? `<polyline points="${[[0, E[0][1]]].concat(E, [[end + bt, E[E.length - 1][1]]]).map(q => `${q[0] * PX},${y(q[1])}`).join(' ')}"/>${E.map((q, k) => `<circle cx="${q[0] * PX}" cy="${y(q[1])}" r="6" data-k="${k}"/>`).join('')}` : `<line x1="0" y1="${y(P[3])}" x2="${W}" y2="${y(P[3])}" class="flat"/>`;
-  return fold('tbfx', 'Effects and envelopes', `${esc(L.name)}${on.length ? ' · ' + on.map(k => FX_UI[k][0]).join(', ') : ''}${L.env ? ' · envelopes' : ''}`, `<span class="info">For <b>${esc(L.name)}</b>. Pick a track above to change another.</span>${rows}
+  return fold('tbfx', 'Effects and envelopes', `${esc(L.name)}${on.length ? ' · ' + on.map(k => FX_UI[k][0]).join(', ') : ''}${L.env ? ' · envelopes' : ''}`, `<span class="info">For <b>${esc(L.name)}</b>. Pick a track above to change another.</span>${rows}${tbPfxHtml(L)}
     <div class="row nw"><span class="rl">Envelope</span><div class="seg" aria-label="What the envelope changes">${Object.entries(ENV_P).map(([k, p]) => `<button type="button" data-act="tbenv" data-v="${k}" aria-pressed="${fxEnv === k}">${p[0]}${(L.env || {})[k] ? ' •' : ''}</button>`).join('')}</div>
       ${E.length ? `<button type="button" class="btn" data-act="tbenvclear">Clear</button>` : ''}</div>
     <div class="envwrap"><svg class="envsvg" id="envsvg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" data-env="${fxEnv}" data-px="${PX}" role="img" aria-label="${P[0]} envelope: tap to add a point, drag to move, double tap to remove">${grid}${line}</svg></div>
@@ -2613,7 +2618,7 @@ async function tbWav(){
     const S = {srcs:[], mix:{}, dr:0, au:0}, E = tbEngine(off, M, S), base = 0.05; drOpen = null;
     E.pass(T, null, 0, tick => base + tick * spt, spt, bt, {});
     const buf = await off.startRendering();
-    await tbSave(wavOf(buf), tbFileName(T, 'wav')); toast(tbLanes(T).some(L => L.kind === 'wam' && tbHeard(T, L)) ? 'WAV made, without the instrument tracks (they can’t play offline yet)' : 'WAV made');
+    await tbSave(wavOf(buf), tbFileName(T, 'wav')); toast(tbLanes(T).some(L => L.kind === 'wam' && tbHeard(T, L)) || tbLanes(T).some(L => tbHeard(T, L) && L.fx && (L.fx.plugs || []).some(p => p.on !== false)) ? 'WAV made, without the plugins (they can’t play offline yet)' : 'WAV made');
   } catch (e) { tbWavErr = String(e && e.stack || e); toast('The WAV couldn’t be made in this browser.'); }
   finally { tbWavBusy = false; render(); }
 }
@@ -2698,12 +2703,12 @@ function tbSpans(L){
 function wamHush(){ Object.values(wamI).forEach(W => { if (!W.inst) return; const n = W.inst.audioNode; try { if (n.clearEvents) n.clearEvents(); n.scheduleEvents({type:'wam-midi', time:W.ctx.currentTime, data:{bytes:[0xb0, 123, 0]}}); } catch (e) {} }); }
 async function wamCatalog(){
   if (wamCat || wamCatBusy) return; wamCatBusy = true; render();
-  try { const r = await fetch(WAM_LIST); const all = await r.json(); wamCat = all.filter(p => p && wamOk(WAM_BASE + p.path) && (p.category || []).some(c => /Instrument/.test(c)) && !(p.category || []).some(c => /External Device/.test(c)) && !/Audio Player/.test((p.category || []).join())).map(p => ({name:String(p.name).slice(0, 60), vendor:String(p.vendor || '').slice(0, 60), desc:String(p.description || '').slice(0, 160), url:WAM_BASE + p.path})); }
+  try { const r = await fetch(WAM_LIST); const all = await r.json(); wamAll = Array.isArray(all) ? all : []; wamCat = all.filter(p => p && wamOk(WAM_BASE + p.path) && (p.category || []).some(c => /Instrument/.test(c)) && !(p.category || []).some(c => /External Device/.test(c)) && !/Audio Player/.test((p.category || []).join())).map(p => ({name:String(p.name).slice(0, 60), vendor:String(p.vendor || '').slice(0, 60), desc:String(p.description || '').slice(0, 160), url:WAM_BASE + p.path})); }
   catch (e) { wamCat = []; toast('Couldn’t get the plugin list. Check the connection.'); }
   wamCatBusy = false; render();
 }
 /* the plugin's own panel stays mounted across redraws */
-function wamMount(){ const box = document.getElementById('wamgui'), T = tbDoc(), W = T && T.track && wamI[T.track.id]; if (!box || !W || !W.inst || !wamShow) return;
+function wamMount(){ wamFxMount(); const box = document.getElementById('wamgui'), T = tbDoc(), W = T && T.track && wamI[T.track.id]; if (!box || !W || !W.inst || !wamShow) return;
   if (!W.gui) { W.gui = 'making'; Promise.resolve(W.inst.createGui()).then(g => { W.gui = g; wamMount(); }).catch(() => { W.gui = null; }); return; }
   if (W.gui !== 'making' && W.gui.parentNode !== box) { box.innerHTML = ''; box.appendChild(W.gui); } }
 function tbWamHtml(T){
@@ -2717,6 +2722,50 @@ function tbWamHtml(T){
     <div class="row nw"><input class="task-in" id="wamurl" type="url" autocomplete="off" spellcheck="false" placeholder="https://…/index.js" aria-label="A plugin’s address" value="${esc(tr.url && !(wamCat || []).some(p => p.url === tr.url) ? tr.url : '')}"><button type="button" class="btn" data-act="tbwamurl">Use</button></div>
     <span class="hint tip">Write the notes on the neck, as on a guitar track; the plugin plays them. Plugins are Web Audio Modules: someone else’s code, loaded from its own site and run in this page, under its own licence. Only load ones you trust. The community list is at webaudiomodules.com. Instrument tracks aren’t in the WAV yet; they are in the MIDI file.</span>`);
 }
+/* ---- plugin effects: up to 4 Web Audio Module effects on a track, after the compressor and before the delay and reverb.
+   Each slot passes the sound straight through until its plugin has loaded, then the plugin goes in. ---- */
+const wamFx = {};      // 'track id:slot' -> {url, ctx, inst, gui, busy, err, wired:{sIn, sOut}}
+let wamAll = null, fxAddOpen = false, fxGui = null;
+const WAM_FX_MAX = 4;
+const wamFxList = () => (wamAll || []).filter(p => (p.category || [])[0] === 'Effect' && (p.category || [])[1] !== 'Visualization' && !/^Audio Input$/.test(p.name)).map(p => ({name:String(p.name).slice(0, 60), type:String((p.category || [])[1] || 'Effect'), vendor:String(p.vendor || '').slice(0, 60), desc:String(p.description || '').slice(0, 160), url:WAM_BASE + p.path})).filter(p => wamOk(p.url));
+/* put a slot's plugin in (or, until it's ready, a straight wire) */
+function wamFxWire(a, key, P, sIn, sOut){
+  const X = wamFx[key];
+  if (X && X.inst && X.url === P.url && X.ctx === a) { const n = X.inst.audioNode; try { n.disconnect(); } catch (e) {} sIn.connect(n); n.connect(sOut); X.wired = {sIn, sOut}; return true; }
+  sIn.connect(sOut); if (a === getAudio()) wamFxLoad(key, P); return false;
+}
+async function wamFxLoad(key, P){
+  const a = getAudio(); if (!a || !wamOk(P.url)) return;
+  const old = wamFx[key]; if (old && old.url === P.url && old.ctx === a && (old.inst || old.busy || old.err)) return;
+  if (old && old.inst) { try { old.inst.audioNode.disconnect(); } catch (e) {} }
+  const X = wamFx[key] = {url:P.url, ctx:a, busy:true}; render();
+  try {
+    const gid = await wamHostFor(a), mod = await wamHooks.imp(P.url), WAM = mod && mod.default; if (!WAM || !WAM.createInstance) throw new Error('not a plugin');
+    const inst = await WAM.createInstance(gid, a); if (wamFx[key] !== X) return;
+    if (P.wst) { try { await inst.audioNode.setState(JSON.parse(P.wst)); } catch (e) {} }
+    Object.assign(X, {inst, busy:false});
+    // playing already: swap the straight wire for the plugin
+    Object.values(tbp.mix || {}).forEach(m => (m.node.slots || []).forEach(s => { if (s.key === key && s.url === P.url) { try { s.sIn.disconnect(); } catch (e) {} wamFxWire(a, key, P, s.sIn, s.sOut); } }));
+  } catch (e) { Object.assign(X, {busy:false, err:'Didn’t load: ' + String(e && e.message || e).slice(0, 120)}); }
+  render();
+}
+function wamFxDrop(id){ Object.keys(wamFx).forEach(k => { if (k.split(':')[0] === String(id)) { const X = wamFx[k]; if (X.inst) { try { X.inst.audioNode.disconnect(); } catch (e) {} } delete wamFx[k]; } }); if (fxGui && fxGui.split(':')[0] === String(id)) fxGui = null; }
+function tbPfxHtml(L){
+  const F = fxOf(L), ps = F.plugs || [];
+  const rows = ps.map((P, k) => { const key = L.id + ':' + k, X = wamFx[key], st = P.on === false ? 'off' : X && X.busy ? 'Loading…' : X && X.err ? X.err : X && X.inst ? 'Ready' : 'Loads when it plays';
+    return `<div class="row nw pfxrow"><button type="button" class="chip${P.on === false ? '' : ' sel'}" data-act="tbpfxon" data-v="${k}" aria-pressed="${P.on !== false}">${esc(P.name || 'Plugin')}</button><span class="info">${esc(st)}</span>
+      <button type="button" class="ib${fxGui === key ? ' sel' : ''}" data-act="tbpfxgui" data-v="${k}" aria-label="Its controls"${X && X.inst ? '' : ' disabled'}>⚙</button><button type="button" class="ib" data-act="tbpfxkeep" data-v="${k}" aria-label="Keep its settings with the tab" title="Keep its settings with the tab"${X && X.inst ? '' : ' disabled'}>💾</button><button type="button" class="ib" data-act="tbpfxdel" data-v="${k}" aria-label="Take ${esc(P.name || 'it')} off">✕</button></div>
+      ${fxGui === key && X && X.inst ? '<div id="wamfxgui" class="wamgui"></div>' : ''}`; }).join('');
+  const groups = {}; wamFxList().forEach(p => (groups[p.type] = groups[p.type] || []).push(p));
+  const add = !fxAddOpen ? '' : `${wamAll ? Object.entries(groups).map(([g, list]) => `<div class="pfxgrp"><small>${esc(g)}</small><div class="row">${list.map(p => `<button type="button" class="chip" data-act="tbpfxadd" data-u="${esc(p.url)}" data-n="${esc(p.name)}" title="${esc(p.vendor + (p.desc ? ': ' + p.desc : ''))}">${esc(p.name)}</button>`).join('')}</div></div>`).join('') : `<span class="info">${wamCatBusy ? 'Getting the list…' : 'No list yet.'}</span>`}
+    <div class="row nw"><input class="task-in" id="wamfxurl" type="url" autocomplete="off" spellcheck="false" placeholder="https://…/index.js" aria-label="A plugin effect’s address"><button type="button" class="btn" data-act="tbpfxurl">Use</button></div>`;
+  return `<div class="pfx"><div class="row nw"><b>Plugin effects</b><span class="info">after the compressor, before the delay and reverb</span></div>${rows}
+    ${ps.length < WAM_FX_MAX ? `<div class="row"><button type="button" class="btn" data-act="tbpfxlist" aria-expanded="${fxAddOpen}">${fxAddOpen ? 'Close' : '＋ Add a plugin effect'}</button></div>${add}` : ''}
+    ${ps.length || fxAddOpen ? '<span class="hint tip">Plugin effects are Web Audio Modules: someone else’s code from its own site, running in this page under its own licence. Only add ones you trust. They play live; the WAV leaves them out for now.</span>' : ''}</div>`;
+}
+function wamFxMount(){ const box = document.getElementById('wamfxgui'), X = fxGui && wamFx[fxGui]; if (!box || !X || !X.inst) return;
+  if (!X.gui) { X.gui = 'making'; Promise.resolve(X.inst.createGui()).then(g => { X.gui = g; wamFxMount(); }).catch(() => { X.gui = null; }); return; }
+  if (X.gui !== 'making' && X.gui.parentNode !== box) { box.innerHTML = ''; box.appendChild(X.gui); } }
 function tbRecBtn(){
   let r = null; try { r = rec; } catch (e) {} const mine = !!r && (r.owned === 'tab' || r.owned === 'track'), onto = (tbDoc() || {}).kind === 'audio';
   return `<button type="button" class="chip tbrec${mine ? ' sel' : ''}" data-act="tbrec" aria-pressed="${mine}" title="${mine ? 'Stop recording' : onto ? 'Record onto this audio track, from the cursor' : 'Record yourself over the tab, with all its tracks. The take goes in Practice, Takes.'}"${r && !mine ? ' disabled' : ''}>${mine ? '■ <span data-rec-time>0:00</span>' : '● <span class="tl">Rec</span>'}</button>`;
@@ -3019,12 +3068,13 @@ function tbStop(quiet){
 }
 /* ---- a track's effects, in order: filter, EQ, drive, compressor, then delay and reverb sends. Only what's changed from
    these is saved. Envelopes: points [tick, value] for vol, pan, cut (filter cutoff), drv, dly, rev. ---- */
-const fxOf = L => { const x = L.fx || {}, o = {}; for (const k in FX_DEF) o[k] = Object.assign({}, FX_DEF[k], x[k] || {}); return o; };
+const fxOf = L => { const x = L.fx || {}, o = {}; for (const k in FX_DEF) o[k] = Object.assign({}, FX_DEF[k], x[k] || {}); o.plugs = (x.plugs || []).map(p => Object.assign({}, p)); return o; };
 function fxClean(x){
   if (!x || typeof x !== 'object') return null; const o = {}, rng = (v, lo, hi) => typeof v === 'number' && v >= lo && v <= hi;
   const ok = {filter:{on:v => v === true, type:v => ['lowpass', 'highpass', 'bandpass'].includes(v), f:v => rng(v, 20, 20000), q:v => rng(v, 0.1, 20)}, eq:{on:v => v === true, lo:v => rng(v, -18, 18), mid:v => rng(v, -18, 18), hi:v => rng(v, -18, 18)},
     drive:{on:v => v === true, amt:v => rng(v, 0, 1)}, comp:{on:v => v === true, th:v => rng(v, -60, 0), ratio:v => rng(v, 1, 20)}, delay:{on:v => v === true, sync:v => !!FX_SYNC[v], fb:v => rng(v, 0, 0.9), mix:v => rng(v, 0, 1)}, reverb:{on:v => v === true, size:v => rng(v, 0.3, 8), mix:v => rng(v, 0, 1)}};
   for (const k in ok) { const s = x[k]; if (!s || typeof s !== 'object') continue; const e = {}; for (const p in ok[k]) if (s[p] !== undefined && s[p] !== FX_DEF[k][p] && ok[k][p](s[p])) e[p] = s[p]; if (Object.keys(e).length) o[k] = e; }
+  if (Array.isArray(x.plugs)) { const pl = x.plugs.filter(p => p && wamOk(p.url)).slice(0, 4).map(p => Object.assign({url:p.url}, typeof p.name === 'string' && p.name ? {name:p.name.slice(0, 60)} : {}, p.on === false ? {on:false} : {}, typeof p.wst === 'string' && p.wst.length <= 100000 ? {wst:p.wst} : {})); if (pl.length) o.plugs = pl; }
   return Object.keys(o).length ? o : null;
 }
 function envClean(x){
@@ -3057,6 +3107,7 @@ function tbEngine(a, M, S){
     if (F.eq.on) [['lo', 'lowshelf', 120], ['mid', 'peaking', 1000], ['hi', 'highshelf', 7000]].forEach(([k, ty, fq]) => { const f = a.createBiquadFilter(); f.type = ty; f.frequency.value = fq; f.gain.value = F.eq[k]; if (ty === 'peaking') f.Q.value = 0.9; n.connect(f); n = f; node[k] = f; });
     if (F.drive.on) { const pre = a.createGain(), sh = a.createWaveShaper(), post = a.createGain(), c = new Float32Array(2048); for (let k = 0; k < 2048; k++) { const x = k / 1023.5 - 1; c[k] = Math.tanh(x * 3) / Math.tanh(3); } sh.curve = c; sh.oversample = '2x'; pre.gain.value = 1 + F.drive.amt * 12; post.gain.value = 1 / (1 + F.drive.amt * 3); n.connect(pre); pre.connect(sh); sh.connect(post); n = post; node.drv = pre; node.drvPost = post; }
     if (F.comp.on) { const c = a.createDynamicsCompressor(); c.threshold.value = F.comp.th; c.ratio.value = F.comp.ratio; c.attack.value = 0.005; c.release.value = 0.15; n.connect(c); n = c; node.comp = c; }
+    (F.plugs || []).forEach((P, k) => { if (P.on === false) return; const sIn = a.createGain(), sOut = a.createGain(), key = L.id + ':' + k; n.connect(sIn); (node.slots = node.slots || []).push({key, url:P.url, sIn, sOut}); wamFxWire(a, key, P, sIn, sOut); n = sOut; });      // plugin effects
     const g = a.createGain(), p = a.createStereoPanner ? a.createStereoPanner() : null; g.gain.value = L.vol; n.connect(g);
     if (F.delay.on) { const d = a.createDelay(4), fb = a.createGain(), w = a.createGain(); d.delayTime.value = Math.min(3.9, beat * FX_SYNC[F.delay.sync]); fb.gain.value = F.delay.fb; w.gain.value = F.delay.mix; n.connect(d); d.connect(fb); fb.connect(d); d.connect(w); w.connect(g); node.dly = w; node.dfb = fb; node.dtime = d; }
     if (F.reverb.on) { const cv = a.createConvolver(), w = a.createGain(); cv.buffer = revIR(a, F.reverb.size); w.gain.value = F.reverb.mix; n.connect(cv); cv.connect(w); w.connect(g); node.rev = w; }
@@ -3339,6 +3390,16 @@ function handleTab(act, b){
     case 'tbenvclear': { const X = tbTab(), L = fxLane(); tbEditTab(() => fxStore(X, L.id, undefined, Object.assign({}, L.env || {}, {[fxEnv]:[]}))); break; }
     case 'tbwav': tbWav(); return true;
     case 'tbwamlist': wamCatalog(); return true;
+    case 'tbpfxlist': fxAddOpen = !fxAddOpen; if (fxAddOpen && !wamAll) { wamCatalog(); return true; } break;
+    case 'tbpfxadd': case 'tbpfxurl': { const X = tbTab(), L = fxLane(), F = fxOf(L), u = act === 'tbpfxadd' ? b.dataset.u : (($('#wamfxurl') || {}).value || '').trim();
+      if (!wamOk(u)) { toast('That needs to be the https address of a plugin’s .js file.'); return true; } if (F.plugs.length >= WAM_FX_MAX) break;
+      tbEditTab(() => { F.plugs.push(Object.assign({url:u}, act === 'tbpfxadd' ? {name:b.dataset.n} : {})); fxStore(X, L.id, F); }); fxAddOpen = false;
+      wamFxLoad(L.id + ':' + (F.plugs.length - 1), F.plugs[F.plugs.length - 1]); if (tbp.on && !tbp.rec) tbStart(0); return true; }
+    case 'tbpfxon': case 'tbpfxdel': { const X = tbTab(), L = fxLane(), F = fxOf(L), k = +v; if (!F.plugs[k]) break;
+      tbEditTab(() => { if (act === 'tbpfxon') { if (F.plugs[k].on === false) delete F.plugs[k].on; else F.plugs[k].on = false; } else { F.plugs.splice(k, 1); wamFxDrop(L.id); } fxStore(X, L.id, F); }); if (tbp.on && !tbp.rec) tbStart(0); break; }
+    case 'tbpfxgui': { const key = fxLane().id + ':' + v; fxGui = fxGui === key ? null : key; break; }
+    case 'tbpfxkeep': { const X = tbTab(), L = fxLane(), F = fxOf(L), k = +v, W = wamFx[L.id + ':' + k]; if (!W || !W.inst) break;
+      Promise.resolve(W.inst.audioNode.getState()).then(s => { const j = JSON.stringify(s); if (!j || j.length > 100000) { toast('Its settings are too big to keep with the tab.'); return; } const G = fxOf(fxLane()); if (!G.plugs[k]) return; G.plugs[k].wst = j; fxStore(X, L.id, G); storeTabs(); toast('Its settings are kept with the tab'); }).catch(() => toast('This plugin wouldn’t give its settings.')); return true; }
     case 'tbwamuse': case 'tbwamurl': { const tr = T.track; if (!tr) break; const u = act === 'tbwamuse' ? b.dataset.u : (($('#wamurl') || {}).value || '').trim();
       if (!wamOk(u)) { toast('That needs to be the https address of a plugin’s .js file.'); return true; }
       tbEditTab(() => { tr.url = u; if (act === 'tbwamuse') tr.plug = b.dataset.n; else delete tr.plug; delete tr.wst; }); wamShow = false; wamLoad(tbTrack(tbTab())); return true; }
@@ -3355,7 +3416,7 @@ function handleTab(act, b){
     case 'tbclipmove': { const c = tbClipOf(T, tba.clip); if (!c) break; tbEditTab(() => { c.at = Math.max(0, c.at + +v); }); break; }
     case 'tbclipnudge': { const c = tbClipOf(T, tba.clip); if (!c) break; tbEditTab(() => { c.off = Math.max(0, Math.round((c.off + +v / 1000) * 1000) / 1000); }); break; }
     case 'tbcliptrim': { const c = tbClipOf(T, tba.clip), d = c && tbClipDur(c), A = c && tbAudC[c.take]; if (!c || !d || !A || !A.buf) break; const spt = 60 / T.bpm / TQ, dt = +v * spt;
-      tbEditTab(() => { if (b.dataset.e === 's') { const dd = Math.max(-c.off, Math.min(d - 0.05, dt)); c.at = Math.max(0, c.at + Math.round(dd / spt)); c.off += dd; c.len = d - dd; } else c.len = Math.max(0.05, Math.min(A.buf.duration - c.off, d + dt)); if (c.len >= A.buf.duration - c.off - 0.001) delete c.len; }); break; }    case 'tbtrackdel': { const X = tbTab(), tr = tbTrack(X); if (!tr) break; if (tbDelArm !== 'tr' + tr.id) { tbDelArm = 'tr' + tr.id; break; } tbDelArm = null; if (tbp.on) tbStop(true); tbEditTab(Y => { Y.tracks = Y.tracks.filter(x => x.id !== tr.id); if (!Y.tracks.length) delete Y.tracks; }); state.tabTrack = 0; tbc.c = Math.min(tbc.c, X.cols.length); tbc.s = 5; break; }
+      tbEditTab(() => { if (b.dataset.e === 's') { const dd = Math.max(-c.off, Math.min(d - 0.05, dt)); c.at = Math.max(0, c.at + Math.round(dd / spt)); c.off += dd; c.len = d - dd; } else c.len = Math.max(0.05, Math.min(A.buf.duration - c.off, d + dt)); if (c.len >= A.buf.duration - c.off - 0.001) delete c.len; }); break; }    case 'tbtrackdel': { const X = tbTab(), tr = tbTrack(X); if (!tr) break; if (tbDelArm !== 'tr' + tr.id) { tbDelArm = 'tr' + tr.id; break; } tbDelArm = null; if (tbp.on) tbStop(true); tbEditTab(Y => { Y.tracks = Y.tracks.filter(x => x.id !== tr.id); wamFxDrop(tr.id); if (!Y.tracks.length) delete Y.tracks; }); state.tabTrack = 0; tbc.c = Math.min(tbc.c, X.cols.length); tbc.s = 5; break; }
     case 'tbbeat': tbBeat(v); break;
     case 'tbkitplay': drumHit(+v, 0, null, '', kitCur()); return true;
     case 'tbkitclear': kitClear(+v); return true;
@@ -7806,7 +7867,7 @@ try { if (navigator.storage && navigator.storage.persist) navigator.storage.pers
 lessonsToNps();
 if (state.guideBack) guideRestore();      // the page closed in the middle of a guide: put the neck back
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, wam:{hooks:wamHooks, I:wamI, load:wamLoad, spans:tbSpans, get cat(){ return wamCat; }, set cat(v){ wamCat = v; }, get show(){ return wamShow; }}, get tbWavErr(){ return tbWavErr; }, midiOf, midiBytes, wavOf, tbEngine, envAt, fxOf, tbLength, tba, tbAudC, tbClipFromTake, tbLanes, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, BUILT, kitBuiltLoad, kitSound, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, wam:{hooks:wamHooks, I:wamI, FX:wamFx, fxList:wamFxList, get all(){ return wamAll; }, set all(v){ wamAll = v; }, load:wamLoad, spans:tbSpans, get cat(){ return wamCat; }, set cat(v){ wamCat = v; }, get show(){ return wamShow; }}, get tbWavErr(){ return tbWavErr; }, midiOf, midiBytes, wavOf, tbEngine, envAt, fxOf, tbLength, tba, tbAudC, tbClipFromTake, tbLanes, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, BUILT, kitBuiltLoad, kitSound, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, get phrFavs(){ return phrFavs; }, phrFavOk, get sp(){ return sp; }, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, scalesForChord, followView, loopShape, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
