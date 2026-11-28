@@ -563,6 +563,14 @@ body.pv-done .neck-wrap{display:none !important}
 .kitrow.kitdrop{outline:2px dashed var(--accent); background:color-mix(in srgb, var(--accent) 10%, transparent)}
 .kit .dk.kitdrop .hd, .kit .dk.kitdrop .cy, .kit .dk.kitdrop .pill{stroke:var(--accent); stroke-width:4; stroke-dasharray:6 4}
 .kit .mine{fill:var(--accent)}
+.kitrow .info small{color:var(--muted)}
+.fsbox{display:grid; gap:6px; margin:2px 0 8px; padding:8px; border:1px solid var(--line); border-radius:10px; background:var(--surface-2)}
+.fsbox .row.nw{flex-wrap:nowrap}
+.fsbox input{flex:1 1 auto; min-width:0}
+.fsres{gap:8px; align-items:center}
+.fsn{display:grid; flex:1 1 auto; min-width:0}
+.fsn b, .fsn small{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.fsn b{font-size:13px} .fsn small{font-size:11px; color:var(--muted)}
 @media (max-width: 560px){ .tbtr .tl{display:none} .tbtr{gap:4px} .tbtr .btn{padding:3px 10px} body.tabed:not(.focus) .focus-btn{display:none} body.tabed:not(.focus) .legend{padding-right:104px} }
 /* open: the header lights up and the contents sit in a box joined to it; shut: a plain bar with a chevron */
 .fold-h i{transition:transform .15s}
@@ -2173,17 +2181,17 @@ function kitNew(name){
   return id;
 }
 const KIT_EXT = /\.(wav|wave|mp3|m4a|aac|ogg|oga|opus|flac|webm|aif|aiff|caf)$/i;
-async function kitSet(i, file){
+async function kitSet(i, file, credit){
   const D = DK[i]; if (!D || !file) return;
   if (!/^audio\//.test(file.type || '') && !KIT_EXT.test(file.name || '')) { toast('That isn’t a sound file. Try a WAV, MP3, M4A or OGG.'); return; }
   if (file.size > 8e6) { toast('That file is too big for a drum. Use a short one-shot sound, under 8 MB.'); return; }
   let x; try { x = await kitDecode(file); } catch (e) { toast('This browser couldn’t read that file as audio.'); return; }
   let kit = kitCur(), made = false; if (!kit) { kit = kitNew(); made = true; }      // the built-in kit stays as it is: your sound starts a kit of your own
   const name = String(file.name || 'sound').replace(/\.[^.]+$/, '').slice(0, 40) || 'sound';
-  (kitS[kit] = kitS[kit] || {})[D.id] = Object.assign({name}, x);
+  (kitS[kit] = kitS[kit] || {})[D.id] = Object.assign({name}, x, credit ? {credit} : {});
   toast(made ? `${D.name}: ${name}, in a new kit, “${kits.find(k => k.id === kit).name}”` : `${D.name}: ${name}`); drumHit(i, 0, null, '', kit); render();
   // then kept for next time: the bytes themselves (stored in the database, not as a file beside it)
-  try { const data = await file.arrayBuffer(); await kitTx('readwrite', s => s.put({id:kit + ':' + D.id, kit, drum:D.id, name, data, type:file.type || '', size:data.byteLength, at:Date.now()})); }
+  try { const data = await file.arrayBuffer(); await kitTx('readwrite', s => s.put({id:kit + ':' + D.id, kit, drum:D.id, name, credit:credit || null, data, type:file.type || '', size:data.byteLength, at:Date.now()})); }
   catch (e) { toast('Using it now, but this browser wouldn’t keep it for next time.'); }
 }
 async function kitClear(i){ const kit = kitCur(), D = DK[i]; if (!kit || !D || !kitS[kit]) return; delete kitS[kit][D.id]; render(); try { await kitTx('readwrite', s => s.delete(kit + ':' + D.id)); } catch (e) {} }
@@ -2197,7 +2205,7 @@ async function kitDelete(kit){
 async function kitLoadAll(){
   try {
     const all = (await kitTx('readonly', s => s.getAll())) || [];
-    for (const r of all) { if (!kits.some(k => k.id === r.kit) || !DK.some(d => d.id === r.drum) || !(r.data || r.blob)) continue; try { (kitS[r.kit] = kitS[r.kit] || {})[r.drum] = Object.assign({name:r.name}, await kitDecode(r.data || r.blob)); } catch (e) {} }
+    for (const r of all) { if (!kits.some(k => k.id === r.kit) || !DK.some(d => d.id === r.drum) || !(r.data || r.blob)) continue; try { (kitS[r.kit] = kitS[r.kit] || {})[r.drum] = Object.assign({name:r.name}, r.credit ? {credit:r.credit} : {}, await kitDecode(r.data || r.blob)); } catch (e) {} }
     if (all.length && state.tab === 'tab' && (tbDoc() || {}).kind === 'drums') render();
   } catch (e) {}
 }
@@ -2209,10 +2217,11 @@ function tbKitHtml(){
     ${K ? `<div class="row"><input class="task-in" id="kitname" type="text" maxlength="30" autocomplete="off" aria-label="Kit name" value="${esc(K.name)}">
       <button type="button" class="btn" data-act="tbkitdel" title="Delete this kit and its sounds">${kitDelArm === kit ? 'Delete it?' : 'Delete kit'}</button></div>` : ''}
     ${DK.map((d, i) => { const S = kitMine(i, kit);
-    return `<div class="row nw kitrow" data-kitdrop="${i}"><b>${d.name}</b><span class="info">${S ? '● ' + esc(S.name) : 'built-in'}</span>
+    return `<div class="row nw kitrow" data-kitdrop="${i}"><b>${d.name}</b><span class="info">${S ? '● ' + esc(S.name) + (S.credit ? `<small> · ${esc(S.credit.user)}, ${S.credit.lic}</small>` : '') : 'built-in'}</span>
       <button type="button" class="ib" data-act="tbkitplay" data-v="${i}" aria-label="Hear the ${d.name.toLowerCase()}">▶</button>
+      <button type="button" class="btn" data-act="tbfs" data-v="${i}" aria-pressed="${fs.i === i}" title="Find a sound on Freesound">Find</button>
       <label class="btn kitload">Load…<input type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac,.aif,.aiff" data-kit="${i}" aria-label="Load a sound for the ${d.name.toLowerCase()}"></label>
-      ${S ? `<button type="button" class="ib" data-act="tbkitclear" data-v="${i}" aria-label="Back to the built-in ${d.name.toLowerCase()}">✕</button>` : ''}</div>`; }).join('')}
+      ${S ? `<button type="button" class="ib" data-act="tbkitclear" data-v="${i}" aria-label="Back to the built-in ${d.name.toLowerCase()}">✕</button>` : ''}</div>${fsHtml(i)}`; }).join('')}${kit ? fsCredits(kit) : ''}
     <span class="hint tip">Drag a sound file onto a drum in the kit (or onto its row here), or Load one. ${kit ? 'It goes in this kit.' : 'The built-in kit stays as it is: your first sound starts a kit of your own.'} Each drum track plays its own kit, and a drum with no sound of yours plays the built-in one. Short one-shot sounds work best: WAV, MP3, M4A or OGG. Kits stay in this browser and aren’t synced.</span>`);
 }
 /* dropping a file on a drum (or its row) */
@@ -2227,6 +2236,57 @@ document.addEventListener('change', e => {
   if (el.dataset.kit == null || !el.files || !el.files[0]) return; kitSet(+el.dataset.kit, el.files[0]); el.value = '';
 });
 kitLoadAll();
+/* ---- finding drum sounds on Freesound: search, hear the preview, use it. Your own API key (freesound.org/apiv2/apply),
+   kept on this device and sent only to Freesound. Short sounds only; CC0 (no credit needed) unless you add CC-BY,
+   whose credit is kept with the sound and listed under the kit. ---- */
+const FS_Q = {bd:'kick drum one shot', sn:'snare drum one shot', hh:'closed hihat', oh:'open hihat', t1:'high tom drum', t2:'tom drum', ft:'floor tom', cr:'crash cymbal', rd:'ride cymbal'};
+const fs = {i:-1, q:'', res:null, busy:false, err:'', by:false, prev:null, keyEdit:false};
+const fsLic = l => /zero|publicdomain/i.test(l) ? 'CC0' : /by-nc/i.test(l) ? 'CC BY-NC' : /\/by\//i.test(l) || /^attribution$/i.test(l) ? 'CC BY' : /sampling/i.test(l) ? 'Sampling+' : String(l || '').slice(0, 20);
+const fsKey = () => String(state.fsKey || '').trim();
+async function fsSearch(){
+  const key = fsKey(); if (!key || fs.i < 0) return;
+  fs.busy = true; fs.err = ''; fs.res = null; render();
+  const lic = fs.by ? 'license:("Creative Commons 0" OR "Attribution")' : 'license:"Creative Commons 0"';
+  const u = 'https://freesound.org/apiv2/search/text/?' + new URLSearchParams({query:fs.q, filter:lic + ' duration:[0 TO 4]', fields:'id,name,username,license,duration,previews,url', page_size:'15', sort:'score', token:key});
+  try {
+    const r = await fetch(u);
+    if (r.status === 401 || r.status === 403) throw new Error('key');
+    if (!r.ok) throw new Error('http ' + r.status);
+    const j = await r.json();
+    fs.res = (j.results || []).map(x => ({id:x.id, name:String(x.name || 'sound').slice(0, 60), user:String(x.username || '').slice(0, 40), lic:fsLic(x.license), dur:+x.duration || 0, prev:x.previews && (x.previews['preview-hq-mp3'] || x.previews['preview-lq-mp3']), url:x.url}))
+      .filter(x => x.prev && (x.lic === 'CC0' || (fs.by && x.lic === 'CC BY')));
+  } catch (e) { fs.err = e.message === 'key' ? 'Freesound didn’t accept that API key. Check it, or make a new one.' : 'Couldn’t reach Freesound from here. Check the connection and try again.'; }
+  fs.busy = false; render();
+}
+function fsPlay(k){
+  const x = fs.res && fs.res[k]; if (!x) return;
+  if (fs.prev) { fs.prev.pause(); fs.prev = null; }
+  try { fs.prev = new Audio(x.prev); fs.prev.play().catch(() => toast('That preview wouldn’t play.')); } catch (e) {}
+}
+async function fsUse(k){
+  const x = fs.res && fs.res[k], i = fs.i; if (!x || i < 0) return;
+  toast('Getting ' + x.name + '…');
+  let ab; try { const r = await fetch(x.prev); if (!r.ok) throw 0; ab = await r.arrayBuffer(); } catch (e) { toast('Couldn’t get that sound from Freesound. Try another one.'); return; }
+  await kitSet(i, new File([ab], x.name.replace(/\.[^.]+$/, '') + '.mp3', {type:'audio/mpeg'}), {id:x.id, name:x.name, user:x.user, lic:x.lic, url:x.url});
+}
+/* the search, under the drum's row */
+function fsHtml(i){
+  if (fs.i !== i) return '';
+  const key = fsKey();
+  if (!key || fs.keyEdit) return `<div class="fsbox"><b>Find a ${DK[i].name.toLowerCase()} on Freesound</b>
+    <span class="hint tip">Freesound needs a free account and an API key: sign in at freesound.org, then get one at <a href="https://freesound.org/apiv2/apply" target="_blank" rel="noopener">freesound.org/apiv2/apply</a> (any name and description will do) and paste the "Client secret/Api key" here. It stays on this device and only goes to Freesound.</span>
+    <div class="row nw"><input class="task-in" id="fskey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="API key" aria-label="Freesound API key" value="${esc(key)}"><button type="button" class="btn primary" data-act="tbfskey">Save</button><button type="button" class="ib" data-act="tbfsclose" aria-label="Close">✕</button></div></div>`;
+  const res = fs.busy ? '<span class="info">Searching…</span>' : fs.err ? `<span class="info">${esc(fs.err)}</span>` : !fs.res ? '' : !fs.res.length ? '<span class="info">Nothing found. Try other words.</span>'
+    : fs.res.map((x, k) => `<div class="row nw fsres"><button type="button" class="ib" data-act="tbfsplay" data-v="${k}" aria-label="Hear ${esc(x.name)}">▶</button><span class="fsn"><b>${esc(x.name)}</b><small>${esc(x.user)} · ${x.dur.toFixed(1)} s · ${x.lic}</small></span><button type="button" class="btn" data-act="tbfsuse" data-v="${k}">Use</button></div>`).join('');
+  return `<div class="fsbox"><div class="row nw"><input class="task-in" id="fsq" type="search" enterkeyhint="search" autocomplete="off" aria-label="Search Freesound" value="${esc(fs.q)}"><button type="button" class="btn primary" data-act="tbfsgo">Search</button><button type="button" class="ib" data-act="tbfsclose" aria-label="Close">✕</button></div>
+    <div class="row"><button type="button" class="chip${fs.by ? ' sel' : ''}" data-act="tbfsby" aria-pressed="${fs.by}" title="Also sounds that ask to be credited. The credit is kept with the sound and listed under the kit.">Include CC BY</button><button type="button" class="chip" data-act="tbfskeyedit">API key…</button></div>
+    ${res}</div>`;
+}
+/* the credits for the sounds in a kit that ask for them */
+function fsCredits(kit){
+  const c = DK.map(d => kitS[kit] && kitS[kit][d.id]).filter(S => S && S.credit && S.credit.lic !== 'CC0');
+  return c.length ? `<span class="hint tip">Sounds from Freesound: ${c.map(S => `<a href="${esc(S.credit.url || 'https://freesound.org')}" target="_blank" rel="noopener">${esc(S.credit.name)}</a> by ${esc(S.credit.user)} (${S.credit.lic})`).join('; ')}.</span>` : '';
+}
 function tbRecBtn(){
   let r = null; try { r = rec; } catch (e) {} const mine = !!r && r.owned === 'tab';
   return `<button type="button" class="chip tbrec${mine ? ' sel' : ''}" data-act="tbrec" aria-pressed="${mine}" title="${mine ? 'Stop recording' : 'Record yourself over the tab, with all its tracks. The take goes in Practice, Takes.'}"${r && !mine ? ' disabled' : ''}>${mine ? '■ <span data-rec-time>0:00</span>' : '● <span class="tl">Rec</span>'}</button>`;
@@ -2755,6 +2815,14 @@ function handleTab(act, b){
     case 'tbkitclear': kitClear(+v); return true;
     case 'tbkitpick': { const tr = T.track; if (!tr) break; if (v) tr.kit = v; else delete tr.kit; state.kitLast = v; kitDelArm = null; storeTabs(); if (tbp.on) tbStart(0); break; }
     case 'tbkitnew': kitNew(); kitDelArm = null; break;
+    case 'tbfs': if (fs.i === +v) { fs.i = -1; break; } fs.i = +v; fs.q = FS_Q[DK[+v].id] || DK[+v].name; fs.res = null; fs.err = ''; fs.keyEdit = false; if (fsKey()) { fsSearch(); return true; } break;
+    case 'tbfsgo': { const el = $('#fsq'); if (el) fs.q = el.value.trim() || fs.q; fsSearch(); return true; }
+    case 'tbfsby': fs.by = !fs.by; if (fsKey() && fs.i >= 0) { fsSearch(); return true; } break;
+    case 'tbfsplay': fsPlay(+v); return true;
+    case 'tbfsuse': fsUse(+v); return true;
+    case 'tbfsclose': fs.i = -1; fs.keyEdit = false; if (fs.prev) { fs.prev.pause(); fs.prev = null; } break;
+    case 'tbfskeyedit': fs.keyEdit = true; break;
+    case 'tbfskey': { const el = $('#fskey'), k = el ? el.value.trim() : ''; state.fsKey = k.slice(0, 80); fs.keyEdit = false; save(); if (k) { fsSearch(); return true; } break; }
     case 'tbkitdel': { const k = kitCur(); if (!k) break; if (kitDelArm !== k) { kitDelArm = k; break; } kitDelArm = null; kitDelete(k); return true; }
     case 'tbvel': tbVel(v); break;
     case 'tbfk': tbFillCfg().k = v; break;
@@ -7057,6 +7125,7 @@ panel.addEventListener('keydown', e => {
 });
 panel.addEventListener('click', e => { tbShift = e.shiftKey; }, true);      // shift-click selects columns
 panel.addEventListener('keydown', e => { if (e.target.id === 'tbsheet') tbKey(e); else if ((e.target.id === 'tbname' || e.target.id === 'tblab' || e.target.id === 'kitname') && e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+panel.addEventListener('keydown', e => { if (e.key !== 'Enter') return; if (e.target.id === 'fsq') { e.preventDefault(); handleTab('tbfsgo', {dataset:{}}); } else if (e.target.id === 'fskey') { e.preventDefault(); handleTab('tbfskey', {dataset:{}}); } });      // Enter searches Freesound, or saves the key
 /* the tab's name and a column's label: saved as typed in, without redrawing (a tap elsewhere would be lost) */
 panel.addEventListener('change', e => {
   const T = tbDoc(), id = e.target.id; if (!T || (id !== 'tbname' && id !== 'tblab')) return;
@@ -7187,7 +7256,7 @@ try { if (navigator.storage && navigator.storage.persist) navigator.storage.pers
 lessonsToNps();
 if (state.guideBack) guideRestore();      // the page closed in the middle of a guide: put the neck back
 // small read-only hook for automated tests and the browser console
-window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
+window.fretboardAtlas = {get state(){ return state; }, tbDoc, tbTab, tbClean, DK, drumHit, kitSvg, kitS, kitSet, kitClear, kitNew, kitDelete, kitLoadAll, fs, fsSearch, fsUse, get kits(){ return kits; }, get kitHits(){ return kitHits; }, tbText, tbParse, get tbc(){ return tbc; }, get tbp(){ return tbp; }, get tabs(){ return tabs; }, arpShape, scalePositions, scaleRun, chordSemis:t => CHORDS[t].labels.map(semi), rollProgression, makeBuf, pluckRate:m => makeBuf(m).rate, getAudio:() => getAudio(), findChords, loopSlot, snapshot, applySnapshot, snapLink, unb64url, get saves(){ return saves; }, setSide:v => setSide(v), get side(){ return side; }, get landscape(){ return landQ.matches; }, tick:() => { tickUI(); quizTick(); }, get metronomeOn(){ return metro.on; },
   get quiz(){ return quiz; }, clickFor:(t, m) => clickFor(t, m || state.metro), ladderBpm,
   get loop(){ return loop; }, get drone(){ return drone; }, get log(){ return practiceLog; }, progressionChords, phraseFor, phrLoad, get phrFavs(){ return phrFavs; }, phrFavOk, get sp(){ return sp; }, cpAnalyze, cpOptions, cpKeys, cpKind, cpTension, CP_T, cpPlay, analyzeTime, tcSegs, tcNext, get tc(){ return tc; }, set tc(v){ tc = v; }, get tcLast(){ return tcLast; }, set tcLast(v){ tcLast = v; }, tcEnd, get timeLog(){ return timeLog; }, get takes(){ return takes; }, get rec(){ return rec; }, takeBlob, takesLoad, get cal(){ return cal; }, logStats, loopTick, rollItem, npsClean, lessonsToNps, scalePosFor, itemLike, pinVoicings, pinVoicing, pinMidis, backingChords, CHORD_ORDER, GUIDE, guideRef, guideChords, guideLine, get guide(){ return guide; }, LESSON_SCALE_GROUPS, bestScale, guideTones, voiceLead, leadText, homeScale, scalesForChord, followView, loopShape, loopPaint, SCALES_:SCALES, CHORDS_:CHORDS, get review(){ return review; }, set review(v){ review = v; }, reviewGrade, reviewStats, buildToday, quizGrade, itemFromKey,
   get answers(){ return answers; }, quizAgg, weakness, quizNext:() => quizNext(),
@@ -7342,7 +7411,7 @@ function setSound(on){
 var SYNC = null;
 const SYNC_CID = '798129945030-qmhaqovsp8kmfefd7f9mcrcjur3p1av5.apps.googleusercontent.com', SYNC_FILE = 'fretboard-atlas-sync.json';
 const SYNC_META = 'fretboard-atlas-sync-v1', SYNC_BASE = 'fretboard-atlas-sync-base-v1';
-const SYNC_LOCAL = ['tab', 'ptab', 'lastSub', 'pview', 'neckHidden', 'folds', 'secOpen', 'ingOpen', 'tap', 'pinView', 'tabCur', 'tabTrack', 'kitLast', 'session', 'tkErr', 'sound', 'avDelay', 'micCal', 'rotated'];
+const SYNC_LOCAL = ['tab', 'ptab', 'lastSub', 'pview', 'neckHidden', 'folds', 'secOpen', 'ingOpen', 'tap', 'pinView', 'tabCur', 'tabTrack', 'kitLast', 'fsKey', 'session', 'tkErr', 'sound', 'avDelay', 'micCal', 'rotated'];
 SYNC = {linked:false, token:null, exp:0, fid:null, busy:false, again:false, timer:0, last:0, err:'', gis:null, client:null, pushed:''};
 try { const m = JSON.parse(localStorage.getItem(SYNC_META)); if (m && m.linked) Object.assign(SYNC, {linked:true, last:+m.last || 0}); } catch (e) {}
 function syncMetaSave(){ try { localStorage.setItem(SYNC_META, JSON.stringify({linked:SYNC.linked, last:SYNC.last})); } catch (e) {} }
