@@ -31,6 +31,11 @@
   --font:'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --open:42px;
   --row:clamp(24px, 8.4vh, 40px);
+}
+@media (orientation: portrait){
+  :root{--row:clamp(24px, 7.4vh, 35px)}      /* upright, a slightly shorter neck leaves more room for the tab under it */
+}
+:root{
   --dot:min(30px, calc(var(--row) - 5px));
   color-scheme:light;
 }
