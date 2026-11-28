@@ -2001,6 +2001,11 @@ const DK = [{id:'bd', name:'Kick', sh:'BD', sym:'o'}, {id:'sn', name:'Snare', sh
   {id:'t1', name:'High tom', sh:'T1', sym:'o'}, {id:'t2', name:'Low tom', sh:'T2', sym:'o'}, {id:'ft', name:'Floor tom', sh:'FT', sym:'o'}, {id:'cr', name:'Crash', sh:'CR', sym:'X'}, {id:'rd', name:'Ride', sh:'RD', sym:'x'}];
 const DROWS = [7, 8, 3, 2, 4, 5, 6, 1, 0];
 const TB_KINDS = {gtr:'Guitar', drums:'Drums', audio:'Audio', wam:'Instrument'};
+/* used when saved tabs are read in, at the start: so they're here, before that */
+const FX_DEF = {filter:{on:false, type:'lowpass', f:8000, q:0.7}, eq:{on:false, lo:0, mid:0, hi:0}, drive:{on:false, amt:0.3}, comp:{on:false, th:-18, ratio:4}, delay:{on:false, sync:'8d', fb:0.35, mix:0.25}, reverb:{on:false, size:2, mix:0.25}};
+const FX_SYNC = {'4':1, '8':0.5, '8d':0.75, '16':0.25, '4t':2 / 3};
+const ENV_P = {vol:['Volume', 0, 1.5, 1], pan:['Pan', -1, 1, 0], cut:['Filter', 40, 18000, 8000], drv:['Drive', 0, 1, 0.3], dly:['Delay', 0, 1, 0.25], rev:['Reverb', 0, 1, 0.25]};
+function wamOk(u){ return typeof u === 'string' && /^https:\/\/[^\s"'<>]+\.m?js(\?[^\s"'<>]*)?$/i.test(u) && u.length <= 500; }
 function tbCleanCols(cs, dr){
   return (Array.isArray(cs) ? cs : []).slice(0, TMAX).filter(c => c && tbDurOk(c.d)).map(c => {
     const seen = new Set(), raw = (Array.isArray(c.n) ? c.n : []).filter(q => q && num(q.s, 0, dr ? DK.length - 1 : 5, -1) >= 0 && (dr || num(q.f, 0, 24, -1) >= 0) && !seen.has(q.s) && seen.add(q.s));
@@ -2016,7 +2021,16 @@ function tbClean(t){
     t.gmute === true ? {gmute:true} : {}, t.gsolo === true ? {gsolo:true} : {}, tbVolOk(t.gvol) ? {gvol:t.gvol} : {}, tbPanOk(t.gpan) ? {gpan:t.gpan} : {}, fxClean(t.gfx) ? {gfx:fxClean(t.gfx)} : {}, envClean(t.genv) ? {genv:envClean(t.genv)} : {}, tracks.length ? {tracks} : {});
 }
 let tabs = [];
-try { const x = JSON.parse(localStorage.getItem(TABKEY)); if (Array.isArray(x)) tabs = x.map(tbClean).filter(Boolean); } catch (e) {}
+/* reading saved tabs: one at a time, so a tab that can't be read stays as it was instead of taking the others with it;
+   and a copy of what was saved, kept before the first change, to get back to if ever something goes wrong */
+let tbLoadBad = 0;
+try {
+  const raw = localStorage.getItem(TABKEY), x = JSON.parse(raw);
+  if (Array.isArray(x)) {
+    tabs = x.map(t => { try { return tbClean(t); } catch (e) { tbLoadBad++; return t && typeof t === 'object' && Array.isArray(t.cols) ? t : null; } }).filter(Boolean);
+    if (raw && raw.length > 2) try { localStorage.setItem(TABKEY + '-backup', raw); } catch (e) {}
+  }
+} catch (e) {}
 function storeTabs(){ syncDirty(); try { localStorage.setItem(TABKEY, JSON.stringify(tabs)); } catch (e) { toast('Could not save: the browser storage is full.'); } }
 const tbTab = () => tabs.find(t => t.id === state.tabCur) || null;
 /* ---- the tab's tracks. The guitar is the tab's own columns; the others are in T.tracks. tbDoc() is the track being
@@ -2652,7 +2666,6 @@ const WAM_LIST = 'https://www.webaudiomodules.com/community/plugins.json', WAM_B
 const wamHooks = {imp:u => import(u), host:async a => { const {initializeWamHost} = await import(WAM_SDK); const [gid] = await initializeWamHost(a); return gid; }};
 const wamI = {};      // track id -> {url, ctx, inst, gui, name, busy, err}
 let wamHost = null, wamCat = null, wamCatBusy = false, wamShow = false;
-const wamOk = u => typeof u === 'string' && /^https:\/\/[^\s"'<>]+\.m?js(\?[^\s"'<>]*)?$/i.test(u) && u.length <= 500;
 function wamHostFor(a){ if (!wamHost || wamHost.ctx !== a) wamHost = {ctx:a, p:wamHooks.host(a)}; return wamHost.p; }
 async function wamLoad(tr){
   const a = getAudio(); if (!a || !wamOk(tr.url)) return;
@@ -3006,9 +3019,6 @@ function tbStop(quiet){
 }
 /* ---- a track's effects, in order: filter, EQ, drive, compressor, then delay and reverb sends. Only what's changed from
    these is saved. Envelopes: points [tick, value] for vol, pan, cut (filter cutoff), drv, dly, rev. ---- */
-const FX_DEF = {filter:{on:false, type:'lowpass', f:8000, q:0.7}, eq:{on:false, lo:0, mid:0, hi:0}, drive:{on:false, amt:0.3}, comp:{on:false, th:-18, ratio:4}, delay:{on:false, sync:'8d', fb:0.35, mix:0.25}, reverb:{on:false, size:2, mix:0.25}};
-const FX_SYNC = {'4':1, '8':0.5, '8d':0.75, '16':0.25, '4t':2 / 3};
-const ENV_P = {vol:['Volume', 0, 1.5, 1], pan:['Pan', -1, 1, 0], cut:['Filter', 40, 18000, 8000], drv:['Drive', 0, 1, 0.3], dly:['Delay', 0, 1, 0.25], rev:['Reverb', 0, 1, 0.25]};
 const fxOf = L => { const x = L.fx || {}, o = {}; for (const k in FX_DEF) o[k] = Object.assign({}, FX_DEF[k], x[k] || {}); return o; };
 function fxClean(x){
   if (!x || typeof x !== 'object') return null; const o = {}, rng = (v, lo, hi) => typeof v === 'number' && v >= lo && v <= hi;
